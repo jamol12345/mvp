@@ -1,0 +1,18 @@
+{
+  "name": "mvp-lead-management",
+  "version": "1.0.0",
+  "description": "Minimal MVP web application for lead management",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["express", "mongodb", "mvp"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^8.0.3",
+    "dotenv": "^16.3.1"
+  }
+}

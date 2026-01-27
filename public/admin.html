@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Lead Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Login Section (shown when not authenticated) -->
+        <div id="loginSection" class="login-wrapper">
+            <div class="login-box">
+                <h1>Admin Login</h1>
+                <p class="subtitle">Enter your admin token to access the panel</p>
+                
+                <div id="loginError" class="message error-message" style="display: none;">
+                    <p id="loginErrorText"></p>
+                </div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="adminToken">Admin Token</label>
+                        <input 
+                            type="password" 
+                            id="adminToken" 
+                            name="adminToken" 
+                            required 
+                            placeholder="Enter admin token"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <button type="submit" class="submit-btn">Login</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Admin Panel Section (shown when authenticated) -->
+        <div id="adminPanel" class="admin-panel fade-in" style="display: none;">
+            <div class="admin-header">
+                <h1>Admin Panel - Lead Management</h1>
+                <div class="header-actions">
+                    <a href="done_calls.html" class="btn-link">View Done Calls →</a>
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </div>
+
+            <div id="loadingMessage" class="message info-message" style="display: none;">
+                <p>Loading leads...</p>
+            </div>
+
+            <div id="errorMessage" class="message error-message" style="display: none;">
+                <p id="errorText"></p>
+            </div>
+
+            <div id="noLeadsMessage" class="message info-message" style="display: none;">
+                <p>No new leads at the moment.</p>
+            </div>
+
+            <!-- Leads Table -->
+            <div id="leadsTableWrapper" style="display: none;">
+                <table class="leads-table">
+                    <thead>
+                        <tr>
+                            <th>Name & Surname</th>
+                            <th>Phone Number</th>
+                            <th>Submitted</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leadsTableBody">
+                        <!-- Leads will be inserted here dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for DONE action -->
+    <div id="doneModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Mark Lead as Done</h2>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Add a comment for this lead:</p>
+                <form id="doneForm">
+                    <input type="hidden" id="doneLeadId">
+                    <div class="form-group">
+                        <label for="comment">Comment</label>
+                        <textarea 
+                            id="comment" 
+                            name="comment" 
+                            rows="4" 
+                            placeholder="Enter comment (optional)"
+                        ></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="cancelDone">Cancel</button>
+                        <button type="submit" class="btn-submit">Submit</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store admin token in memory (not localStorage for security)
+        let adminToken = null;
+
+        // ============================================
+        // LOGIN FUNCTIONALITY
+        // ============================================
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const token = document.getElementById('adminToken').value.trim();
+            document.getElementById('loginError').style.display = 'none';
+
+            if (!token) {
+                showLoginError('Please enter an admin token.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Store token and show admin panel
+                    adminToken = token;
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('adminPanel').style.display = 'block';
+                    document.getElementById('adminToken').value = '';
+                    
+                    // Load leads
+                    loadLeads();
+                } else {
+                    showLoginError(data.error || 'Invalid token. Please try again.');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showLoginError('Network error. Please try again.');
+            }
+        });
+
+        function showLoginError(message) {
+            document.getElementById('loginErrorText').textContent = message;
+            document.getElementById('loginError').style.display = 'block';
+        }
+
+        // ============================================
+        // LOGOUT FUNCTIONALITY
+        // ============================================
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            adminToken = null;
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+            document.getElementById('leadsTableBody').innerHTML = '';
+        });
+
+        // ============================================
+        // LOAD LEADS
+        // ============================================
+
+        async function loadLeads() {
+            if (!adminToken) return;
+
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('noLeadsMessage').style.display = 'none';
+            document.getElementById('leadsTableWrapper').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/admin/leads', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': adminToken
+                    }
+                });
+
+                const data = await response.json();
+
+                document.getElementById('loadingMessage').style.display = 'none';
+
+                if (response.ok) {
+                    if (data.leads && data.leads.length > 0) {
+                        displayLeads(data.leads);
+                    } else {
+                        document.getElementById('noLeadsMessage').style.display = 'block';
+                    }
+                } else {
+                    if (response.status === 401) {
+                        // Token expired or invalid
+                        showError('Session expired. Please login again.');
+                        setTimeout(() => {
+                            adminToken = null;
+                            document.getElementById('loginSection').style.display = 'block';
+                            document.getElementById('adminPanel').style.display = 'none';
+                        }, 2000);
+                    } else {
+                        showError(data.error || 'Failed to load leads.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading leads:', error);
+                document.getElementById('loadingMessage').style.display = 'none';
+                showError('Network error. Please try again.');
+            }
+        }
+
+        function displayLeads(leads) {
+            const tbody = document.getElementById('leadsTableBody');
+            tbody.innerHTML = '';
+
+            leads.forEach((lead, index) => {
+                const row = document.createElement('tr');
+                row.className = 'table-row-animate';
+                row.style.animationDelay = `${index * 0.1}s`;
+                
+                const date = new Date(lead.createdAt).toLocaleString();
+                
+                row.innerHTML = `
+                    <td>${escapeHtml(lead.name)} ${escapeHtml(lead.surname)}</td>
+                    <td>${escapeHtml(lead.phoneNumber)}</td>
+                    <td>${date}</td>
+                    <td class="actions-cell">
+                        <button class="btn-done" onclick="handleDone('${lead._id}')">DONE</button>
+                        <button class="btn-not" onclick="handleNot('${lead._id}')">NOT</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('leadsTableWrapper').style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
+        }
+
+        // ============================================
+        // DONE ACTION
+        // ============================================
+
+        function handleDone(leadId) {
+            document.getElementById('doneLeadId').value = leadId;
+            document.getElementById('comment').value = '';
+            const modal = document.getElementById('doneModal');
+            modal.style.display = 'flex';
+            // Trigger animation
+            setTimeout(() => {
+                modal.classList.add('modal-open');
+            }, 10);
+        }
+
+        document.getElementById('doneForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const leadId = document.getElementById('doneLeadId').value;
+            const comment = document.getElementById('comment').value.trim();
+
+            try {
+                const response = await fetch(`/api/admin/leads/${leadId}/done`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': adminToken
+                    },
+                    body: JSON.stringify({ comment })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Close modal and reload leads
+                    closeModal();
+                    loadLeads();
+                } else {
+                    if (response.status === 401) {
+                        showError('Session expired. Please login again.');
+                        setTimeout(() => {
+                            adminToken = null;
+                            document.getElementById('loginSection').style.display = 'block';
+                            document.getElementById('adminPanel').style.display = 'none';
+                            document.getElementById('doneModal').style.display = 'none';
+                        }, 2000);
+                    } else {
+                        alert(data.error || 'Failed to update lead.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating lead:', error);
+                alert('Network error. Please try again.');
+            }
+        });
+
+        // Close modal handlers
+        function closeModal() {
+            const modal = document.getElementById('doneModal');
+            modal.classList.remove('modal-open');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300); // Match CSS animation duration
+        }
+
+        document.getElementById('closeModal').addEventListener('click', closeModal);
+        document.getElementById('cancelDone').addEventListener('click', closeModal);
+
+        // Close modal when clicking outside
+        document.getElementById('doneModal').addEventListener('click', (e) => {
+            if (e.target.id === 'doneModal') {
+                closeModal();
+            }
+        });
+
+        // ============================================
+        // NOT ACTION (Archive)
+        // ============================================
+
+        async function handleNot(leadId) {
+            if (!confirm('Are you sure you want to archive this lead? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/admin/leads/${leadId}/not`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': adminToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Reload leads
+                    loadLeads();
+                } else {
+                    if (response.status === 401) {
+                        showError('Session expired. Please login again.');
+                        setTimeout(() => {
+                            adminToken = null;
+                            document.getElementById('loginSection').style.display = 'block';
+                            document.getElementById('adminPanel').style.display = 'none';
+                        }, 2000);
+                    } else {
+                        alert(data.error || 'Failed to archive lead.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error archiving lead:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>

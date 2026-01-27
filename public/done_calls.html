@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Done Calls Archive - Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Login Section (shown when not authenticated) -->
+        <div id="loginSection" class="login-wrapper">
+            <div class="login-box">
+                <h1>Admin Login</h1>
+                <p class="subtitle">Enter your admin token to access the done calls archive</p>
+                
+                <div id="loginError" class="message error-message" style="display: none;">
+                    <p id="loginErrorText"></p>
+                </div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="adminToken">Admin Token</label>
+                        <input 
+                            type="password" 
+                            id="adminToken" 
+                            name="adminToken" 
+                            required 
+                            placeholder="Enter admin token"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <button type="submit" class="submit-btn">Login</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Done Calls Archive Section (shown when authenticated) -->
+        <div id="archivePanel" class="admin-panel" style="display: none;">
+            <div class="admin-header">
+                <div>
+                    <h1>Done Calls Archive</h1>
+                    <p class="subtitle">Completed deals and successfully closed leads</p>
+                </div>
+                <div class="header-actions">
+                    <a href="admin.html" class="btn-link">← Back to New Leads</a>
+                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                </div>
+            </div>
+
+            <div id="loadingMessage" class="message info-message" style="display: none;">
+                <p>Loading completed leads...</p>
+            </div>
+
+            <div id="errorMessage" class="message error-message" style="display: none;">
+                <p id="errorText"></p>
+            </div>
+
+            <div id="noLeadsMessage" class="message info-message" style="display: none;">
+                <p>No completed leads yet.</p>
+            </div>
+
+            <!-- Done Calls Table -->
+            <div id="leadsTableWrapper" style="display: none;">
+                <table class="leads-table">
+                    <thead>
+                        <tr>
+                            <th>Name & Surname</th>
+                            <th>Phone Number</th>
+                            <th>Comment</th>
+                            <th>Date Closed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leadsTableBody">
+                        <!-- Leads will be inserted here dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store admin token in memory (not localStorage for security)
+        let adminToken = null;
+
+        // ============================================
+        // LOGIN FUNCTIONALITY
+        // ============================================
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const token = document.getElementById('adminToken').value.trim();
+            document.getElementById('loginError').style.display = 'none';
+
+            if (!token) {
+                showLoginError('Please enter an admin token.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Store token and show archive panel
+                    adminToken = token;
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('archivePanel').style.display = 'block';
+                    document.getElementById('adminToken').value = '';
+                    
+                    // Load done calls
+                    loadDoneCalls();
+                } else {
+                    showLoginError(data.error || 'Invalid token. Please try again.');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showLoginError('Network error. Please try again.');
+            }
+        });
+
+        function showLoginError(message) {
+            document.getElementById('loginErrorText').textContent = message;
+            document.getElementById('loginError').style.display = 'block';
+        }
+
+        // ============================================
+        // LOGOUT FUNCTIONALITY
+        // ============================================
+
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            adminToken = null;
+            document.getElementById('loginSection').style.display = 'block';
+            document.getElementById('archivePanel').style.display = 'none';
+            document.getElementById('leadsTableBody').innerHTML = '';
+        });
+
+        // ============================================
+        // LOAD DONE CALLS
+        // ============================================
+
+        async function loadDoneCalls() {
+            if (!adminToken) return;
+
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('noLeadsMessage').style.display = 'none';
+            document.getElementById('leadsTableWrapper').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/admin/done-calls', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': adminToken
+                    }
+                });
+
+                const data = await response.json();
+
+                document.getElementById('loadingMessage').style.display = 'none';
+
+                if (response.ok) {
+                    if (data.leads && data.leads.length > 0) {
+                        displayDoneCalls(data.leads);
+                    } else {
+                        document.getElementById('noLeadsMessage').style.display = 'block';
+                    }
+                } else {
+                    if (response.status === 401) {
+                        // Token expired or invalid
+                        showError('Session expired. Please login again.');
+                        setTimeout(() => {
+                            adminToken = null;
+                            document.getElementById('loginSection').style.display = 'block';
+                            document.getElementById('archivePanel').style.display = 'none';
+                        }, 2000);
+                    } else {
+                        showError(data.error || 'Failed to load done calls.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading done calls:', error);
+                document.getElementById('loadingMessage').style.display = 'none';
+                showError('Network error. Please try again.');
+            }
+        }
+
+        function displayDoneCalls(leads) {
+            const tbody = document.getElementById('leadsTableBody');
+            tbody.innerHTML = '';
+
+            leads.forEach((lead, index) => {
+                const row = document.createElement('tr');
+                row.className = 'table-row-animate';
+                row.style.animationDelay = `${index * 0.1}s`;
+                
+                // Use updatedAt for date closed, fallback to createdAt
+                const dateClosed = lead.updatedAt || lead.createdAt;
+                const formattedDate = new Date(dateClosed).toLocaleString();
+                
+                const comment = lead.comment || '(No comment)';
+                
+                row.innerHTML = `
+                    <td>${escapeHtml(lead.name)} ${escapeHtml(lead.surname)}</td>
+                    <td>${escapeHtml(lead.phoneNumber)}</td>
+                    <td>${escapeHtml(comment)}</td>
+                    <td>${formattedDate}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('leadsTableWrapper').style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
