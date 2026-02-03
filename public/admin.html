@@ -70,7 +70,14 @@
                 <p>No new leads at the moment.</p>
             </div>
 
+            <div id="newClientNotification" class="message info-message slide-in-top" style="display: none;">
+                <p>New client added. Please refresh the dashboard.</p>
+            </div>
+
             <!-- Leads Table -->
+            <div class="header-actions" style="margin-bottom: 10px;">
+                <button id="refreshBtn" class="btn-link" type="button">Refresh</button>
+            </div>
             <div id="leadsTableWrapper" style="display: none;">
                 <table class="leads-table">
                     <thead>
@@ -186,6 +193,7 @@
     <script>
         let adminToken = null;
         let userRole = null;
+        let pollIntervalId = null;
 
         function getAuthHeader() {
             return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
@@ -237,6 +245,8 @@
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
                     document.getElementById('adminToken').value = '';
+                    initLastSeenAt();
+                    startPolling();
                     loadLeads();
                 } else {
                     showLoginError(data.error || 'Invalid token. Please try again.');
@@ -265,10 +275,15 @@
         document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
             adminToken = null;
             userRole = null;
+            if (pollIntervalId) {
+                clearInterval(pollIntervalId);
+                pollIntervalId = null;
+            }
             document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('adminPanel').style.display = 'none';
             document.getElementById('leadsTableBody').innerHTML = '';
+            document.getElementById('newClientNotification').style.display = 'none';
         });
 
         document.addEventListener('click', () => {
@@ -358,6 +373,41 @@
         // LOAD LEADS
         // ============================================
 
+        const LAST_SEEN_KEY = 'crm_lastSeenAt';
+
+        function initLastSeenAt() {
+            if (!localStorage.getItem(LAST_SEEN_KEY)) {
+                localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+            }
+        }
+
+        function getLastSeenAt() {
+            return localStorage.getItem(LAST_SEEN_KEY);
+        }
+
+        function updateLastSeenAtFromLeads(leads) {
+            if (!leads || leads.length === 0) {
+                return;
+            }
+            let maxCreated = null;
+            leads.forEach(lead => {
+                if (lead.createdAt) {
+                    const d = new Date(lead.createdAt);
+                    if (!isNaN(d.getTime())) {
+                        if (!maxCreated || d > maxCreated) {
+                            maxCreated = d;
+                        }
+                    }
+                }
+            });
+            if (maxCreated) {
+                const current = getLastSeenAt();
+                if (!current || new Date(current) < maxCreated) {
+                    localStorage.setItem(LAST_SEEN_KEY, maxCreated.toISOString());
+                }
+            }
+        }
+
         async function loadLeads() {
             if (!adminToken) return;
 
@@ -379,6 +429,8 @@
                 if (response.ok) {
                     if (data.leads && data.leads.length > 0) {
                         displayLeads(data.leads);
+                        updateLastSeenAtFromLeads(data.leads);
+                        document.getElementById('newClientNotification').style.display = 'none';
                     } else {
                         document.getElementById('noLeadsMessage').style.display = 'block';
                     }
@@ -401,6 +453,45 @@
                 showError('Network error. Please try again.');
             }
         }
+
+        const POLL_INTERVAL_MS = 12000;
+
+        async function pollForNewClients() {
+            if (!adminToken) return;
+            const since = getLastSeenAt();
+            if (!since) {
+                initLastSeenAt();
+                return;
+            }
+            try {
+                const response = await fetch('/api/admin/leads/poll?since=' + encodeURIComponent(since), {
+                    method: 'GET',
+                    headers: getAuthHeader()
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    if (data.newCount && data.newCount > 0) {
+                        document.getElementById('newClientNotification').style.display = 'block';
+                    }
+                } else if (response.status === 401) {
+                    showError('Session expired. Please login again.');
+                }
+            } catch (err) {
+                // Fail silently to keep polling lightweight
+                console.error('Polling error', err);
+            }
+        }
+
+        function startPolling() {
+            if (pollIntervalId) {
+                clearInterval(pollIntervalId);
+            }
+            pollIntervalId = setInterval(pollForNewClients, POLL_INTERVAL_MS);
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadLeads();
+        });
 
         async function loadPriorityAnalytics() {
             if (!adminToken) return;

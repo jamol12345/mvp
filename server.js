@@ -91,6 +91,9 @@ const leadSchema = new mongoose.Schema({
   }
 });
 
+// Index createdAt for efficient polling by timestamp
+leadSchema.index({ createdAt: 1 });
+
 // Update updatedAt before saving
 leadSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
@@ -411,6 +414,50 @@ app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, as
     });
   } catch (error) {
     console.error('❌ [ERROR] Error fetching priority analytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Lightweight polling endpoint: detect new "new" status clients since given timestamp
+// Query params:
+//   since: ISO timestamp string representing last seen createdAt
+// Response:
+//   { success, newCount, latestCreatedAt }
+app.get('/api/admin/leads/poll', authenticateAdmin, async (req, res) => {
+  try {
+    const { since } = req.query;
+
+    let sinceDate;
+    if (since) {
+      const parsed = new Date(since);
+      if (isNaN(parsed.getTime())) {
+        // Invalid timestamp -> treat as "now" to avoid counting historical data
+        sinceDate = new Date();
+      } else {
+        sinceDate = parsed;
+      }
+    } else {
+      // No timestamp provided -> treat as "now"
+      sinceDate = new Date();
+    }
+
+    const match = {
+      status: 'new',
+      createdAt: { $gt: sinceDate }
+    };
+
+    const [newCount, latest] = await Promise.all([
+      Lead.countDocuments(match),
+      Lead.findOne(match).sort({ createdAt: -1 }).select('createdAt').lean()
+    ]);
+
+    res.json({
+      success: true,
+      newCount,
+      latestCreatedAt: latest ? latest.createdAt.toISOString() : null
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error in leads poll endpoint:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
