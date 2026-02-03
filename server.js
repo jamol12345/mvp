@@ -5,6 +5,7 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 
 const app = express();
@@ -45,15 +46,31 @@ mongoose.connect(MONGODB_URI)
 const leadSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true
+    default: ''
   },
   surname: {
     type: String,
-    required: true
+    default: ''
+  },
+  fullName: {
+    type: String,
+    default: ''
+  },
+  doorType: {
+    type: String,
+    default: ''
+  },
+  measurements: {
+    type: String,
+    default: ''
   },
   phoneNumber: {
     type: String,
     required: true
+  },
+  priorities: {
+    type: [String],
+    default: []
   },
   status: {
     type: String,
@@ -127,31 +144,38 @@ setInterval(processLeadsQueue, QUEUE_PROCESS_INTERVAL);
 console.log(`🔄 [QUEUE] Background worker started (processing every ${QUEUE_PROCESS_INTERVAL/1000}s)`);
 
 // ============================================
-// AUTHENTICATION MIDDLEWARE
+// AUTHENTICATION & ROLES
 // ============================================
 
-// Middleware to verify admin token
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-change-in-production';
+const MANAGER_TOKEN = process.env.MANAGER_TOKEN || '';
+const CALL_MANAGER_TOKEN = process.env.CALL_MANAGER_TOKEN || '';
+
+// Middleware: verify JWT and attach user (role) to request
 const authenticateAdmin = (req, res, next) => {
-  // Get token from Authorization header
   const authHeader = req.headers.authorization;
-  
   if (!authHeader) {
     return res.status(401).json({ error: 'Unauthorized: No token provided' });
   }
-
-  // Extract token (format: "Bearer TOKEN" or just "TOKEN")
-  const token = authHeader.startsWith('Bearer ') 
-    ? authHeader.slice(7) 
-    : authHeader;
-
-  // TODO: Replace 'YOUR_ADMIN_TOKEN' with your actual admin token in .env file
-  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '995f313ae663bfc5b935dddba3abe931fd042eb7e82bea633f984553427188b3';
-
-  if (token !== ADMIN_TOKEN) {
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded.role || !['manager', 'call_manager'].includes(decoded.role)) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+    req.user = { role: decoded.role };
+    next();
+  } catch (err) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
+};
 
-  next();
+// Middleware: require manager role (403 if not manager)
+const requireManager = (req, res, next) => {
+  if (req.user && req.user.role === 'manager') {
+    return next();
+  }
+  return res.status(403).json({ error: 'Forbidden: Manager access required' });
 };
 
 // ============================================
@@ -162,32 +186,34 @@ const authenticateAdmin = (req, res, next) => {
 // Uses delayed save: Data is queued and saved in batches by background worker
 app.post('/api/leads', async (req, res) => {
   try {
-    const { name, surname, phoneNumber } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities } = req.body;
 
-    // Validate required fields
-    if (!name || !surname || !phoneNumber) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: name, surname, phoneNumber' 
+    if (!fullName || !doorType || !measurements || !phoneNumber) {
+      return res.status(400).json({
+        error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
       });
     }
 
-    // Create lead data object (not a Mongoose document yet)
+    const prioritiesArray = Array.isArray(priorities) ? priorities : [];
+
     const leadData = {
-      name: name.trim(),
-      surname: surname.trim(),
+      fullName: fullName.trim(),
+      doorType: doorType.trim(),
+      measurements: measurements.trim(),
       phoneNumber: phoneNumber.trim(),
+      priorities: prioritiesArray,
+      name: '',
+      surname: '',
       status: 'new',
       createdAt: new Date(),
       updatedAt: new Date()
     };
 
-    // Add to queue instead of saving immediately
     leadsQueue.push(leadData);
-    console.log(`📥 [QUEUE] Lead received and queued: ${leadData.name} ${leadData.surname} (Queue size: ${leadsQueue.length})`);
+    console.log(`📥 [QUEUE] Lead received and queued: ${leadData.fullName} (Queue size: ${leadsQueue.length})`);
 
-    // Respond immediately to user (data will be saved by background worker)
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: 'Lead submitted successfully',
       note: 'Your information has been received and will be processed shortly'
     });
@@ -201,25 +227,61 @@ app.post('/api/leads', async (req, res) => {
 // ADMIN API ENDPOINTS
 // ============================================
 
-// POST /api/admin/login - Admin login endpoint
+// POST /api/admin/login - Admin login endpoint (returns JWT with role)
 app.post('/api/admin/login', (req, res) => {
   const { token } = req.body;
-
   if (!token) {
     return res.status(400).json({ error: 'Token is required' });
   }
+  const trimmed = token.trim();
+  let role = null;
+  if (MANAGER_TOKEN && trimmed === MANAGER_TOKEN) {
+    role = 'manager';
+  } else if (CALL_MANAGER_TOKEN && trimmed === CALL_MANAGER_TOKEN) {
+    role = 'call_manager';
+  }
+  if (!role) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
+  const jwtToken = jwt.sign(
+    { role },
+    JWT_SECRET,
+    { algorithm: 'HS256' }
+  );
+  res.json({
+    success: true,
+    message: 'Login successful',
+    token: jwtToken,
+    role
+  });
+});
 
-  // TODO: Replace 'YOUR_ADMIN_TOKEN' with your actual admin token in .env file
-  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '995f313ae663bfc5b935dddba3abe931fd042eb7e82bea633f984553427188b3';
-
-  if (token === ADMIN_TOKEN) {
-    res.json({ 
-      success: true, 
-      message: 'Login successful',
-      token: ADMIN_TOKEN // Return token for client to store
+// POST /api/admin/leads - Add client manually (Manager only)
+app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res) => {
+  try {
+    const { fullName, doorType, measurements, phoneNumber, priorities } = req.body;
+    if (!fullName || !doorType || !measurements || !phoneNumber) {
+      return res.status(400).json({
+        error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
+      });
+    }
+    const prioritiesArray = Array.isArray(priorities) ? priorities : [];
+    const lead = new Lead({
+      fullName: fullName.trim(),
+      doorType: doorType.trim(),
+      measurements: measurements.trim(),
+      phoneNumber: phoneNumber.trim(),
+      priorities: prioritiesArray,
+      name: '',
+      surname: '',
+      status: 'new'
     });
-  } else {
-    res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    await lead.save();
+    console.log(`✅ [MONGODB] Lead added by manager: ${lead.fullName}`);
+    res.status(201).json({ success: true, message: 'Client added', lead });
+  } catch (error) {
+    console.error('❌ [ERROR] Error adding lead:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -227,12 +289,12 @@ app.post('/api/admin/login', (req, res) => {
 app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
   try {
     const leads = await Lead.find({ status: 'new' })
-      .sort({ createdAt: -1 }) // Most recent first
-      .select('name surname phoneNumber createdAt _id');
+      .sort({ createdAt: -1 })
+      .select('name surname fullName doorType measurements phoneNumber priorities createdAt _id');
 
-    res.json({ 
-      success: true, 
-      leads 
+    res.json({
+      success: true,
+      leads
     });
   } catch (error) {
     console.error('Error fetching leads:', error);
@@ -305,21 +367,50 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
 });
 
 // GET /api/admin/done-calls - Get all leads with status "done" (Protected)
-// Returns completed deals for the done_calls archive page
 app.get('/api/admin/done-calls', authenticateAdmin, async (req, res) => {
   try {
     const leads = await Lead.find({ status: 'done' })
-      .sort({ updatedAt: -1 }) // Most recently closed first
-      .select('name surname phoneNumber comment createdAt updatedAt _id');
+      .sort({ updatedAt: -1 })
+      .select('name surname fullName doorType measurements phoneNumber priorities comment createdAt updatedAt _id');
 
     console.log(`📊 [API] Returning ${leads.length} completed lead(s) for done-calls archive`);
 
-    res.json({ 
-      success: true, 
-      leads 
+    res.json({
+      success: true,
+      leads
     });
   } catch (error) {
     console.error('❌ [ERROR] Error fetching done-calls:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/analytics/priorities - Aggregated priority statistics (Manager only)
+app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, async (req, res) => {
+  try {
+    const pipeline = [
+      { $unwind: '$priorities' },
+      {
+        $group: {
+          _id: '$priorities',
+          count: { $sum: 1 }
+        }
+      }
+    ];
+
+    const raw = await Lead.aggregate(pipeline);
+
+    const result = {};
+    raw.forEach(item => {
+      result[item._id] = item.count;
+    });
+
+    res.json({
+      success: true,
+      priorities: result
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error fetching priority analytics:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

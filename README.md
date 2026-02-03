@@ -53,14 +53,16 @@ Edit `.env` and replace the following:
   - Local: `mongodb://localhost:27017/leads`
   - MongoDB Atlas: `mongodb+srv://username:password@cluster.mongodb.net/leads`
 
-- **ADMIN_TOKEN**: A secure random token for admin authentication
-  - Generate one: `openssl rand -hex 32`
-  - Or use any secure random string
+- **JWT_SECRET**: Secret used to sign JWT tokens (e.g. `openssl rand -hex 32`)
+- **MANAGER_TOKEN**: Login token for Boss Manager (gets JWT with role `manager`)
+- **CALL_MANAGER_TOKEN**: Login token for Call Manager (gets JWT with role `call_manager`)
 
 Example `.env`:
 ```
 MONGODB_URI=mongodb://localhost:27017/leads
-ADMIN_TOKEN=your-secure-random-token-here
+JWT_SECRET=your-jwt-secret
+MANAGER_TOKEN=your-manager-login-token
+CALL_MANAGER_TOKEN=your-call-manager-login-token
 PORT=3000
 ```
 
@@ -93,28 +95,35 @@ The server will start on `http://localhost:3000` (or the port specified in `.env
 
 ### Public Endpoints
 
-- `POST /api/leads` - Submit a new lead
-  - Body: `{ name, surname, phoneNumber }`
+- `POST /api/leads` - Submit a new lead (public form)
+  - Body: `{ fullName, doorType, measurements, phoneNumber }`
 
 ### Admin Endpoints (Require Authorization Header)
 
-All admin endpoints require the `Authorization` header with the admin token:
+Admin endpoints (except login) require JWT in the `Authorization` header:
 ```
-Authorization: YOUR_ADMIN_TOKEN
+Authorization: Bearer <JWT>
 ```
 
-- `POST /api/admin/login` - Admin login
-  - Body: `{ token }`
+- `POST /api/admin/login` - Admin login (returns JWT and role)
+  - Body: `{ token }` (MANAGER_TOKEN or CALL_MANAGER_TOKEN)
   
 - `GET /api/admin/leads` - Get all leads with status "new"
-  - Headers: `Authorization: YOUR_ADMIN_TOKEN`
+  - Headers: `Authorization: Bearer <JWT>`
+
+- `POST /api/admin/leads` - Add client manually (Manager only, 403 for Call Manager)
+  - Headers: `Authorization: Bearer <JWT>`
+  - Body: `{ fullName, doorType, measurements, phoneNumber }`
 
 - `POST /api/admin/leads/:id/done` - Mark lead as done
-  - Headers: `Authorization: YOUR_ADMIN_TOKEN`
+  - Headers: `Authorization: Bearer <JWT>`
   - Body: `{ comment }` (optional)
 
 - `POST /api/admin/leads/:id/not` - Archive lead
-  - Headers: `Authorization: YOUR_ADMIN_TOKEN`
+  - Headers: `Authorization: Bearer <JWT>`
+
+- `GET /api/admin/done-calls` - Get all leads with status "done"
+  - Headers: `Authorization: Bearer <JWT>`
 
 ## Lead Status
 

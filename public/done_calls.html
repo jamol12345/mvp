@@ -44,7 +44,18 @@
                 </div>
                 <div class="header-actions">
                     <a href="admin.html" class="btn-link">← Back to New Leads</a>
-                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                    <div class="user-menu-wrapper">
+                        <button type="button" class="user-menu-trigger" id="userMenuTrigger" title="Account">
+                            <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span class="user-role-label" id="userRoleLabel">—</span>
+                        </button>
+                        <div id="userDropdown" class="user-dropdown" style="display: none;">
+                            <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn">Logout</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -80,8 +91,18 @@
     </div>
 
     <script>
-        // Store admin token in memory (not localStorage for security)
         let adminToken = null;
+        let userRole = null;
+
+        function getAuthHeader() {
+            return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
+        }
+
+        function setRoleUI(role) {
+            userRole = role;
+            const label = document.getElementById('userRoleLabel');
+            label.textContent = role === 'manager' ? 'Boss Manager' : 'Call Manager';
+        }
 
         // ============================================
         // LOGIN FUNCTIONALITY
@@ -101,22 +122,18 @@
             try {
                 const response = await fetch('/api/admin/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token })
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Store token and show archive panel
-                    adminToken = token;
+                    adminToken = data.token;
+                    setRoleUI(data.role);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('archivePanel').style.display = 'block';
                     document.getElementById('adminToken').value = '';
-                    
-                    // Load done calls
                     loadDoneCalls();
                 } else {
                     showLoginError(data.error || 'Invalid token. Please try again.');
@@ -133,14 +150,26 @@
         }
 
         // ============================================
-        // LOGOUT FUNCTIONALITY
+        // USER MENU & LOGOUT
         // ============================================
 
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        document.getElementById('userMenuTrigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        });
+
+        document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
             adminToken = null;
+            userRole = null;
+            document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('archivePanel').style.display = 'none';
             document.getElementById('leadsTableBody').innerHTML = '';
+        });
+
+        document.addEventListener('click', () => {
+            document.getElementById('userDropdown').style.display = 'none';
         });
 
         // ============================================
@@ -158,9 +187,7 @@
             try {
                 const response = await fetch('/api/admin/done-calls', {
                     method: 'GET',
-                    headers: {
-                        'Authorization': adminToken
-                    }
+                    headers: getAuthHeader()
                 });
 
                 const data = await response.json();
@@ -206,10 +233,10 @@
                 const dateClosed = lead.updatedAt || lead.createdAt;
                 const formattedDate = new Date(dateClosed).toLocaleString();
                 
+                const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
                 const comment = lead.comment || '(No comment)';
-                
                 row.innerHTML = `
-                    <td>${escapeHtml(lead.name)} ${escapeHtml(lead.surname)}</td>
+                    <td>${escapeHtml(fullName)}</td>
                     <td>${escapeHtml(lead.phoneNumber)}</td>
                     <td>${escapeHtml(comment)}</td>
                     <td>${formattedDate}</td>

@@ -41,7 +41,20 @@
                 <h1>Admin Panel - Lead Management</h1>
                 <div class="header-actions">
                     <a href="done_calls.html" class="btn-link">View Done Calls →</a>
-                    <button id="logoutBtn" class="logout-btn">Logout</button>
+                    <button id="analyticsBtn" class="btn-link" style="display: none;">Analytics</button>
+                    <button id="addClientBtn" class="add-client-btn" style="display: none;">Add</button>
+                    <div class="user-menu-wrapper">
+                        <button type="button" class="user-menu-trigger" id="userMenuTrigger" title="Account">
+                            <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span class="user-role-label" id="userRoleLabel">—</span>
+                        </button>
+                        <div id="userDropdown" class="user-dropdown" style="display: none;">
+                            <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn">Logout</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -62,7 +75,9 @@
                 <table class="leads-table">
                     <thead>
                         <tr>
-                            <th>Name & Surname</th>
+                            <th>Full name</th>
+                            <th>Door type</th>
+                            <th>Measurements</th>
                             <th>Phone Number</th>
                             <th>Submitted</th>
                             <th>Actions</th>
@@ -72,6 +87,69 @@
                         <!-- Leads will be inserted here dynamically -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Analytics (Manager only) -->
+            <div id="analyticsWrapper" style="display: none; margin-top: 20px;">
+                <table class="leads-table">
+                    <thead>
+                        <tr>
+                            <th>Priority</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analyticsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Add Client (Manager only) -->
+    <div id="addClientModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Client</h2>
+                <button class="modal-close" id="closeAddClientModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addClientForm">
+                    <div class="form-group">
+                        <label for="addFullName">Full name (FIO)</label>
+                        <input type="text" id="addFullName" name="fullName" required placeholder="Enter full name">
+                    </div>
+                    <div class="form-group">
+                        <label for="addDoorType">Door type</label>
+                        <select id="addDoorType" name="doorType" required>
+                            <option value="">Choose door type</option>
+                            <option value="Standard Door">Standard Door</option>
+                            <option value="Premium Door">Premium Door</option>
+                            <option value="Custom Door">Custom Door</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="addMeasurements">Measurements</label>
+                        <input type="text" id="addMeasurements" name="measurements" required placeholder="e.g. 9x20">
+                    </div>
+                    <div class="form-group">
+                        <label for="addPhoneNumber">Phone number</label>
+                        <input type="tel" id="addPhoneNumber" name="phoneNumber" required placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label>Client priority (1–2)</label>
+                        <div class="priority-buttons" id="addPriorityButtons">
+                            <button type="button" class="priority-btn" data-value="Quality">Quality</button>
+                            <button type="button" class="priority-btn" data-value="Design">Design</button>
+                            <button type="button" class="priority-btn" data-value="Production Time">Production Time</button>
+                            <button type="button" class="priority-btn" data-value="Price">Price</button>
+                            <button type="button" class="priority-btn" data-value="Warranty">Warranty</button>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="cancelAddClient">Cancel</button>
+                        <button type="submit" class="btn-submit">Submit</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -106,8 +184,28 @@
     </div>
 
     <script>
-        // Store admin token in memory (not localStorage for security)
         let adminToken = null;
+        let userRole = null;
+
+        function getAuthHeader() {
+            return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
+        }
+
+        function setRoleUI(role) {
+            userRole = role;
+            const label = document.getElementById('userRoleLabel');
+            const addBtn = document.getElementById('addClientBtn');
+            const analyticsBtn = document.getElementById('analyticsBtn');
+            if (role === 'manager') {
+                label.textContent = 'Boss Manager';
+                addBtn.style.display = 'inline-block';
+                analyticsBtn.style.display = 'inline-block';
+            } else {
+                label.textContent = 'Call Manager';
+                addBtn.style.display = 'none';
+                analyticsBtn.style.display = 'none';
+            }
+        }
 
         // ============================================
         // LOGIN FUNCTIONALITY
@@ -127,22 +225,18 @@
             try {
                 const response = await fetch('/api/admin/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token })
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Store token and show admin panel
-                    adminToken = token;
+                    adminToken = data.token;
+                    setRoleUI(data.role);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
                     document.getElementById('adminToken').value = '';
-                    
-                    // Load leads
                     loadLeads();
                 } else {
                     showLoginError(data.error || 'Invalid token. Please try again.');
@@ -159,14 +253,105 @@
         }
 
         // ============================================
-        // LOGOUT FUNCTIONALITY
+        // USER MENU & LOGOUT
         // ============================================
 
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        document.getElementById('userMenuTrigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById('userDropdown');
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        });
+
+        document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
             adminToken = null;
+            userRole = null;
+            document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('adminPanel').style.display = 'none';
             document.getElementById('leadsTableBody').innerHTML = '';
+        });
+
+        document.addEventListener('click', () => {
+            document.getElementById('userDropdown').style.display = 'none';
+        });
+
+        // ============================================
+        // ADD CLIENT (Manager only)
+        // ============================================
+
+        const addPriorityMax = 2;
+
+        document.getElementById('addClientBtn').addEventListener('click', () => {
+            document.getElementById('addFullName').value = '';
+            document.getElementById('addDoorType').value = '';
+            document.getElementById('addMeasurements').value = '';
+            document.getElementById('addPhoneNumber').value = '';
+            document.querySelectorAll('#addPriorityButtons .priority-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            const modal = document.getElementById('addClientModal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('modal-open'), 10);
+        });
+
+        document.getElementById('addPriorityButtons').addEventListener('click', (e) => {
+            if (e.target.classList.contains('priority-btn')) {
+                const btn = e.target;
+                const selected = document.querySelectorAll('#addPriorityButtons .priority-btn.selected');
+                if (btn.classList.contains('selected')) {
+                    btn.classList.remove('selected');
+                    return;
+                }
+                if (selected.length >= addPriorityMax) {
+                    return;
+                }
+                btn.classList.add('selected');
+            }
+        });
+
+        function closeAddClientModal() {
+            const modal = document.getElementById('addClientModal');
+            modal.classList.remove('modal-open');
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
+
+        document.getElementById('closeAddClientModal').addEventListener('click', closeAddClientModal);
+        document.getElementById('cancelAddClient').addEventListener('click', closeAddClientModal);
+        document.getElementById('addClientModal').addEventListener('click', (e) => {
+            if (e.target.id === 'addClientModal') closeAddClientModal();
+        });
+
+        document.getElementById('addClientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = document.getElementById('addFullName').value.trim();
+            const doorType = document.getElementById('addDoorType').value;
+            const measurements = document.getElementById('addMeasurements').value.trim();
+            const phoneNumber = document.getElementById('addPhoneNumber').value.trim();
+            const priorities = Array.from(document.querySelectorAll('#addPriorityButtons .priority-btn.selected'))
+                .map(btn => btn.getAttribute('data-value'));
+            if (!fullName || !doorType || !measurements || !phoneNumber || priorities.length === 0) {
+                alert('Please fill in all fields.');
+                return;
+            }
+            try {
+                const response = await fetch('/api/admin/leads', {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ fullName, doorType, measurements, phoneNumber, priorities })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    closeAddClientModal();
+                    loadLeads();
+                } else if (response.status === 403) {
+                    alert(data.error || 'Forbidden: Manager access required.');
+                } else {
+                    alert(data.error || 'Failed to add client.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Network error. Please try again.');
+            }
         });
 
         // ============================================
@@ -184,9 +369,7 @@
             try {
                 const response = await fetch('/api/admin/leads', {
                     method: 'GET',
-                    headers: {
-                        'Authorization': adminToken
-                    }
+                    headers: getAuthHeader()
                 });
 
                 const data = await response.json();
@@ -219,19 +402,70 @@
             }
         }
 
+        async function loadPriorityAnalytics() {
+            if (!adminToken) return;
+            document.getElementById('errorMessage').style.display = 'none';
+            const tbody = document.getElementById('analyticsTableBody');
+            tbody.innerHTML = '';
+            try {
+                const response = await fetch('/api/admin/analytics/priorities', {
+                    method: 'GET',
+                    headers: getAuthHeader()
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    const priorities = ['Quality', 'Design', 'Production Time', 'Price', 'Warranty'];
+                    priorities.forEach(label => {
+                        const row = document.createElement('tr');
+                        const count = data.priorities && data.priorities[label] ? data.priorities[label] : 0;
+                        row.innerHTML = `
+                            <td>${escapeHtml(label)}</td>
+                            <td>${count}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } else if (response.status === 403) {
+                    showError(data.error || 'Forbidden: Manager access required.');
+                } else if (response.status === 401) {
+                    showError('Session expired. Please login again.');
+                } else {
+                    showError(data.error || 'Failed to load analytics.');
+                }
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                showError('Network error. Please try again.');
+            }
+        }
+
+        document.getElementById('analyticsBtn').addEventListener('click', async () => {
+            const analyticsWrapper = document.getElementById('analyticsWrapper');
+            const leadsWrapper = document.getElementById('leadsTableWrapper');
+            const noLeads = document.getElementById('noLeadsMessage');
+            if (analyticsWrapper.style.display === 'none') {
+                leadsWrapper.style.display = 'none';
+                noLeads.style.display = 'none';
+                analyticsWrapper.style.display = 'block';
+                await loadPriorityAnalytics();
+            } else {
+                analyticsWrapper.style.display = 'none';
+                await loadLeads();
+            }
+        });
+
         function displayLeads(leads) {
             const tbody = document.getElementById('leadsTableBody');
             tbody.innerHTML = '';
 
             leads.forEach((lead, index) => {
+                const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
                 const row = document.createElement('tr');
                 row.className = 'table-row-animate';
                 row.style.animationDelay = `${index * 0.1}s`;
-                
                 const date = new Date(lead.createdAt).toLocaleString();
-                
                 row.innerHTML = `
-                    <td>${escapeHtml(lead.name)} ${escapeHtml(lead.surname)}</td>
+                    <td>${escapeHtml(fullName)}</td>
+                    <td>${escapeHtml(lead.doorType || '—')}</td>
+                    <td>${escapeHtml(lead.measurements || '—')}</td>
                     <td>${escapeHtml(lead.phoneNumber)}</td>
                     <td>${date}</td>
                     <td class="actions-cell">
@@ -239,7 +473,6 @@
                         <button class="btn-not" onclick="handleNot('${lead._id}')">NOT</button>
                     </td>
                 `;
-                
                 tbody.appendChild(row);
             });
 
@@ -281,10 +514,7 @@
             try {
                 const response = await fetch(`/api/admin/leads/${leadId}/done`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': adminToken
-                    },
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
                     body: JSON.stringify({ comment })
                 });
 
@@ -344,9 +574,7 @@
             try {
                 const response = await fetch(`/api/admin/leads/${leadId}/not`, {
                     method: 'POST',
-                    headers: {
-                        'Authorization': adminToken
-                    }
+                    headers: getAuthHeader()
                 });
 
                 const data = await response.json();
