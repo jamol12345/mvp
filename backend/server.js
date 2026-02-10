@@ -21,8 +21,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Enable CORS for frontend deployments.
-// In production set CORS_ORIGIN to your frontend URL (e.g. https://kokcha-doors.netlify.app).
+// Enable CORS for frontend deployments
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -30,11 +29,6 @@ app.use(cors({
 
 // Serve static files (HTML, CSS)
 app.use(express.static(path.join(__dirname, 'public')));
-
-// Health check: no DB dependency, always available (for Vercel/probes)
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
 
 // Friendly route for done calls (matches /done_calls navigation)
 app.get('/done_calls', (req, res) => {

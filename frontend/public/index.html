@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Свяжитесь с нами</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page-fade-in">
+    <div class="container">
+        <div class="lang-switch" aria-label="Language">
+            <span class="lang-label" data-i18n="languageLabel">Язык</span>
+            <div class="lang-toggle-group" role="group" aria-label="Language">
+                <button type="button" class="lang-toggle" data-lang="ru">RU</button>
+                <span class="lang-sep">|</span>
+                <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
+            </div>
+        </div>
+        <div class="form-wrapper fade-in-up">
+            <h1 data-i18n="title">Свяжитесь с нами</h1>
+            <p class="subtitle" data-i18n="subtitle">Заполните форму, и мы свяжемся с вами в ближайшее время!</p>
+            
+            <!-- Error Message (hidden by default) -->
+            <div id="errorMessage" class="message error-message slide-in-top" style="display: none;">
+                <p id="errorText"></p>
+            </div>
+
+            <!-- Contact Form -->
+            <form id="contactForm">
+                <div class="form-group">
+                    <label for="fullName"><span data-i18n="fullNameLabel">ФИО</span> <span class="required">*</span></label>
+                    <input 
+                        type="text" 
+                        id="fullName" 
+                        name="fullName" 
+                        required 
+                        placeholder="Введите ФИО"
+                        data-i18n-placeholder="fullNamePlaceholder"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="doorType"><span data-i18n="doorTypeLabel">Выбранная дверь</span> <span class="required">*</span></label>
+                    <select id="doorType" name="doorType" required>
+                        <option value="" data-i18n="doorTypePlaceholder">Выберите тип двери</option>
+                        <option value="Standard Door" data-i18n="doorTypeStandard">Стандартная дверь</option>
+                        <option value="Premium Door" data-i18n="doorTypePremium">Премиум дверь</option>
+                        <option value="Custom Door" data-i18n="doorTypeCustom">Индивидуальная дверь</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="measurements"><span data-i18n="measurementsLabel">Размеры</span> <span class="required">*</span></label>
+                    <input 
+                        type="text" 
+                        id="measurements" 
+                        name="measurements" 
+                        required 
+                        placeholder="например 9x20"
+                        data-i18n-placeholder="measurementsPlaceholder"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="prioritiesLabel">Что для вас важнее всего?</label>
+                    <div class="priority-buttons" id="priorityButtons">
+                        <button type="button" class="priority-btn" data-value="Quality" data-i18n="priorityQuality">Качество</button>
+                        <button type="button" class="priority-btn" data-value="Design" data-i18n="priorityDesign">Дизайн</button>
+                        <button type="button" class="priority-btn" data-value="Production Time" data-i18n="priorityProduction">Срок изготовления</button>
+                        <button type="button" class="priority-btn" data-value="Price" data-i18n="priorityPrice">Цена</button>
+                        <button type="button" class="priority-btn" data-value="Warranty" data-i18n="priorityWarranty">Гарантия</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="phoneNumber"><span data-i18n="phoneLabel">Телефон</span> <span class="required">*</span></label>
+                    <input 
+                        type="tel" 
+                        id="phoneNumber" 
+                        name="phoneNumber" 
+                        required 
+                        placeholder="Введите телефон"
+                        data-i18n-placeholder="phonePlaceholder"
+                    >
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <span id="submitText" data-i18n="submitBtn">Отправить</span>
+                    <span id="submitSpinner" class="spinner" style="display: none;"></span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success modal (animated) -->
+    <div id="successModal" class="modal" style="display: none;">
+        <div class="modal-content success-modal-content">
+            <div class="modal-body">
+                <p class="success-modal-text" data-i18n="successMessage">Ваши данные успешно отправлены.<br>Мы свяжемся с вами в течение 24 часов.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const submitBtn = document.getElementById('submitBtn');
+        const submitText = document.getElementById('submitText');
+        const submitSpinner = document.getElementById('submitSpinner');
+        let isSubmitting = false;
+        const maxPriorities = 2;
+        let currentLang = 'ru';
+
+        const LANG_KEY = 'crm_lang';
+        const translations = {
+            ru: {
+                languageLabel: 'Язык',
+                title: 'Свяжитесь с нами',
+                subtitle: 'Заполните форму, и мы свяжемся с вами в ближайшее время!',
+                fullNameLabel: 'ФИО',
+                fullNamePlaceholder: 'Введите ФИО',
+                doorTypeLabel: 'Выбранная дверь',
+                doorTypePlaceholder: 'Выберите тип двери',
+                doorTypeStandard: 'Стандартная дверь',
+                doorTypePremium: 'Премиум дверь',
+                doorTypeCustom: 'Индивидуальная дверь',
+                measurementsLabel: 'Размеры',
+                measurementsPlaceholder: 'например 9x20',
+                prioritiesLabel: 'Что для вас важнее всего?',
+                priorityQuality: 'Качество',
+                priorityDesign: 'Дизайн',
+                priorityProduction: 'Срок изготовления',
+                priorityPrice: 'Цена',
+                priorityWarranty: 'Гарантия',
+                phoneLabel: 'Телефон',
+                phonePlaceholder: 'Введите телефон',
+                submitBtn: 'Отправить',
+                successMessage: 'Ваши данные успешно отправлены.<br>Мы свяжемся с вами в течение 24 часов.',
+                errorRequired: 'Пожалуйста, заполните все обязательные поля.',
+                errorNetwork: 'Ошибка сети. Проверьте соединение и попробуйте снова.',
+                errorGeneric: 'Произошла ошибка. Попробуйте снова.'
+            },
+            uz: {
+                languageLabel: 'Til',
+                title: 'Biz bilan bog‘laning',
+                subtitle: 'Formani to‘ldiring, biz tez orada siz bilan bog‘lanamiz!',
+                fullNameLabel: 'F.I.Sh.',
+                fullNamePlaceholder: 'F.I.Sh. kiriting',
+                doorTypeLabel: 'Tanlangan eshik',
+                doorTypePlaceholder: 'Eshik turini tanlang',
+                doorTypeStandard: 'Standart eshik',
+                doorTypePremium: 'Premium eshik',
+                doorTypeCustom: 'Individual eshik',
+                measurementsLabel: 'O‘lchamlar',
+                measurementsPlaceholder: 'masalan 9x20',
+                prioritiesLabel: 'Siz uchun eng muhim narsa nima?',
+                priorityQuality: 'Sifat',
+                priorityDesign: 'Dizayn',
+                priorityProduction: 'Ishlab chiqarish muddati',
+                priorityPrice: 'Narx',
+                priorityWarranty: 'Kafolat',
+                phoneLabel: 'Telefon',
+                phonePlaceholder: 'Telefon raqamini kiriting',
+                submitBtn: 'Yuborish',
+                successMessage: 'Ma’lumotlaringiz muvaffaqiyatli yuborildi.<br>24 soat ichida siz bilan bog‘lanamiz.',
+                errorRequired: 'Iltimos, barcha majburiy maydonlarni to‘ldiring.',
+                errorNetwork: 'Tarmoq xatosi. Ulanishni tekshirib qayta urinib ko‘ring.',
+                errorGeneric: 'Xatolik yuz berdi. Qayta urinib ko‘ring.'
+            }
+        };
+
+        function t(key) {
+            const dict = translations[currentLang] || translations.ru;
+            return dict[key] || '';
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = currentLang;
+            document.title = t('title');
+            document.querySelectorAll('[data-i18n]').forEach((el) => {
+                const key = el.getAttribute('data-i18n');
+                el.innerHTML = t(key);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                el.setAttribute('placeholder', t(key));
+            });
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang === 'uz' ? 'uz' : 'ru';
+            localStorage.setItem(LANG_KEY, currentLang);
+            document.querySelectorAll('.lang-toggle').forEach((btn) => {
+                btn.classList.toggle('active', btn.getAttribute('data-lang') === currentLang);
+            });
+            applyTranslations();
+        }
+
+        function initLanguage() {
+            const stored = localStorage.getItem(LANG_KEY);
+            setLanguage(stored || 'ru');
+        }
+
+        document.querySelectorAll('.lang-toggle').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setLanguage(btn.getAttribute('data-lang'));
+            });
+        });
+        initLanguage();
+
+        // Priority selection (1 to 2)
+        document.getElementById('priorityButtons').addEventListener('click', (e) => {
+            if (e.target.classList.contains('priority-btn')) {
+                const btn = e.target;
+                const currentlySelected = document.querySelectorAll('.priority-btn.selected');
+                if (btn.classList.contains('selected')) {
+                    btn.classList.remove('selected');
+                    return;
+                }
+                if (currentlySelected.length >= maxPriorities) {
+                    return;
+                }
+                btn.classList.add('selected');
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('contactForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Prevent multiple submissions
+            if (isSubmitting) {
+                return;
+            }
+
+            document.getElementById('errorMessage').style.display = 'none';
+
+            const priorities = Array.from(document.querySelectorAll('.priority-btn.selected'))
+                .map(btn => btn.getAttribute('data-value'));
+
+            const formData = {
+                fullName: document.getElementById('fullName').value.trim(),
+                doorType: document.getElementById('doorType').value,
+                measurements: document.getElementById('measurements').value.trim(),
+                phoneNumber: document.getElementById('phoneNumber').value.trim(),
+                priorities,
+                language: currentLang
+            };
+
+            if (!formData.fullName || !formData.doorType || !formData.measurements || !formData.phoneNumber) {
+                showError(t('errorRequired'));
+                return;
+            }
+
+            setLoadingState(true);
+
+            try {
+                const response = await fetch('/api/leads', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('contactForm').reset();
+                    showSuccessModal();
+                } else {
+                    showError(t('errorGeneric'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError(t('errorNetwork'));
+            } finally {
+                setLoadingState(false);
+            }
+        });
+
+        // Set loading state on submit button
+        function setLoadingState(loading) {
+            isSubmitting = loading;
+            submitBtn.disabled = loading;
+            
+            if (loading) {
+                submitText.style.display = 'none';
+                submitSpinner.style.display = 'inline-block';
+                submitBtn.classList.add('loading');
+            } else {
+                submitText.style.display = 'inline';
+                submitSpinner.style.display = 'none';
+                submitBtn.classList.remove('loading');
+            }
+        }
+
+        function showError(message) {
+            const errorMsg = document.getElementById('errorMessage');
+            document.getElementById('errorText').textContent = message;
+            errorMsg.style.display = 'block';
+            errorMsg.classList.add('slide-in-top');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showSuccessModal() {
+            const modal = document.getElementById('successModal');
+            modal.style.display = 'flex';
+            setTimeout(function() {
+                modal.classList.add('modal-open');
+            }, 10);
+        }
+
+        function closeSuccessModal() {
+            const modal = document.getElementById('successModal');
+            modal.classList.remove('modal-open');
+            setTimeout(function() {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        document.getElementById('successModal').addEventListener('click', function(e) {
+            if (e.target.id === 'successModal') {
+                closeSuccessModal();
+            }
+        });
+    </script>
+</body>
+</html>
