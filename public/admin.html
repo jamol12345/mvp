@@ -99,6 +99,11 @@
                 <div id="leadsCardGrid" class="lead-cards-grid">
                     <!-- Lead cards will be inserted here dynamically -->
                 </div>
+                <div id="activePagination" class="pagination" style="display: none;">
+                    <button type="button" class="pagination-btn" id="activePaginationPrev" aria-label="Previous">← <span data-i18n="paginationPrev">Назад</span></button>
+                    <span class="pagination-info" id="activePaginationInfo"></span>
+                    <button type="button" class="pagination-btn" id="activePaginationNext" aria-label="Next"><span data-i18n="paginationNext">Вперёд</span> →</button>
+                </div>
             </div>
 
             <!-- Analytics (Manager only) -->
@@ -116,6 +121,8 @@
             </div>
         </div>
     </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" style="display: none;"></div>
 
     <!-- Modal for Add Client (Manager only) -->
     <div id="addClientModal" class="modal" style="display: none;">
@@ -221,6 +228,8 @@
         let allActiveLeads = [];
         let currentLang = 'ru';
         let lastNotificationCount = 0;
+        const ACTIVE_PAGE_SIZE = 10;
+        let activeCurrentPage = 1;
 
         const LANG_KEY = 'crm_lang';
         const translations = {
@@ -305,7 +314,10 @@
                 validationFillFields: 'Пожалуйста, заполните все поля.',
                 validationSelectLabel: 'Выберите метку.',
                 validationSelectSource: 'Выберите источник.',
-                refreshNotice: 'Обновите таблицу.'
+                refreshNotice: 'Обновите таблицу.',
+                paginationPrev: 'Назад',
+                paginationNext: 'Вперёд',
+                paginationPage: 'Стр. {{current}} из {{total}}'
             },
             uz: {
                 languageLabel: 'Til',
@@ -388,7 +400,10 @@
                 validationFillFields: 'Iltimos, barcha maydonlarni to‘ldiring.',
                 validationSelectLabel: 'Yorliqni tanlang.',
                 validationSelectSource: 'Manbani tanlang.',
-                refreshNotice: 'Jadvalni yangilang.'
+                refreshNotice: 'Jadvalni yangilang.',
+                paginationPrev: 'Orqaga',
+                paginationNext: 'Oldinga',
+                paginationPage: 'Sahifa {{current}} / {{total}}'
             }
         };
 
@@ -691,6 +706,7 @@
 
                 if (response.ok) {
                     allActiveLeads = data.leads || [];
+                    activeCurrentPage = 1;
                     if (allActiveLeads.length > 0) {
                         updateLastSeenAtFromLeads(allActiveLeads);
                         applyActiveSearch();
@@ -764,7 +780,23 @@
         });
 
         document.getElementById('activeSearchInput').addEventListener('input', () => {
+            activeCurrentPage = 1;
             applyActiveSearch();
+        });
+
+        document.getElementById('activePaginationPrev').addEventListener('click', () => {
+            if (activeCurrentPage > 1) {
+                activeCurrentPage--;
+                applyActiveSearch();
+            }
+        });
+        document.getElementById('activePaginationNext').addEventListener('click', () => {
+            const filtered = getFilteredActiveLeads();
+            const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVE_PAGE_SIZE));
+            if (activeCurrentPage < totalPages) {
+                activeCurrentPage++;
+                applyActiveSearch();
+            }
         });
 
         document.getElementById('activeControlsToggle').addEventListener('click', () => {
@@ -882,17 +914,40 @@
             document.getElementById('leadsTableWrapper').style.display = 'block';
         }
 
-        function applyActiveSearch() {
+        function getFilteredActiveLeads() {
             const input = document.getElementById('activeSearchInput');
             const query = input ? input.value.trim().toLowerCase() : '';
-            const filtered = !query ? allActiveLeads : allActiveLeads.filter(lead => {
+            return !query ? allActiveLeads : allActiveLeads.filter(lead => {
                 const fullName = (lead.fullName || (lead.name + ' ' + lead.surname).trim() || '').toLowerCase();
                 const phone = (lead.phoneNumber || '').toLowerCase();
                 return fullName.includes(query) || phone.includes(query);
             });
+        }
+
+        function applyActiveSearch() {
+            const filtered = getFilteredActiveLeads();
+            const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVE_PAGE_SIZE));
+            if (activeCurrentPage > totalPages) activeCurrentPage = totalPages;
+            const start = (activeCurrentPage - 1) * ACTIVE_PAGE_SIZE;
+            const pageLeads = filtered.slice(start, start + ACTIVE_PAGE_SIZE);
+
             document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
             if (filtered.length > 0) {
-                displayLeads(filtered);
+                displayLeads(pageLeads);
+                const paginationEl = document.getElementById('activePagination');
+                const infoEl = document.getElementById('activePaginationInfo');
+                const prevBtn = document.getElementById('activePaginationPrev');
+                const nextBtn = document.getElementById('activePaginationNext');
+                if (totalPages > 1) {
+                    paginationEl.style.display = 'flex';
+                    infoEl.textContent = (t('paginationPage') || 'Стр. {{current}} из {{total}}')
+                        .replace('{{current}}', String(activeCurrentPage))
+                        .replace('{{total}}', String(totalPages));
+                    prevBtn.disabled = activeCurrentPage <= 1;
+                    nextBtn.disabled = activeCurrentPage >= totalPages;
+                } else {
+                    paginationEl.style.display = 'none';
+                }
             } else {
                 document.getElementById('leadsTableWrapper').style.display = 'none';
             }
@@ -1027,6 +1082,43 @@
             }
         }
 
+        let toastTimeoutId = null;
+
+        function showToast(label) {
+            const el = document.getElementById('toast');
+            if (!el) return;
+            if (toastTimeoutId) {
+                clearTimeout(toastTimeoutId);
+                toastTimeoutId = null;
+            }
+            let text = '';
+            let type = '';
+            switch (label) {
+                case 'Successful':
+                    text = 'Успешно закрыт';
+                    type = 'toast--success';
+                    break;
+                case 'Call Back':
+                    text = 'Добавлен в перезвон';
+                    type = 'toast--call-back';
+                    break;
+                case 'Rejected':
+                    text = 'Клиент отказался';
+                    type = 'toast--rejected';
+                    break;
+                default:
+                    text = 'Сохранено';
+                    type = 'toast--success';
+            }
+            el.className = 'toast ' + type;
+            el.textContent = text;
+            el.style.display = 'block';
+            toastTimeoutId = setTimeout(() => {
+                el.style.display = 'none';
+                toastTimeoutId = null;
+            }, 3000);
+        }
+
         // ============================================
         // DONE ACTION
         // ============================================
@@ -1065,8 +1157,8 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Close modal and reload leads
                     closeModal();
+                    showToast(data.lead && data.lead.label ? data.lead.label : label);
                     loadLeads();
                 } else {
                     if (response.status === 401) {

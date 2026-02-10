@@ -68,6 +68,7 @@
                     <p class="subtitle" data-i18n="archiveSubtitle">Закрытые и архивные лиды</p>
                 </div>
                 <div class="header-actions">
+                    <button type="button" id="archiveExportExcelBtn" class="btn-excel" data-i18n="downloadExcelBtn">Скачать Excel</button>
                     <a class='btn-link' data-i18n='backToActive' href='/admin'>← Назад к активным</a>
                 </div>
             </div>
@@ -94,6 +95,7 @@
                         <option value="Successful" data-i18n="labelSuccessful">Успешно</option>
                         <option value="Rejected" data-i18n="labelRejected">Отказ</option>
                     </select>
+                    <button id="archiveDateFilterBtn" class="btn-link" type="button" data-i18n="filterByDateBtn">Фильтр по дате</button>
                     <button id="archiveSortBtn" class="btn-link" type="button" data-i18n="sortBtn">Сортировать</button>
                 </div>
             </div>
@@ -102,6 +104,41 @@
             <div id="leadsTableWrapper" style="display: none;">
                 <div id="archiveCardGrid" class="lead-cards-grid">
                     <!-- Archive cards will be inserted here dynamically -->
+                </div>
+                <div id="archivePagination" class="pagination" style="display: none;">
+                    <button type="button" class="pagination-btn" id="archivePaginationPrev" aria-label="Previous">← <span data-i18n="paginationPrev">Назад</span></button>
+                    <span class="pagination-info" id="archivePaginationInfo"></span>
+                    <button type="button" class="pagination-btn" id="archivePaginationNext" aria-label="Next"><span data-i18n="paginationNext">Вперёд</span> →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Date Filter -->
+    <div id="dateFilterModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="dateFilterTitle">Фильтр по дате</h2>
+                <button class="modal-close" id="closeDateFilterModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="dateFilterFrom" data-i18n="dateFilterFrom">С</label>
+                    <input type="date" id="dateFilterFrom" name="dateFrom">
+                </div>
+                <div class="form-group">
+                    <label for="dateFilterTo" data-i18n="dateFilterTo">По</label>
+                    <input type="date" id="dateFilterTo" name="dateTo">
+                </div>
+                <div class="form-group form-group--checkbox">
+                    <label>
+                        <input type="checkbox" id="dateFilterReset" name="dateFilterReset">
+                        <span data-i18n="dateFilterReset">Сбросить фильтр</span>
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelDateFilter" data-i18n="cancelBtn">Отмена</button>
+                    <button type="button" class="btn-submit" id="applyDateFilter" data-i18n="applyBtn">Применить</button>
                 </div>
             </div>
         </div>
@@ -142,6 +179,11 @@
         let archivedLeadsById = {};
         let allArchiveLeads = [];
         let currentLang = 'ru';
+        let dateFilterEnabled = false;
+        let dateFilterFrom = '';
+        let dateFilterTo = '';
+        const ARCHIVE_PAGE_SIZE = 10;
+        let archiveCurrentPage = 1;
 
         const LANG_KEY = 'crm_lang';
         const translations = {
@@ -196,7 +238,17 @@
                 errorSessionExpired: 'Сессия истекла. Войдите заново.',
                 errorLoadArchive: 'Не удалось загрузить архив.',
                 errorForbidden: 'Доступ запрещён.',
-                errorUpdateComment: 'Не удалось обновить комментарий.'
+                errorUpdateComment: 'Не удалось обновить комментарий.',
+                filterByDateBtn: 'Фильтр по дате',
+                dateFilterTitle: 'Фильтр по дате',
+                dateFilterFrom: 'С',
+                dateFilterTo: 'По',
+                dateFilterReset: 'Сбросить фильтр',
+                applyBtn: 'Применить',
+                paginationPrev: 'Назад',
+                paginationNext: 'Вперёд',
+                paginationPage: 'Стр. {{current}} из {{total}}',
+                downloadExcelBtn: 'Скачать Excel'
             },
             uz: {
                 languageLabel: 'Til',
@@ -249,7 +301,17 @@
                 errorSessionExpired: 'Sessiya tugadi. Qayta kiring.',
                 errorLoadArchive: 'Arxivni yuklab bo‘lmadi.',
                 errorForbidden: 'Kirish taqiqlangan.',
-                errorUpdateComment: 'Izohni yangilab bo‘lmadi.'
+                errorUpdateComment: 'Izohni yangilab bo‘lmadi.',
+                filterByDateBtn: 'Sana bo‘yicha filtr',
+                dateFilterTitle: 'Sana bo‘yicha filtr',
+                dateFilterFrom: 'Dan',
+                dateFilterTo: 'Gacha',
+                dateFilterReset: 'Filterni to‘shatish',
+                applyBtn: 'Qo‘llash',
+                paginationPrev: 'Orqaga',
+                paginationNext: 'Oldinga',
+                paginationPage: 'Sahifa {{current}} / {{total}}',
+                downloadExcelBtn: 'Excel yuklab olish'
             }
         };
 
@@ -403,7 +465,14 @@
             document.getElementById('leadsTableWrapper').style.display = 'none';
 
             try {
-                const response = await fetch('/api/admin/done-calls', {
+                let url = '/api/admin/done-calls';
+                if (dateFilterEnabled && (dateFilterFrom || dateFilterTo)) {
+                    const params = new URLSearchParams();
+                    if (dateFilterFrom) params.set('dateFrom', dateFilterFrom);
+                    if (dateFilterTo) params.set('dateTo', dateFilterTo);
+                    url += '?' + params.toString();
+                }
+                const response = await fetch(url, {
                     method: 'GET',
                     headers: getAuthHeader()
                 });
@@ -414,10 +483,12 @@
 
                 if (response.ok) {
                     allArchiveLeads = data.leads || [];
+                    archiveCurrentPage = 1;
                     if (allArchiveLeads.length > 0) {
                         applyArchiveFilters();
                     } else {
                         document.getElementById('noLeadsMessage').style.display = 'block';
+                        document.getElementById('leadsTableWrapper').style.display = 'none';
                     }
                 } else {
                     if (response.status === 401) {
@@ -578,16 +649,13 @@
             document.getElementById('errorMessage').style.display = 'block';
         }
 
-        function applyArchiveFilters() {
+        function getFilteredArchiveLeads() {
             const searchInput = document.getElementById('archiveSearchInput');
             const labelSelect = document.getElementById('archiveLabelFilter');
             const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
             const label = labelSelect ? labelSelect.value : '';
-
             let filtered = allArchiveLeads;
-            if (label) {
-                filtered = filtered.filter(lead => (lead.label || '') === label);
-            }
+            if (label) filtered = filtered.filter(lead => (lead.label || '') === label);
             if (query) {
                 filtered = filtered.filter(lead => {
                     const fullName = (lead.fullName || (lead.name + ' ' + lead.surname).trim() || '').toLowerCase();
@@ -595,21 +663,127 @@
                     return fullName.includes(query) || phone.includes(query);
                 });
             }
+            return filtered;
+        }
+
+        function applyArchiveFilters() {
+            const filtered = getFilteredArchiveLeads();
+            const totalPages = Math.max(1, Math.ceil(filtered.length / ARCHIVE_PAGE_SIZE));
+            if (archiveCurrentPage > totalPages) archiveCurrentPage = totalPages;
+            const start = (archiveCurrentPage - 1) * ARCHIVE_PAGE_SIZE;
+            const pageLeads = filtered.slice(start, start + ARCHIVE_PAGE_SIZE);
 
             document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
             if (filtered.length > 0) {
-                displayDoneCalls(filtered);
+                displayDoneCalls(pageLeads);
+                const paginationEl = document.getElementById('archivePagination');
+                const infoEl = document.getElementById('archivePaginationInfo');
+                const prevBtn = document.getElementById('archivePaginationPrev');
+                const nextBtn = document.getElementById('archivePaginationNext');
+                if (totalPages > 1) {
+                    paginationEl.style.display = 'flex';
+                    infoEl.textContent = (t('paginationPage') || 'Стр. {{current}} из {{total}}')
+                        .replace('{{current}}', String(archiveCurrentPage))
+                        .replace('{{total}}', String(totalPages));
+                    prevBtn.disabled = archiveCurrentPage <= 1;
+                    nextBtn.disabled = archiveCurrentPage >= totalPages;
+                } else {
+                    paginationEl.style.display = 'none';
+                }
             } else {
                 document.getElementById('leadsTableWrapper').style.display = 'none';
             }
         }
 
-        document.getElementById('archiveSearchInput').addEventListener('input', () => {
+        document.getElementById('archiveSortBtn').addEventListener('click', () => {
+            archiveCurrentPage = 1;
             applyArchiveFilters();
         });
 
-        document.getElementById('archiveSortBtn').addEventListener('click', () => {
+        document.getElementById('archiveSearchInput').addEventListener('input', () => {
+            archiveCurrentPage = 1;
             applyArchiveFilters();
+        });
+
+        document.getElementById('archiveLabelFilter').addEventListener('change', () => {
+            archiveCurrentPage = 1;
+            applyArchiveFilters();
+        });
+
+        document.getElementById('archivePaginationPrev').addEventListener('click', () => {
+            if (archiveCurrentPage > 1) {
+                archiveCurrentPage--;
+                applyArchiveFilters();
+            }
+        });
+        document.getElementById('archivePaginationNext').addEventListener('click', () => {
+            const filtered = getFilteredArchiveLeads();
+            const totalPages = Math.max(1, Math.ceil(filtered.length / ARCHIVE_PAGE_SIZE));
+            if (archiveCurrentPage < totalPages) {
+                archiveCurrentPage++;
+                applyArchiveFilters();
+            }
+        });
+
+        function openDateFilterModal() {
+            document.getElementById('dateFilterFrom').value = dateFilterFrom || '';
+            document.getElementById('dateFilterTo').value = dateFilterTo || '';
+            document.getElementById('dateFilterReset').checked = false;
+            const modal = document.getElementById('dateFilterModal');
+            modal.style.display = 'flex';
+            setTimeout(() => modal.classList.add('modal-open'), 10);
+        }
+        function closeDateFilterModal() {
+            const modal = document.getElementById('dateFilterModal');
+            modal.classList.remove('modal-open');
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
+        document.getElementById('archiveDateFilterBtn').addEventListener('click', openDateFilterModal);
+        document.getElementById('closeDateFilterModal').addEventListener('click', closeDateFilterModal);
+        document.getElementById('cancelDateFilter').addEventListener('click', closeDateFilterModal);
+        document.getElementById('applyDateFilter').addEventListener('click', () => {
+            const resetFilter = document.getElementById('dateFilterReset').checked;
+            if (resetFilter) {
+                dateFilterEnabled = false;
+                dateFilterFrom = '';
+                dateFilterTo = '';
+            } else {
+                const from = document.getElementById('dateFilterFrom').value.trim();
+                const to = document.getElementById('dateFilterTo').value.trim();
+                dateFilterEnabled = !!(from || to);
+                dateFilterFrom = from;
+                dateFilterTo = to;
+            }
+            closeDateFilterModal();
+            archiveCurrentPage = 1;
+            loadDoneCalls();
+        });
+        document.getElementById('dateFilterModal').addEventListener('click', (e) => {
+            if (e.target.id === 'dateFilterModal') closeDateFilterModal();
+        });
+
+        document.getElementById('archiveExportExcelBtn').addEventListener('click', async () => {
+            if (!adminToken) return;
+            let url = '/api/admin/archive/export';
+            if (dateFilterEnabled && (dateFilterFrom || dateFilterTo)) {
+                const params = new URLSearchParams();
+                if (dateFilterFrom) params.set('dateFrom', dateFilterFrom);
+                if (dateFilterTo) params.set('dateTo', dateFilterTo);
+                url += '?' + params.toString();
+            }
+            try {
+                const response = await fetch(url, { headers: getAuthHeader() });
+                if (!response.ok) throw new Error('Export failed');
+                const blob = await response.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'archive-export.xlsx';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            } catch (err) {
+                console.error('Excel export error:', err);
+                showError(t('errorLoadArchive'));
+            }
         });
 
         document.getElementById('archiveControlsToggle').addEventListener('click', () => {
