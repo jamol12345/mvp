@@ -17,3 +17,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local Netlify folder
+.netlify
+.vercel

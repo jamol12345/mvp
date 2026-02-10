@@ -4,6 +4,7 @@
 
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const path = require('path');
@@ -19,16 +20,31 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Enable CORS for frontend deployments
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // Serve static files (HTML, CSS)
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Friendly route for done calls (matches /done_calls navigation)
+app.get('/done_calls', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'done_calls.html'));
+});
 
 // ============================================
 // MONGODB CONNECTION
 // ============================================
 
-// TODO: Replace 'YOUR_MONGODB_CONNECTION_STRING' with your actual MongoDB URI
+// MongoDB connection string must be provided via environment variables
 // Example: mongodb://localhost:27017/leads or mongodb+srv://user:pass@cluster.mongodb.net/leads
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://zhamal2k04:12345@cluster0.ek0f7zz.mongodb.net/?appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not set');
+  process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
@@ -42,6 +58,10 @@ mongoose.connect(MONGODB_URI)
 // ============================================
 // MONGOOSE SCHEMA
 // ============================================
+
+const PRIORITY_OPTIONS = ['Quality', 'Design', 'Production Time', 'Price', 'Warranty'];
+const LABEL_OPTIONS = ['New Client', 'Call Back', 'Successful', 'Rejected'];
+const SOURCE_OPTIONS = ['instagram', 'telegram', 'word_of_mouth', 'website'];
 
 const leadSchema = new mongoose.Schema({
   name: {
@@ -71,6 +91,35 @@ const leadSchema = new mongoose.Schema({
   priorities: {
     type: [String],
     default: []
+  },
+  label: {
+    type: String,
+    enum: LABEL_OPTIONS,
+    default: 'New Client'
+  },
+  source: {
+    type: String,
+    enum: SOURCE_OPTIONS,
+    default: 'website'
+  },
+  language: {
+    type: String,
+    enum: ['ru', 'uz'],
+    default: 'ru'
+  },
+  closedBy: {
+    type: String,
+    default: ''
+  },
+  closedAt: {
+    type: Date
+  },
+  lastEditedBy: {
+    type: String,
+    default: ''
+  },
+  commentUpdatedAt: {
+    type: Date
   },
   status: {
     type: String,
@@ -108,49 +157,42 @@ leadSchema.pre('save', function(next) {
 const Lead = mongoose.model('Lead', leadSchema);
 
 // ============================================
-// DELAYED SAVE QUEUE SYSTEM
+// PRIORITIES HELPERS
 // ============================================
 
-// In-memory queue to buffer incoming leads
-// This prevents one-to-one heavy MongoDB writes during high traffic
-const leadsQueue = [];
-
-// Background worker: Process queue every 4 seconds
-// This batches inserts to MongoDB, reducing write load
-const QUEUE_PROCESS_INTERVAL = 4000; // 4 seconds
-
-// Background worker function: Batch insert queued leads to MongoDB
-async function processLeadsQueue() {
-  if (leadsQueue.length === 0) {
-    return; // Nothing to process
-  }
-
-  // Copy current queue and clear it immediately
-  const batch = [...leadsQueue];
-  leadsQueue.length = 0;
-
-  console.log(`📦 [QUEUE] Processing batch of ${batch.length} lead(s)...`);
-
-  try {
-    // Batch insert using insertMany for better performance
-    const result = await Lead.insertMany(batch, { ordered: false });
-    console.log(`✅ [MONGODB] Successfully saved ${result.length} lead(s) to database`);
-    console.log(`   Collection: 'leads' | Database: ${mongoose.connection.name}`);
-  } catch (error) {
-    console.error('❌ [MONGODB] Error saving batch to database:', error);
-    // In production, you might want to re-queue failed items or log to a dead-letter queue
-  }
+function sanitizePriorities(input) {
+  if (!Array.isArray(input)) return [];
+  const filtered = input
+    .map(item => String(item).trim())
+    .filter(item => PRIORITY_OPTIONS.includes(item));
+  const unique = [];
+  filtered.forEach(item => {
+    if (!unique.includes(item)) unique.push(item);
+  });
+  return unique.slice(0, 2);
 }
 
-// Start background worker
-setInterval(processLeadsQueue, QUEUE_PROCESS_INTERVAL);
-console.log(`🔄 [QUEUE] Background worker started (processing every ${QUEUE_PROCESS_INTERVAL/1000}s)`);
+function sanitizeSource(input) {
+  if (!input) return '';
+  const value = String(input).trim();
+  return SOURCE_OPTIONS.includes(value) ? value : '';
+}
+
+function sanitizeLanguage(input) {
+  if (!input) return 'ru';
+  const value = String(input).trim();
+  return value === 'ru' || value === 'uz' ? value : 'ru';
+}
 
 // ============================================
 // AUTHENTICATION & ROLES
 // ============================================
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('❌ JWT_SECRET is not set');
+  process.exit(1);
+}
 const MANAGER_TOKEN = process.env.MANAGER_TOKEN || '';
 const CALL_MANAGER_TOKEN = process.env.CALL_MANAGER_TOKEN || '';
 
@@ -186,10 +228,9 @@ const requireManager = (req, res, next) => {
 // ============================================
 
 // POST /api/leads - Public endpoint to submit lead form
-// Uses delayed save: Data is queued and saved in batches by background worker
 app.post('/api/leads', async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities, language } = req.body;
 
     if (!fullName || !doorType || !measurements || !phoneNumber) {
       return res.status(400).json({
@@ -197,7 +238,9 @@ app.post('/api/leads', async (req, res) => {
       });
     }
 
-    const prioritiesArray = Array.isArray(priorities) ? priorities : [];
+    const prioritiesArray = sanitizePriorities(priorities);
+
+    const languageValue = sanitizeLanguage(language);
 
     const leadData = {
       fullName: fullName.trim(),
@@ -208,17 +251,19 @@ app.post('/api/leads', async (req, res) => {
       name: '',
       surname: '',
       status: 'new',
+      label: 'New Client',
+      source: 'website',
+      language: languageValue,
       createdAt: new Date(),
       updatedAt: new Date()
     };
-
-    leadsQueue.push(leadData);
-    console.log(`📥 [QUEUE] Lead received and queued: ${leadData.fullName} (Queue size: ${leadsQueue.length})`);
+    const lead = new Lead(leadData);
+    await lead.save();
+    console.log(`✅ [MONGODB] Lead submitted: ${lead.fullName}`);
 
     res.status(201).json({
       success: true,
-      message: 'Lead submitted successfully',
-      note: 'Your information has been received and will be processed shortly'
+      message: 'Lead submitted successfully'
     });
   } catch (error) {
     console.error('❌ [ERROR] Error processing lead request:', error);
@@ -262,13 +307,17 @@ app.post('/api/admin/login', (req, res) => {
 // POST /api/admin/leads - Add client manually (Manager only)
 app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities, source } = req.body;
     if (!fullName || !doorType || !measurements || !phoneNumber) {
       return res.status(400).json({
         error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
       });
     }
-    const prioritiesArray = Array.isArray(priorities) ? priorities : [];
+    const sourceValue = sanitizeSource(source);
+    if (!sourceValue || sourceValue === 'website') {
+      return res.status(400).json({ error: 'Source is required' });
+    }
+    const prioritiesArray = sanitizePriorities(priorities);
     const lead = new Lead({
       fullName: fullName.trim(),
       doorType: doorType.trim(),
@@ -277,7 +326,9 @@ app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res)
       priorities: prioritiesArray,
       name: '',
       surname: '',
-      status: 'new'
+      status: 'new',
+      label: 'New Client',
+      source: sourceValue
     });
     await lead.save();
     console.log(`✅ [MONGODB] Lead added by manager: ${lead.fullName}`);
@@ -293,7 +344,7 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
   try {
     const leads = await Lead.find({ status: 'new' })
       .sort({ createdAt: -1 })
-      .select('name surname fullName doorType measurements phoneNumber priorities createdAt _id');
+      .select('name surname fullName doorType measurements phoneNumber priorities label source createdAt _id');
 
     res.json({
       success: true,
@@ -309,7 +360,11 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/leads/:id/done', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { comment } = req.body;
+    const { comment, label } = req.body;
+    const trimmedLabel = label ? String(label).trim() : '';
+    if (!LABEL_OPTIONS.includes(trimmedLabel) || trimmedLabel === 'New Client') {
+      return res.status(400).json({ error: 'Label is required' });
+    }
 
     const lead = await Lead.findById(id);
 
@@ -319,9 +374,14 @@ app.post('/api/admin/leads/:id/done', authenticateAdmin, async (req, res) => {
 
     // Update lead status and comment
     lead.status = 'done';
+    lead.closedBy = req.user.role;
+    lead.closedAt = new Date();
+    lead.label = trimmedLabel;
     lead.updatedAt = new Date();
     if (comment) {
       lead.comment = comment.trim();
+      lead.commentUpdatedAt = new Date();
+      lead.lastEditedBy = req.user.role;
     }
 
     // Save to MongoDB - this is immediate (not queued) for admin actions
@@ -352,6 +412,9 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
 
     // Update lead status to archived
     lead.status = 'archived';
+    lead.closedBy = req.user.role;
+    lead.closedAt = new Date();
+    lead.label = 'Rejected';
     lead.updatedAt = new Date();
     
     // Save to MongoDB - this is immediate (not queued) for admin actions
@@ -372,9 +435,9 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
 // GET /api/admin/done-calls - Get all leads with status "done" (Protected)
 app.get('/api/admin/done-calls', authenticateAdmin, async (req, res) => {
   try {
-    const leads = await Lead.find({ status: 'done' })
+    const leads = await Lead.find({ status: { $in: ['done', 'archived'] } })
       .sort({ updatedAt: -1 })
-      .select('name surname fullName doorType measurements phoneNumber priorities comment createdAt updatedAt _id');
+      .select('name surname fullName doorType measurements phoneNumber priorities comment createdAt updatedAt closedBy closedAt label source lastEditedBy commentUpdatedAt status _id');
 
     console.log(`📊 [API] Returning ${leads.length} completed lead(s) for done-calls archive`);
 
@@ -388,11 +451,49 @@ app.get('/api/admin/done-calls', authenticateAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/leads/:id/comment - Update archived lead comment (Protected)
+app.post('/api/admin/leads/:id/comment', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comment } = req.body;
+
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    if (lead.status === 'new') {
+      return res.status(400).json({ error: 'Only archived leads can be edited' });
+    }
+
+    if (req.user.role === 'call_manager' && lead.lastEditedBy === 'manager') {
+      return res.status(403).json({ error: 'Forbidden: Manager has locked this comment' });
+    }
+
+    lead.comment = comment ? comment.trim() : '';
+    lead.commentUpdatedAt = new Date();
+    lead.lastEditedBy = req.user.role;
+    lead.updatedAt = new Date();
+
+    await lead.save();
+
+    res.json({
+      success: true,
+      message: 'Comment updated',
+      lead
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error updating archive comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/admin/analytics/priorities - Aggregated priority statistics (Manager only)
 app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, async (req, res) => {
   try {
     const pipeline = [
       { $unwind: '$priorities' },
+      { $match: { priorities: { $in: PRIORITY_OPTIONS } } },
       {
         $group: {
           _id: '$priorities',
@@ -422,7 +523,7 @@ app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, as
 // Query params:
 //   since: ISO timestamp string representing last seen createdAt
 // Response:
-//   { success, newCount, latestCreatedAt }
+//   { success, newClients, latestCreatedAt }
 app.get('/api/admin/leads/poll', authenticateAdmin, async (req, res) => {
   try {
     const { since } = req.query;
@@ -446,14 +547,14 @@ app.get('/api/admin/leads/poll', authenticateAdmin, async (req, res) => {
       createdAt: { $gt: sinceDate }
     };
 
-    const [newCount, latest] = await Promise.all([
+    const [newClients, latest] = await Promise.all([
       Lead.countDocuments(match),
       Lead.findOne(match).sort({ createdAt: -1 }).select('createdAt').lean()
     ]);
 
     res.json({
       success: true,
-      newCount,
+      newClients,
       latestCreatedAt: latest ? latest.createdAt.toISOString() : null
     });
   } catch (error) {
@@ -463,16 +564,20 @@ app.get('/api/admin/leads/poll', authenticateAdmin, async (req, res) => {
 });
 
 // ============================================
-// SERVER START
+// SERVER START (LOCAL) + SERVERLESS EXPORT
 // ============================================
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📝 Public form: http://localhost:${PORT}/`);
-  console.log(`🔐 Admin panel: http://localhost:${PORT}/admin.html`);
-  console.log(`✅ Done calls archive: http://localhost:${PORT}/done_calls.html`);
-  console.log(`\n💾 MongoDB Info:`);
-  console.log(`   Database: ${mongoose.connection.name || 'Will be set on connection'}`);
-  console.log(`   Collection: 'leads'`);
-  console.log(`   Check data in MongoDB Compass using your connection string\n`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📝 Public form: http://localhost:${PORT}/`);
+    console.log(`🔐 Admin panel: http://localhost:${PORT}/admin.html`);
+    console.log(`✅ Done calls archive: http://localhost:${PORT}/done_calls.html`);
+    console.log(`\n💾 MongoDB Info:`);
+    console.log(`   Database: ${mongoose.connection.name || 'Will be set on connection'}`);
+    console.log(`   Collection: 'leads'`);
+    console.log(`   Check data in MongoDB Compass using your connection string\n`);
+  });
+}
+
+module.exports = app;

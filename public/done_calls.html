@@ -1,18 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Done Calls Archive - Admin Panel</title>
+    <title>Архив — админ‑панель</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
+        <div class="top-bar">
+            <div class="top-bar-left">
+                <div class="lang-switch" aria-label="Language">
+                    <span class="lang-label" data-i18n="languageLabel">Язык</span>
+                    <div class="lang-toggle-group" role="group" aria-label="Language">
+                        <button type="button" class="lang-toggle" data-lang="ru">RU</button>
+                        <span class="lang-sep">|</span>
+                        <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
+                    </div>
+                </div>
+                <div class="user-menu-wrapper" id="userMenuWrapper" style="display: none;">
+                    <button type="button" class="user-menu-trigger" id="userMenuTrigger" title="Аккаунт" data-i18n-title="accountTitle">
+                        <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        <span class="user-role-label" id="userRoleLabel">—</span>
+                    </button>
+                    <div id="userDropdown" class="user-dropdown" style="display: none;">
+                        <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn" data-i18n="logoutBtn">Выйти</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- Login Section (shown when not authenticated) -->
         <div id="loginSection" class="login-wrapper">
             <div class="login-box">
-                <h1>Admin Login</h1>
-                <p class="subtitle">Enter your admin token to access the done calls archive</p>
+                <h1 data-i18n="loginTitle">Вход в админ‑панель</h1>
+                <p class="subtitle" data-i18n="loginSubtitle">Введите админ‑токен для доступа к архиву</p>
                 
                 <div id="loginError" class="message error-message" style="display: none;">
                     <p id="loginErrorText"></p>
@@ -20,17 +44,18 @@
 
                 <form id="loginForm">
                     <div class="form-group">
-                        <label for="adminToken">Admin Token</label>
+                        <label for="adminToken" data-i18n="adminTokenLabel">Админ‑токен</label>
                         <input 
                             type="password" 
                             id="adminToken" 
                             name="adminToken" 
                             required 
-                            placeholder="Enter admin token"
+                            placeholder="Введите админ‑токен"
+                            data-i18n-placeholder="adminTokenPlaceholder"
                             autocomplete="off"
                         >
                     </div>
-                    <button type="submit" class="submit-btn">Login</button>
+                    <button type="submit" class="submit-btn" data-i18n="loginButton">Войти</button>
                 </form>
             </div>
         </div>
@@ -39,28 +64,16 @@
         <div id="archivePanel" class="admin-panel" style="display: none;">
             <div class="admin-header">
                 <div>
-                    <h1>Done Calls Archive</h1>
-                    <p class="subtitle">Completed deals and successfully closed leads</p>
+                    <h1 data-i18n="archiveTitle">Архив</h1>
+                    <p class="subtitle" data-i18n="archiveSubtitle">Закрытые и архивные лиды</p>
                 </div>
                 <div class="header-actions">
-                    <a href="admin.html" class="btn-link">← Back to New Leads</a>
-                    <div class="user-menu-wrapper">
-                        <button type="button" class="user-menu-trigger" id="userMenuTrigger" title="Account">
-                            <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                <circle cx="12" cy="7" r="4"/>
-                            </svg>
-                            <span class="user-role-label" id="userRoleLabel">—</span>
-                        </button>
-                        <div id="userDropdown" class="user-dropdown" style="display: none;">
-                            <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn">Logout</button>
-                        </div>
-                    </div>
+                    <a class='btn-link' data-i18n='backToActive' href='/admin'>← Назад к активным</a>
                 </div>
             </div>
 
             <div id="loadingMessage" class="message info-message" style="display: none;">
-                <p>Loading completed leads...</p>
+                <p data-i18n="loadingArchive">Загрузка архива...</p>
             </div>
 
             <div id="errorMessage" class="message error-message" style="display: none;">
@@ -68,24 +81,57 @@
             </div>
 
             <div id="noLeadsMessage" class="message info-message" style="display: none;">
-                <p>No completed leads yet.</p>
+                <p data-i18n="noArchive">Архив пуст.</p>
+            </div>
+
+            <div class="table-controls-wrapper" id="archiveControlsWrapper" style="margin-bottom: 10px;">
+                <button id="archiveControlsToggle" class="controls-toggle" type="button" data-i18n="controlsToggle">Поиск и фильтры</button>
+                <div class="header-actions table-controls">
+                    <input id="archiveSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
+                    <select id="archiveLabelFilter" class="table-select">
+                        <option value="" data-i18n="allLabels">Все метки</option>
+                        <option value="Call Back" data-i18n="labelCallBack">Перезвонить</option>
+                        <option value="Successful" data-i18n="labelSuccessful">Успешно</option>
+                        <option value="Rejected" data-i18n="labelRejected">Отказ</option>
+                    </select>
+                    <button id="archiveSortBtn" class="btn-link" type="button" data-i18n="sortBtn">Сортировать</button>
+                </div>
             </div>
 
             <!-- Done Calls Table -->
             <div id="leadsTableWrapper" style="display: none;">
-                <table class="leads-table">
-                    <thead>
-                        <tr>
-                            <th>Name & Surname</th>
-                            <th>Phone Number</th>
-                            <th>Comment</th>
-                            <th>Date Closed</th>
-                        </tr>
-                    </thead>
-                    <tbody id="leadsTableBody">
-                        <!-- Leads will be inserted here dynamically -->
-                    </tbody>
-                </table>
+                <div id="archiveCardGrid" class="lead-cards-grid">
+                    <!-- Archive cards will be inserted here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Edit Comment -->
+    <div id="editCommentModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-i18n="editCommentTitle">Редактировать комментарий</h2>
+                <button class="modal-close" id="closeEditCommentModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editCommentForm">
+                    <input type="hidden" id="editLeadId">
+                    <div class="form-group">
+                        <label for="editComment" data-i18n="commentLabel">Комментарий</label>
+                        <textarea 
+                            id="editComment" 
+                            name="comment" 
+                            rows="4" 
+                            placeholder="Введите комментарий"
+                            data-i18n-placeholder="commentPlaceholder"
+                        ></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" id="cancelEditComment" data-i18n="cancelBtn">Отмена</button>
+                        <button type="submit" class="btn-submit" data-i18n="saveBtn">Сохранить</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -93,6 +139,162 @@
     <script>
         let adminToken = null;
         let userRole = null;
+        let archivedLeadsById = {};
+        let allArchiveLeads = [];
+        let currentLang = 'ru';
+
+        const LANG_KEY = 'crm_lang';
+        const translations = {
+            ru: {
+                languageLabel: 'Язык',
+                pageTitle: 'Архив — админ‑панель',
+                loginTitle: 'Вход в админ‑панель',
+                loginSubtitle: 'Введите админ‑токен для доступа к архиву',
+                adminTokenLabel: 'Админ‑токен',
+                adminTokenPlaceholder: 'Введите админ‑токен',
+                loginButton: 'Войти',
+                archiveTitle: 'Архив',
+                archiveSubtitle: 'Закрытые и архивные лиды',
+                backToActive: '← Назад к активным',
+                logoutBtn: 'Выйти',
+                accountTitle: 'Аккаунт',
+                loadingArchive: 'Загрузка архива...',
+                noArchive: 'Архив пуст.',
+                noComment: '(Без комментария)',
+                controlsToggle: 'Поиск и фильтры',
+                searchPlaceholder: 'Поиск по имени или телефону',
+                searchBtn: 'Поиск',
+                sortBtn: 'Сортировать',
+                allLabels: 'Все метки',
+                labelCallBack: 'Перезвонить',
+                labelSuccessful: 'Успешно',
+                labelRejected: 'Отказ',
+                labelNew: 'Новый клиент',
+                thFullName: 'ФИО',
+                thPhone: 'Телефон',
+                thComment: 'Комментарий',
+                thLabel: 'Метка',
+                thSource: 'Источник',
+                thClosedBy: 'Кто закрыл',
+                thClosedAt: 'Дата закрытия',
+                thActions: 'Действия',
+                commentLabel: 'Комментарий',
+                commentPlaceholder: 'Введите комментарий',
+                editCommentTitle: 'Редактировать комментарий',
+                editBtn: 'Редактировать',
+                cancelBtn: 'Отмена',
+                saveBtn: 'Сохранить',
+                roleManager: 'Босс‑менеджер',
+                roleCallManager: 'Колл‑менеджер',
+                sourceInstagram: 'Instagram',
+                sourceTelegram: 'Telegram',
+                sourceWordOfMouth: 'Сарафан',
+                sourceWebsite: 'Сайт',
+                errorTokenRequired: 'Введите админ‑токен.',
+                errorInvalidToken: 'Неверный токен. Попробуйте снова.',
+                errorNetwork: 'Ошибка сети. Проверьте соединение и попробуйте снова.',
+                errorSessionExpired: 'Сессия истекла. Войдите заново.',
+                errorLoadArchive: 'Не удалось загрузить архив.',
+                errorForbidden: 'Доступ запрещён.',
+                errorUpdateComment: 'Не удалось обновить комментарий.'
+            },
+            uz: {
+                languageLabel: 'Til',
+                pageTitle: 'Arxiv — administrator paneli',
+                loginTitle: 'Administrator paneliga kirish',
+                loginSubtitle: 'Arxivga kirish uchun administrator tokenini kiriting',
+                adminTokenLabel: 'Administrator tokeni',
+                adminTokenPlaceholder: 'Administrator tokenini kiriting',
+                loginButton: 'Kirish',
+                archiveTitle: 'Arxiv',
+                archiveSubtitle: 'Yopilgan va arxivlangan mijozlar',
+                backToActive: '← Aktivlarga qaytish',
+                logoutBtn: 'Chiqish',
+                accountTitle: 'Hisob',
+                loadingArchive: 'Arxiv yuklanmoqda...',
+                noArchive: 'Arxiv bo‘sh.',
+                noComment: '(Izohsiz)',
+                controlsToggle: 'Qidiruv va filtrlar',
+                searchPlaceholder: 'Ism yoki telefon bo‘yicha qidirish',
+                searchBtn: 'Qidirish',
+                sortBtn: 'Saralash',
+                allLabels: 'Barcha yorliqlar',
+                labelCallBack: 'Qayta qo‘ng‘iroq',
+                labelSuccessful: 'Muvaffaqiyatli',
+                labelRejected: 'Rad etildi',
+                labelNew: 'Yangi mijoz',
+                thFullName: 'F.I.Sh.',
+                thPhone: 'Telefon',
+                thComment: 'Izoh',
+                thLabel: 'Yorliq',
+                thSource: 'Manba',
+                thClosedBy: 'Kim yopdi',
+                thClosedAt: 'Yopilgan sana',
+                thActions: 'Amallar',
+                commentLabel: 'Izoh',
+                commentPlaceholder: 'Izoh kiriting',
+                editCommentTitle: 'Izohni tahrirlash',
+                editBtn: 'Tahrirlash',
+                cancelBtn: 'Bekor qilish',
+                saveBtn: 'Saqlash',
+                roleManager: 'Bosh menejer',
+                roleCallManager: 'Qo‘ng‘iroq menejeri',
+                sourceInstagram: 'Instagram',
+                sourceTelegram: 'Telegram',
+                sourceWordOfMouth: 'Sarafan',
+                sourceWebsite: 'Veb‑sayt',
+                errorTokenRequired: 'Administrator tokenini kiriting.',
+                errorInvalidToken: 'Noto‘g‘ri token. Qayta urinib ko‘ring.',
+                errorNetwork: 'Tarmoq xatosi. Ulanishni tekshirib qayta urinib ko‘ring.',
+                errorSessionExpired: 'Sessiya tugadi. Qayta kiring.',
+                errorLoadArchive: 'Arxivni yuklab bo‘lmadi.',
+                errorForbidden: 'Kirish taqiqlangan.',
+                errorUpdateComment: 'Izohni yangilab bo‘lmadi.'
+            }
+        };
+
+        function t(key) {
+            const dict = translations[currentLang] || translations.ru;
+            return dict[key] || '';
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = currentLang;
+            document.title = t('pageTitle');
+            document.querySelectorAll('[data-i18n]').forEach((el) => {
+                const key = el.getAttribute('data-i18n');
+                el.textContent = t(key);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                el.setAttribute('placeholder', t(key));
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+                const key = el.getAttribute('data-i18n-title');
+                el.setAttribute('title', t(key));
+            });
+            const roleLabel = document.getElementById('userRoleLabel');
+            if (roleLabel && userRole) {
+                roleLabel.textContent = userRole === 'manager' ? t('roleManager') : t('roleCallManager');
+            }
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang === 'uz' ? 'uz' : 'ru';
+            localStorage.setItem(LANG_KEY, currentLang);
+            document.querySelectorAll('.lang-toggle').forEach((btn) => {
+                btn.classList.toggle('active', btn.getAttribute('data-lang') === currentLang);
+            });
+            applyTranslations();
+            if (adminToken) {
+                applyArchiveFilters();
+            }
+        }
+
+        function initLanguage() {
+            const stored = localStorage.getItem(LANG_KEY);
+            setLanguage(stored || 'ru');
+        }
 
         function getAuthHeader() {
             return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
@@ -101,12 +303,23 @@
         function setRoleUI(role) {
             userRole = role;
             const label = document.getElementById('userRoleLabel');
-            label.textContent = role === 'manager' ? 'Boss Manager' : 'Call Manager';
+            const userMenu = document.getElementById('userMenuWrapper');
+            label.textContent = role === 'manager' ? t('roleManager') : t('roleCallManager');
+            if (userMenu) {
+                userMenu.style.display = 'flex';
+            }
         }
 
         // ============================================
         // LOGIN FUNCTIONALITY
         // ============================================
+
+        document.querySelectorAll('.lang-toggle').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setLanguage(btn.getAttribute('data-lang'));
+            });
+        });
+        initLanguage();
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -115,7 +328,7 @@
             document.getElementById('loginError').style.display = 'none';
 
             if (!token) {
-                showLoginError('Please enter an admin token.');
+                showLoginError(t('errorTokenRequired'));
                 return;
             }
 
@@ -134,13 +347,14 @@
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('archivePanel').style.display = 'block';
                     document.getElementById('adminToken').value = '';
+                    applyTranslations();
                     loadDoneCalls();
                 } else {
-                    showLoginError(data.error || 'Invalid token. Please try again.');
+                    showLoginError(t('errorInvalidToken'));
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                showLoginError('Network error. Please try again.');
+                showLoginError(t('errorNetwork'));
             }
         });
 
@@ -165,7 +379,11 @@
             document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('archivePanel').style.display = 'none';
-            document.getElementById('leadsTableBody').innerHTML = '';
+            document.getElementById('archiveCardGrid').innerHTML = '';
+            const userMenu = document.getElementById('userMenuWrapper');
+            if (userMenu) {
+                userMenu.style.display = 'none';
+            }
         });
 
         document.addEventListener('click', () => {
@@ -195,54 +413,155 @@
                 document.getElementById('loadingMessage').style.display = 'none';
 
                 if (response.ok) {
-                    if (data.leads && data.leads.length > 0) {
-                        displayDoneCalls(data.leads);
+                    allArchiveLeads = data.leads || [];
+                    if (allArchiveLeads.length > 0) {
+                        applyArchiveFilters();
                     } else {
                         document.getElementById('noLeadsMessage').style.display = 'block';
                     }
                 } else {
                     if (response.status === 401) {
                         // Token expired or invalid
-                        showError('Session expired. Please login again.');
+                        showError(t('errorSessionExpired'));
                         setTimeout(() => {
                             adminToken = null;
                             document.getElementById('loginSection').style.display = 'block';
                             document.getElementById('archivePanel').style.display = 'none';
+                            const userMenu = document.getElementById('userMenuWrapper');
+                            if (userMenu) {
+                                userMenu.style.display = 'none';
+                            }
                         }, 2000);
                     } else {
-                        showError(data.error || 'Failed to load done calls.');
+                        showError(t('errorLoadArchive'));
                     }
                 }
             } catch (error) {
-                console.error('Error loading done calls:', error);
+                console.error('Error loading archive:', error);
                 document.getElementById('loadingMessage').style.display = 'none';
-                showError('Network error. Please try again.');
+                showError(t('errorNetwork'));
             }
         }
 
+        function roleLabel(role) {
+            if (role === 'manager') return t('roleManager');
+            if (role === 'call_manager') return t('roleCallManager');
+            return '—';
+        }
+
+        function getLabelClass(label) {
+            switch (label) {
+                case 'Call Back':
+                    return 'badge-call-back';
+                case 'Successful':
+                    return 'badge-successful';
+                case 'Rejected':
+                    return 'badge-rejected';
+                default:
+                    return 'badge-new';
+            }
+        }
+
+        function renderLabelBadge(label) {
+            const safeLabel = escapeHtml(getLabelDisplay(label || 'New Client'));
+            const cls = getLabelClass(label);
+            return `<span class="badge ${cls}">${safeLabel}</span>`;
+        }
+
+        function getLabelDisplay(label) {
+            switch (label) {
+                case 'Call Back':
+                    return t('labelCallBack');
+                case 'Successful':
+                    return t('labelSuccessful');
+                case 'Rejected':
+                    return t('labelRejected');
+                default:
+                    return t('labelNew');
+            }
+        }
+
+        function getSourceClass(source) {
+            switch (source) {
+                case 'instagram':
+                    return 'badge-source badge-instagram';
+                case 'telegram':
+                    return 'badge-source badge-telegram';
+                case 'word_of_mouth':
+                    return 'badge-source badge-word';
+                default:
+                    return 'badge-source badge-website';
+            }
+        }
+
+        function getSourceDisplay(source) {
+            switch (source) {
+                case 'instagram':
+                    return t('sourceInstagram');
+                case 'telegram':
+                    return t('sourceTelegram');
+                case 'word_of_mouth':
+                    return t('sourceWordOfMouth');
+                default:
+                    return t('sourceWebsite');
+            }
+        }
+
+        function renderSourceBadge(source) {
+            const safeLabel = escapeHtml(getSourceDisplay(source || 'website'));
+            const cls = getSourceClass(source);
+            return `<span class="badge ${cls}">${safeLabel}</span>`;
+        }
+
         function displayDoneCalls(leads) {
-            const tbody = document.getElementById('leadsTableBody');
-            tbody.innerHTML = '';
+            const grid = document.getElementById('archiveCardGrid');
+            grid.innerHTML = '';
+            archivedLeadsById = {};
 
             leads.forEach((lead, index) => {
-                const row = document.createElement('tr');
-                row.className = 'table-row-animate';
-                row.style.animationDelay = `${index * 0.1}s`;
+                archivedLeadsById[lead._id] = lead;
+                const card = document.createElement('div');
+                card.className = 'lead-card card-animate';
+                card.style.animationDelay = `${index * 0.05}s`;
                 
-                // Use updatedAt for date closed, fallback to createdAt
-                const dateClosed = lead.updatedAt || lead.createdAt;
+                // Use closedAt for date closed, fallback to updatedAt/createdAt
+                const dateClosed = lead.closedAt || lead.updatedAt || lead.createdAt;
                 const formattedDate = new Date(dateClosed).toLocaleString();
                 
                 const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
-                const comment = lead.comment || '(No comment)';
-                row.innerHTML = `
-                    <td>${escapeHtml(fullName)}</td>
-                    <td>${escapeHtml(lead.phoneNumber)}</td>
-                    <td>${escapeHtml(comment)}</td>
-                    <td>${formattedDate}</td>
+                const comment = lead.comment || t('noComment');
+                const closedBy = roleLabel(lead.closedBy);
+                const labelBadge = renderLabelBadge(lead.label || 'New Client');
+                const sourceBadge = renderSourceBadge(lead.source || 'website');
+                card.innerHTML = `
+                    <div class="lead-card-header">
+                        <div class="lead-card-name">${escapeHtml(fullName)}</div>
+                        <div class="lead-card-source">${sourceBadge}</div>
+                    </div>
+                    <div class="lead-card-meta">
+                        <div class="lead-card-phone">${escapeHtml(lead.phoneNumber)}</div>
+                        <div class="lead-card-label">${labelBadge}</div>
+                    </div>
+                    <div class="lead-card-details">
+                        <div class="lead-field">
+                            <span class="field-label">${t('thClosedBy')}</span>
+                            <span class="field-value">${escapeHtml(closedBy)}</span>
+                        </div>
+                        <div class="lead-field">
+                            <span class="field-label">${t('thClosedAt')}</span>
+                            <span class="field-value">${escapeHtml(formattedDate)}</span>
+                        </div>
+                    </div>
+                    <div class="lead-card-comment">
+                        <div class="field-label">${t('thComment')}</div>
+                        <div class="comment-text" id="comment-${lead._id}">${escapeHtml(comment)}</div>
+                    </div>
+                    <div class="lead-card-actions">
+                        <button class="btn-edit" data-id="${lead._id}">${t('editBtn')}</button>
+                    </div>
                 `;
                 
-                tbody.appendChild(row);
+                grid.appendChild(card);
             });
 
             document.getElementById('leadsTableWrapper').style.display = 'block';
@@ -258,6 +577,113 @@
             document.getElementById('errorText').textContent = message;
             document.getElementById('errorMessage').style.display = 'block';
         }
+
+        function applyArchiveFilters() {
+            const searchInput = document.getElementById('archiveSearchInput');
+            const labelSelect = document.getElementById('archiveLabelFilter');
+            const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            const label = labelSelect ? labelSelect.value : '';
+
+            let filtered = allArchiveLeads;
+            if (label) {
+                filtered = filtered.filter(lead => (lead.label || '') === label);
+            }
+            if (query) {
+                filtered = filtered.filter(lead => {
+                    const fullName = (lead.fullName || (lead.name + ' ' + lead.surname).trim() || '').toLowerCase();
+                    const phone = (lead.phoneNumber || '').toLowerCase();
+                    return fullName.includes(query) || phone.includes(query);
+                });
+            }
+
+            document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
+            if (filtered.length > 0) {
+                displayDoneCalls(filtered);
+            } else {
+                document.getElementById('leadsTableWrapper').style.display = 'none';
+            }
+        }
+
+        document.getElementById('archiveSearchInput').addEventListener('input', () => {
+            applyArchiveFilters();
+        });
+
+        document.getElementById('archiveSortBtn').addEventListener('click', () => {
+            applyArchiveFilters();
+        });
+
+        document.getElementById('archiveControlsToggle').addEventListener('click', () => {
+            const wrapper = document.getElementById('archiveControlsWrapper');
+            if (wrapper) {
+                wrapper.classList.toggle('controls-open');
+            }
+        });
+
+        document.getElementById('archiveCardGrid').addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-edit')) {
+                const leadId = e.target.getAttribute('data-id');
+                const lead = archivedLeadsById[leadId];
+                if (!lead) return;
+                document.getElementById('editLeadId').value = leadId;
+                document.getElementById('editComment').value = lead.comment || '';
+                const modal = document.getElementById('editCommentModal');
+                modal.style.display = 'flex';
+                setTimeout(() => {
+                    modal.classList.add('modal-open');
+                }, 10);
+            }
+        });
+
+        function closeEditCommentModal() {
+            const modal = document.getElementById('editCommentModal');
+            modal.classList.remove('modal-open');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+
+        document.getElementById('closeEditCommentModal').addEventListener('click', closeEditCommentModal);
+        document.getElementById('cancelEditComment').addEventListener('click', closeEditCommentModal);
+        document.getElementById('editCommentModal').addEventListener('click', (e) => {
+            if (e.target.id === 'editCommentModal') closeEditCommentModal();
+        });
+
+        document.getElementById('editCommentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const leadId = document.getElementById('editLeadId').value;
+            const comment = document.getElementById('editComment').value.trim();
+
+            try {
+                const response = await fetch(`/api/admin/leads/${leadId}/comment`, {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ comment })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (archivedLeadsById[leadId]) {
+                        archivedLeadsById[leadId].comment = data.lead.comment;
+                    }
+                    const commentCell = document.getElementById(`comment-${leadId}`);
+                    if (commentCell) {
+                        const updatedText = data.lead.comment ? data.lead.comment : t('noComment');
+                        commentCell.textContent = updatedText;
+                    }
+                    closeEditCommentModal();
+                } else if (response.status === 403) {
+                    showError(t('errorForbidden'));
+                } else if (response.status === 401) {
+                    showError(t('errorSessionExpired'));
+                } else {
+                    showError(t('errorUpdateComment'));
+                }
+            } catch (error) {
+                console.error('Error updating comment:', error);
+                showError(t('errorNetwork'));
+            }
+        });
     </script>
 </body>
 </html>

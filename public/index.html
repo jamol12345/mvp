@@ -1,16 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Us</title>
+    <title>Свяжитесь с нами</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="page-fade-in">
     <div class="container">
+        <div class="lang-switch" aria-label="Language">
+            <span class="lang-label" data-i18n="languageLabel">Язык</span>
+            <div class="lang-toggle-group" role="group" aria-label="Language">
+                <button type="button" class="lang-toggle" data-lang="ru">RU</button>
+                <span class="lang-sep">|</span>
+                <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
+            </div>
+        </div>
         <div class="form-wrapper fade-in-up">
-            <h1>Contact Us</h1>
-            <p class="subtitle">Fill out the form below and we'll get back to you soon!</p>
+            <h1 data-i18n="title">Свяжитесь с нами</h1>
+            <p class="subtitle" data-i18n="subtitle">Заполните форму, и мы свяжемся с вами в ближайшее время!</p>
             
             <!-- Error Message (hidden by default) -->
             <div id="errorMessage" class="message error-message slide-in-top" style="display: none;">
@@ -20,61 +28,64 @@
             <!-- Contact Form -->
             <form id="contactForm">
                 <div class="form-group">
-                    <label for="fullName">Full name (FIO) <span class="required">*</span></label>
+                    <label for="fullName"><span data-i18n="fullNameLabel">ФИО</span> <span class="required">*</span></label>
                     <input 
                         type="text" 
                         id="fullName" 
                         name="fullName" 
                         required 
-                        placeholder="Enter your full name"
+                        placeholder="Введите ФИО"
+                        data-i18n-placeholder="fullNamePlaceholder"
                     >
                 </div>
 
                 <div class="form-group">
-                    <label for="doorType">Selected door <span class="required">*</span></label>
+                    <label for="doorType"><span data-i18n="doorTypeLabel">Выбранная дверь</span> <span class="required">*</span></label>
                     <select id="doorType" name="doorType" required>
-                        <option value="">Choose door type</option>
-                        <option value="Standard Door">Standard Door</option>
-                        <option value="Premium Door">Premium Door</option>
-                        <option value="Custom Door">Custom Door</option>
+                        <option value="" data-i18n="doorTypePlaceholder">Выберите тип двери</option>
+                        <option value="Standard Door" data-i18n="doorTypeStandard">Стандартная дверь</option>
+                        <option value="Premium Door" data-i18n="doorTypePremium">Премиум дверь</option>
+                        <option value="Custom Door" data-i18n="doorTypeCustom">Индивидуальная дверь</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="measurements">Measurements <span class="required">*</span></label>
+                    <label for="measurements"><span data-i18n="measurementsLabel">Размеры</span> <span class="required">*</span></label>
                     <input 
                         type="text" 
                         id="measurements" 
                         name="measurements" 
                         required 
-                        placeholder="e.g. 9x20"
+                        placeholder="например 9x20"
+                        data-i18n-placeholder="measurementsPlaceholder"
                     >
                 </div>
 
                 <div class="form-group">
-                    <label>What is most important to you? <span class="required">*</span></label>
+                    <label data-i18n="prioritiesLabel">Что для вас важнее всего?</label>
                     <div class="priority-buttons" id="priorityButtons">
-                        <button type="button" class="priority-btn" data-value="Quality">Quality</button>
-                        <button type="button" class="priority-btn" data-value="Design">Design</button>
-                        <button type="button" class="priority-btn" data-value="Production Time">Production Time</button>
-                        <button type="button" class="priority-btn" data-value="Price">Price</button>
-                        <button type="button" class="priority-btn" data-value="Warranty">Warranty</button>
+                        <button type="button" class="priority-btn" data-value="Quality" data-i18n="priorityQuality">Качество</button>
+                        <button type="button" class="priority-btn" data-value="Design" data-i18n="priorityDesign">Дизайн</button>
+                        <button type="button" class="priority-btn" data-value="Production Time" data-i18n="priorityProduction">Срок изготовления</button>
+                        <button type="button" class="priority-btn" data-value="Price" data-i18n="priorityPrice">Цена</button>
+                        <button type="button" class="priority-btn" data-value="Warranty" data-i18n="priorityWarranty">Гарантия</button>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="phoneNumber">Phone number <span class="required">*</span></label>
+                    <label for="phoneNumber"><span data-i18n="phoneLabel">Телефон</span> <span class="required">*</span></label>
                     <input 
                         type="tel" 
                         id="phoneNumber" 
                         name="phoneNumber" 
                         required 
-                        placeholder="Enter your phone number"
+                        placeholder="Введите телефон"
+                        data-i18n-placeholder="phonePlaceholder"
                     >
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">
-                    <span id="submitText">Submit</span>
+                    <span id="submitText" data-i18n="submitBtn">Отправить</span>
                     <span id="submitSpinner" class="spinner" style="display: none;"></span>
                 </button>
             </form>
@@ -85,7 +96,7 @@
     <div id="successModal" class="modal" style="display: none;">
         <div class="modal-content success-modal-content">
             <div class="modal-body">
-                <p class="success-modal-text">Your data has been successfully submitted.<br>We will contact you within 24 hours.</p>
+                <p class="success-modal-text" data-i18n="successMessage">Ваши данные успешно отправлены.<br>Мы свяжемся с вами в течение 24 часов.</p>
             </div>
         </div>
     </div>
@@ -96,6 +107,104 @@
         const submitSpinner = document.getElementById('submitSpinner');
         let isSubmitting = false;
         const maxPriorities = 2;
+        let currentLang = 'ru';
+
+        const LANG_KEY = 'crm_lang';
+        const translations = {
+            ru: {
+                languageLabel: 'Язык',
+                title: 'Свяжитесь с нами',
+                subtitle: 'Заполните форму, и мы свяжемся с вами в ближайшее время!',
+                fullNameLabel: 'ФИО',
+                fullNamePlaceholder: 'Введите ФИО',
+                doorTypeLabel: 'Выбранная дверь',
+                doorTypePlaceholder: 'Выберите тип двери',
+                doorTypeStandard: 'Стандартная дверь',
+                doorTypePremium: 'Премиум дверь',
+                doorTypeCustom: 'Индивидуальная дверь',
+                measurementsLabel: 'Размеры',
+                measurementsPlaceholder: 'например 9x20',
+                prioritiesLabel: 'Что для вас важнее всего?',
+                priorityQuality: 'Качество',
+                priorityDesign: 'Дизайн',
+                priorityProduction: 'Срок изготовления',
+                priorityPrice: 'Цена',
+                priorityWarranty: 'Гарантия',
+                phoneLabel: 'Телефон',
+                phonePlaceholder: 'Введите телефон',
+                submitBtn: 'Отправить',
+                successMessage: 'Ваши данные успешно отправлены.<br>Мы свяжемся с вами в течение 24 часов.',
+                errorRequired: 'Пожалуйста, заполните все обязательные поля.',
+                errorNetwork: 'Ошибка сети. Проверьте соединение и попробуйте снова.',
+                errorGeneric: 'Произошла ошибка. Попробуйте снова.'
+            },
+            uz: {
+                languageLabel: 'Til',
+                title: 'Biz bilan bog‘laning',
+                subtitle: 'Formani to‘ldiring, biz tez orada siz bilan bog‘lanamiz!',
+                fullNameLabel: 'F.I.Sh.',
+                fullNamePlaceholder: 'F.I.Sh. kiriting',
+                doorTypeLabel: 'Tanlangan eshik',
+                doorTypePlaceholder: 'Eshik turini tanlang',
+                doorTypeStandard: 'Standart eshik',
+                doorTypePremium: 'Premium eshik',
+                doorTypeCustom: 'Individual eshik',
+                measurementsLabel: 'O‘lchamlar',
+                measurementsPlaceholder: 'masalan 9x20',
+                prioritiesLabel: 'Siz uchun eng muhim narsa nima?',
+                priorityQuality: 'Sifat',
+                priorityDesign: 'Dizayn',
+                priorityProduction: 'Ishlab chiqarish muddati',
+                priorityPrice: 'Narx',
+                priorityWarranty: 'Kafolat',
+                phoneLabel: 'Telefon',
+                phonePlaceholder: 'Telefon raqamini kiriting',
+                submitBtn: 'Yuborish',
+                successMessage: 'Ma’lumotlaringiz muvaffaqiyatli yuborildi.<br>24 soat ichida siz bilan bog‘lanamiz.',
+                errorRequired: 'Iltimos, barcha majburiy maydonlarni to‘ldiring.',
+                errorNetwork: 'Tarmoq xatosi. Ulanishni tekshirib qayta urinib ko‘ring.',
+                errorGeneric: 'Xatolik yuz berdi. Qayta urinib ko‘ring.'
+            }
+        };
+
+        function t(key) {
+            const dict = translations[currentLang] || translations.ru;
+            return dict[key] || '';
+        }
+
+        function applyTranslations() {
+            document.documentElement.lang = currentLang;
+            document.title = t('title');
+            document.querySelectorAll('[data-i18n]').forEach((el) => {
+                const key = el.getAttribute('data-i18n');
+                el.innerHTML = t(key);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                el.setAttribute('placeholder', t(key));
+            });
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang === 'uz' ? 'uz' : 'ru';
+            localStorage.setItem(LANG_KEY, currentLang);
+            document.querySelectorAll('.lang-toggle').forEach((btn) => {
+                btn.classList.toggle('active', btn.getAttribute('data-lang') === currentLang);
+            });
+            applyTranslations();
+        }
+
+        function initLanguage() {
+            const stored = localStorage.getItem(LANG_KEY);
+            setLanguage(stored || 'ru');
+        }
+
+        document.querySelectorAll('.lang-toggle').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setLanguage(btn.getAttribute('data-lang'));
+            });
+        });
+        initLanguage();
 
         // Priority selection (1 to 2)
         document.getElementById('priorityButtons').addEventListener('click', (e) => {
@@ -132,11 +241,12 @@
                 doorType: document.getElementById('doorType').value,
                 measurements: document.getElementById('measurements').value.trim(),
                 phoneNumber: document.getElementById('phoneNumber').value.trim(),
-                priorities
+                priorities,
+                language: currentLang
             };
 
-            if (!formData.fullName || !formData.doorType || !formData.measurements || !formData.phoneNumber || priorities.length === 0) {
-                showError('Please fill in all required fields.');
+            if (!formData.fullName || !formData.doorType || !formData.measurements || !formData.phoneNumber) {
+                showError(t('errorRequired'));
                 return;
             }
 
@@ -157,11 +267,11 @@
                     document.getElementById('contactForm').reset();
                     showSuccessModal();
                 } else {
-                    showError(data.error || 'An error occurred. Please try again.');
+                    showError(t('errorGeneric'));
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showError('Network error. Please check your connection and try again.');
+                showError(t('errorNetwork'));
             } finally {
                 setLoadingState(false);
             }
