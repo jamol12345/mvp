@@ -22,9 +22,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Enable CORS for frontend deployments.
-// In production set CORS_ORIGIN to your frontend URL (e.g. https://kokcha-doors.netlify.app).
+// If CORS_ORIGIN is set, it can be a single origin or a comma-separated list.
+const defaultCorsOrigins = [
+  'https://mvp-kokcha.netlify.app',
+  'https://api.kukcha-eshiklari.uz'
+];
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+  : defaultCorsOrigins;
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: corsOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -67,6 +77,7 @@ mongoose.connect(MONGODB_URI)
 // ============================================
 
 const PRIORITY_OPTIONS = ['Quality', 'Design', 'Production Time', 'Price', 'Warranty'];
+const PRIORITY_OPTIONS_NEW = ['Качество и надёжность', 'Дизайн и стиль'];
 const LABEL_OPTIONS = ['New Client', 'Call Back', 'Successful', 'Rejected'];
 const SOURCE_OPTIONS = ['instagram', 'telegram', 'word_of_mouth', 'website'];
 
@@ -237,7 +248,7 @@ const requireManager = (req, res, next) => {
 // POST /api/leads - Public endpoint to submit lead form
 app.post('/api/leads', async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities, language } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities, priority, language } = req.body;
 
     if (!fullName || !doorType || !measurements || !phoneNumber) {
       return res.status(400).json({
@@ -245,7 +256,22 @@ app.post('/api/leads', async (req, res) => {
       });
     }
 
-    const prioritiesArray = sanitizePriorities(priorities);
+    let prioritiesArray;
+    if (Array.isArray(priorities) && priorities.length > 0) {
+      const first = String(priorities[0]).trim();
+      if (PRIORITY_OPTIONS_NEW.includes(first)) prioritiesArray = [first];
+    }
+    if (!prioritiesArray) {
+      const priorityStr = typeof priority === 'string' ? priority.trim() : '';
+      if (priorityStr && PRIORITY_OPTIONS_NEW.includes(priorityStr)) {
+        prioritiesArray = [priorityStr];
+      } else {
+        prioritiesArray = sanitizePriorities(priorities);
+      }
+    }
+    if (prioritiesArray.length === 0) {
+      return res.status(400).json({ error: 'Priority is required' });
+    }
 
     const languageValue = sanitizeLanguage(language);
 
@@ -314,7 +340,7 @@ app.post('/api/admin/login', (req, res) => {
 // POST /api/admin/leads - Add client manually (Manager only)
 app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities, source } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities, priority, source } = req.body;
     if (!fullName || !doorType || !measurements || !phoneNumber) {
       return res.status(400).json({
         error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
@@ -324,7 +350,22 @@ app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res)
     if (!sourceValue || sourceValue === 'website') {
       return res.status(400).json({ error: 'Source is required' });
     }
-    const prioritiesArray = sanitizePriorities(priorities);
+    let prioritiesArray;
+    if (Array.isArray(priorities) && priorities.length > 0) {
+      const first = String(priorities[0]).trim();
+      if (PRIORITY_OPTIONS_NEW.includes(first)) prioritiesArray = [first];
+    }
+    if (!prioritiesArray) {
+      const priorityStr = typeof priority === 'string' ? priority.trim() : '';
+      if (priorityStr && PRIORITY_OPTIONS_NEW.includes(priorityStr)) {
+        prioritiesArray = [priorityStr];
+      } else {
+        prioritiesArray = sanitizePriorities(priorities);
+      }
+    }
+    if (prioritiesArray.length === 0) {
+      return res.status(400).json({ error: 'Priority is required' });
+    }
     const lead = new Lead({
       fullName: fullName.trim(),
       doorType: doorType.trim(),
@@ -634,12 +675,12 @@ app.post('/api/admin/leads/:id/comment', authenticateAdmin, async (req, res) => 
   }
 });
 
-// GET /api/admin/analytics/priorities - Aggregated priority statistics (Manager only)
+// GET /api/admin/analytics/priorities - Count only new priorities (Manager only)
 app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, async (req, res) => {
   try {
     const pipeline = [
       { $unwind: '$priorities' },
-      { $match: { priorities: { $in: PRIORITY_OPTIONS } } },
+      { $match: { priorities: { $in: PRIORITY_OPTIONS_NEW } } },
       {
         $group: {
           _id: '$priorities',
@@ -651,6 +692,7 @@ app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, as
     const raw = await Lead.aggregate(pipeline);
 
     const result = {};
+    PRIORITY_OPTIONS_NEW.forEach(p => { result[p] = 0; });
     raw.forEach(item => {
       result[item._id] = item.count;
     });

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Архив — админ‑панель</title>
+    <link rel="icon" type="image/png" href="kukcha.png">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -405,11 +406,15 @@
 
                 if (response.ok) {
                     adminToken = data.token;
-                    setRoleUI(data.role);
+                    userRole = (data.role != null && data.role !== '') ? String(data.role).toLowerCase() : null;
+                    sessionStorage.setItem('authToken', data.token);
+                    sessionStorage.setItem('authRole', userRole || '');
+                    setRoleUI(userRole);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('archivePanel').style.display = 'block';
                     document.getElementById('adminToken').value = '';
                     applyTranslations();
+                    startArchiveSilentRefresh();
                     loadDoneCalls();
                 } else {
                     showLoginError(t('errorInvalidToken'));
@@ -438,6 +443,9 @@
         document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
             adminToken = null;
             userRole = null;
+            sessionStorage.removeItem('authToken');
+            sessionStorage.removeItem('authRole');
+            stopArchiveSilentRefresh();
             document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('archivePanel').style.display = 'none';
@@ -451,6 +459,20 @@
         document.addEventListener('click', () => {
             document.getElementById('userDropdown').style.display = 'none';
         });
+
+        function tryRestoreSession() {
+            const token = sessionStorage.getItem('authToken');
+            if (!token) return;
+            adminToken = token;
+            const storedRole = sessionStorage.getItem('authRole');
+            userRole = (storedRole != null && storedRole !== '') ? String(storedRole).toLowerCase() : null;
+            setRoleUI(userRole);
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('archivePanel').style.display = 'block';
+            applyTranslations();
+            startArchiveSilentRefresh();
+            loadDoneCalls();
+        }
 
         // ============================================
         // LOAD DONE CALLS
@@ -492,8 +514,9 @@
                     }
                 } else {
                     if (response.status === 401) {
-                        // Token expired or invalid
                         showError(t('errorSessionExpired'));
+                        sessionStorage.removeItem('authToken');
+                        sessionStorage.removeItem('authRole');
                         setTimeout(() => {
                             adminToken = null;
                             document.getElementById('loginSection').style.display = 'block';
@@ -584,58 +607,134 @@
             return `<span class="badge ${cls}">${safeLabel}</span>`;
         }
 
+        function buildArchiveCardHTML(lead, index) {
+            const dateClosed = lead.closedAt || lead.updatedAt || lead.createdAt;
+            const formattedDate = new Date(dateClosed).toLocaleString();
+            const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
+            const comment = lead.comment || t('noComment');
+            const closedBy = roleLabel(lead.closedBy);
+            const labelBadge = renderLabelBadge(lead.label || 'New Client');
+            const sourceBadge = renderSourceBadge(lead.source || 'website');
+            return `
+                <div class="lead-card-header">
+                    <div class="lead-card-name">${escapeHtml(fullName)}</div>
+                    <div class="lead-card-source">${sourceBadge}</div>
+                </div>
+                <div class="lead-card-meta">
+                    <div class="lead-card-phone">${escapeHtml(lead.phoneNumber)}</div>
+                    <div class="lead-card-label">${labelBadge}</div>
+                </div>
+                <div class="lead-card-details">
+                    <div class="lead-field">
+                        <span class="field-label">${t('thClosedBy')}</span>
+                        <span class="field-value">${escapeHtml(closedBy)}</span>
+                    </div>
+                    <div class="lead-field">
+                        <span class="field-label">${t('thClosedAt')}</span>
+                        <span class="field-value">${escapeHtml(formattedDate)}</span>
+                    </div>
+                </div>
+                <div class="lead-card-comment">
+                    <div class="field-label">${t('thComment')}</div>
+                    <div class="comment-text" id="comment-${lead._id}">${escapeHtml(comment)}</div>
+                </div>
+                <div class="lead-card-actions">
+                    <button class="btn-edit" data-id="${lead._id}">${t('editBtn')}</button>
+                </div>
+            `;
+        }
+
+        function createArchiveCardElement(lead, index) {
+            const card = document.createElement('div');
+            card.className = 'lead-card card-animate';
+            card.setAttribute('data-lead-id', lead._id);
+            card.style.animationDelay = `${index * 0.05}s`;
+            card.innerHTML = buildArchiveCardHTML(lead, index);
+            return card;
+        }
+
         function displayDoneCalls(leads) {
             const grid = document.getElementById('archiveCardGrid');
             grid.innerHTML = '';
             archivedLeadsById = {};
-
             leads.forEach((lead, index) => {
                 archivedLeadsById[lead._id] = lead;
-                const card = document.createElement('div');
-                card.className = 'lead-card card-animate';
-                card.style.animationDelay = `${index * 0.05}s`;
-                
-                // Use closedAt for date closed, fallback to updatedAt/createdAt
-                const dateClosed = lead.closedAt || lead.updatedAt || lead.createdAt;
-                const formattedDate = new Date(dateClosed).toLocaleString();
-                
-                const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
-                const comment = lead.comment || t('noComment');
-                const closedBy = roleLabel(lead.closedBy);
-                const labelBadge = renderLabelBadge(lead.label || 'New Client');
-                const sourceBadge = renderSourceBadge(lead.source || 'website');
-                card.innerHTML = `
-                    <div class="lead-card-header">
-                        <div class="lead-card-name">${escapeHtml(fullName)}</div>
-                        <div class="lead-card-source">${sourceBadge}</div>
-                    </div>
-                    <div class="lead-card-meta">
-                        <div class="lead-card-phone">${escapeHtml(lead.phoneNumber)}</div>
-                        <div class="lead-card-label">${labelBadge}</div>
-                    </div>
-                    <div class="lead-card-details">
-                        <div class="lead-field">
-                            <span class="field-label">${t('thClosedBy')}</span>
-                            <span class="field-value">${escapeHtml(closedBy)}</span>
-                        </div>
-                        <div class="lead-field">
-                            <span class="field-label">${t('thClosedAt')}</span>
-                            <span class="field-value">${escapeHtml(formattedDate)}</span>
-                        </div>
-                    </div>
-                    <div class="lead-card-comment">
-                        <div class="field-label">${t('thComment')}</div>
-                        <div class="comment-text" id="comment-${lead._id}">${escapeHtml(comment)}</div>
-                    </div>
-                    <div class="lead-card-actions">
-                        <button class="btn-edit" data-id="${lead._id}">${t('editBtn')}</button>
-                    </div>
-                `;
-                
+                const card = createArchiveCardElement(lead, index);
                 grid.appendChild(card);
             });
-
             document.getElementById('leadsTableWrapper').style.display = 'block';
+        }
+
+        function syncArchiveDOM(pageLeads) {
+            const grid = document.getElementById('archiveCardGrid');
+            if (!grid) return;
+            pageLeads.forEach(l => { archivedLeadsById[l._id] = l; });
+            const wantedIds = new Set(pageLeads.map(l => l._id));
+            for (const card of [...grid.children]) {
+                const id = card.getAttribute('data-lead-id');
+                if (id && !wantedIds.has(id)) card.remove();
+            }
+            for (let i = 0; i < pageLeads.length; i++) {
+                const lead = pageLeads[i];
+                const existing = grid.querySelector(`[data-lead-id="${lead._id}"]`);
+                if (existing) {
+                    existing.innerHTML = buildArchiveCardHTML(lead, i);
+                    if (existing !== grid.children[i]) grid.insertBefore(existing, grid.children[i] || null);
+                } else {
+                    const card = createArchiveCardElement(lead, i);
+                    grid.insertBefore(card, grid.children[i] || null);
+                }
+            }
+        }
+
+        const ARCHIVE_SILENT_REFRESH_INTERVAL_MS = 30000;
+        let archiveSilentRefreshIntervalId = null;
+
+        async function silentRefreshArchive() {
+            if (!adminToken) return;
+            let url = '/api/admin/done-calls';
+            if (dateFilterEnabled && (dateFilterFrom || dateFilterTo)) {
+                const params = new URLSearchParams();
+                if (dateFilterFrom) params.set('dateFrom', dateFilterFrom);
+                if (dateFilterTo) params.set('dateTo', dateFilterTo);
+                url += '?' + params.toString();
+            }
+            try {
+                const response = await fetch(url, { method: 'GET', headers: getAuthHeader() });
+                const data = await response.json();
+                if (!response.ok) return;
+                allArchiveLeads = data.leads || [];
+                const filtered = getFilteredArchiveLeads();
+                const totalPages = Math.max(1, Math.ceil(filtered.length / ARCHIVE_PAGE_SIZE));
+                if (archiveCurrentPage > totalPages) archiveCurrentPage = totalPages;
+                const start = (archiveCurrentPage - 1) * ARCHIVE_PAGE_SIZE;
+                const pageLeads = filtered.slice(start, start + ARCHIVE_PAGE_SIZE);
+                syncArchiveDOM(pageLeads);
+                const paginationEl = document.getElementById('archivePagination');
+                const infoEl = document.getElementById('archivePaginationInfo');
+                const prevBtn = document.getElementById('archivePaginationPrev');
+                const nextBtn = document.getElementById('archivePaginationNext');
+                if (totalPages > 1 && paginationEl && infoEl) {
+                    paginationEl.style.display = 'flex';
+                    infoEl.textContent = (t('paginationPage') || 'Стр. {{current}} из {{total}}').replace('{{current}}', String(archiveCurrentPage)).replace('{{total}}', String(totalPages));
+                    if (prevBtn) prevBtn.disabled = archiveCurrentPage <= 1;
+                    if (nextBtn) nextBtn.disabled = archiveCurrentPage >= totalPages;
+                } else if (paginationEl) paginationEl.style.display = 'none';
+                document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
+                if (filtered.length === 0) document.getElementById('leadsTableWrapper').style.display = 'none';
+            } catch (e) { /* silent */ }
+        }
+
+        function startArchiveSilentRefresh() {
+            if (archiveSilentRefreshIntervalId) clearInterval(archiveSilentRefreshIntervalId);
+            archiveSilentRefreshIntervalId = setInterval(silentRefreshArchive, ARCHIVE_SILENT_REFRESH_INTERVAL_MS);
+        }
+
+        function stopArchiveSilentRefresh() {
+            if (archiveSilentRefreshIntervalId) {
+                clearInterval(archiveSilentRefreshIntervalId);
+                archiveSilentRefreshIntervalId = null;
+            }
         }
 
         function escapeHtml(text) {
@@ -849,6 +948,8 @@
                 } else if (response.status === 403) {
                     showError(t('errorForbidden'));
                 } else if (response.status === 401) {
+                    sessionStorage.removeItem('authToken');
+                    sessionStorage.removeItem('authRole');
                     showError(t('errorSessionExpired'));
                 } else {
                     showError(t('errorUpdateComment'));
@@ -858,6 +959,8 @@
                 showError(t('errorNetwork'));
             }
         });
+
+        tryRestoreSession();
     </script>
 </body>
 </html>

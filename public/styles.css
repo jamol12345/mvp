@@ -1099,7 +1099,8 @@ textarea {
     transition: background 0.2s, color 0.2s;
 }
 
-.priority-btn.selected {
+.priority-btn.selected,
+.priority-btn.active {
     background: #667eea;
     color: white;
 }
@@ -1151,6 +1152,10 @@ textarea {
         bottom: 16px;
         padding: 12px 20px;
         font-size: 0.9em;
+    }
+
+    .analytics-chart-row {
+        flex-direction: column;
     }
 
     .controls-toggle {

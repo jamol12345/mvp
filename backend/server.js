@@ -21,14 +21,30 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Enable CORS for frontend deployments
+// Enable CORS for frontend deployments.
+// If CORS_ORIGIN is set, it can be a single origin or a comma-separated list.
+const defaultCorsOrigins = [
+  'https://mvp-kokcha.netlify.app',
+  'https://api.kukcha-eshiklari.uz'
+];
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+  : defaultCorsOrigins;
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: corsOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Serve static files (HTML, CSS)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Health check: no DB dependency, always available (for Vercel/probes)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 // Friendly route for done calls (matches /done_calls navigation)
 app.get('/done_calls', (req, res) => {

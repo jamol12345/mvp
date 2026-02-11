@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Свяжитесь с нами</title>
+    <link rel="icon" type="image/png" href="kukcha.png">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="page-fade-in">
@@ -62,14 +63,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label data-i18n="prioritiesLabel">Что для вас важнее всего?</label>
-                    <div class="priority-buttons" id="priorityButtons">
-                        <button type="button" class="priority-btn" data-value="Quality" data-i18n="priorityQuality">Качество</button>
-                        <button type="button" class="priority-btn" data-value="Design" data-i18n="priorityDesign">Дизайн</button>
-                        <button type="button" class="priority-btn" data-value="Production Time" data-i18n="priorityProduction">Срок изготовления</button>
-                        <button type="button" class="priority-btn" data-value="Price" data-i18n="priorityPrice">Цена</button>
-                        <button type="button" class="priority-btn" data-value="Warranty" data-i18n="priorityWarranty">Гарантия</button>
+                    <label data-i18n="prioritiesLabel">Что для вас важнее всего?</label> <span class="required">*</span>
+                    <div class="priority-buttons" id="priorityButtons" role="group" aria-label="Приоритет">
+                        <button type="button" class="priority-btn" data-value="Качество и надёжность" data-i18n="priorityQualityReliability">Качество и надёжность</button>
+                        <button type="button" class="priority-btn" data-value="Дизайн и стиль" data-i18n="priorityDesignStyle">Дизайн и стиль</button>
                     </div>
+                    <p id="priorityError" class="field-error" style="display: none;" data-i18n="errorPriorityRequired"></p>
                 </div>
 
                 <div class="form-group">
@@ -106,7 +105,6 @@
         const submitText = document.getElementById('submitText');
         const submitSpinner = document.getElementById('submitSpinner');
         let isSubmitting = false;
-        const maxPriorities = 2;
         let currentLang = 'ru';
 
         const LANG_KEY = 'crm_lang';
@@ -125,11 +123,9 @@
                 measurementsLabel: 'Размеры',
                 measurementsPlaceholder: 'например 9x20',
                 prioritiesLabel: 'Что для вас важнее всего?',
-                priorityQuality: 'Качество',
-                priorityDesign: 'Дизайн',
-                priorityProduction: 'Срок изготовления',
-                priorityPrice: 'Цена',
-                priorityWarranty: 'Гарантия',
+                priorityQualityReliability: 'Качество и надёжность',
+                priorityDesignStyle: 'Дизайн и стиль',
+                errorPriorityRequired: 'Выберите приоритет.',
                 phoneLabel: 'Телефон',
                 phonePlaceholder: 'Введите телефон',
                 submitBtn: 'Отправить',
@@ -152,11 +148,9 @@
                 measurementsLabel: 'O‘lchamlar',
                 measurementsPlaceholder: 'masalan 9x20',
                 prioritiesLabel: 'Siz uchun eng muhim narsa nima?',
-                priorityQuality: 'Sifat',
-                priorityDesign: 'Dizayn',
-                priorityProduction: 'Ishlab chiqarish muddati',
-                priorityPrice: 'Narx',
-                priorityWarranty: 'Kafolat',
+                priorityQualityReliability: 'Sifat va ishonchlilik',
+                priorityDesignStyle: 'Dizayn va uslub',
+                errorPriorityRequired: 'Ustuvorlikni tanlang.',
                 phoneLabel: 'Telefon',
                 phonePlaceholder: 'Telefon raqamini kiriting',
                 submitBtn: 'Yuborish',
@@ -206,20 +200,12 @@
         });
         initLanguage();
 
-        // Priority selection (1 to 2)
+        // Priority: single-choice toggle buttons
         document.getElementById('priorityButtons').addEventListener('click', (e) => {
-            if (e.target.classList.contains('priority-btn')) {
-                const btn = e.target;
-                const currentlySelected = document.querySelectorAll('.priority-btn.selected');
-                if (btn.classList.contains('selected')) {
-                    btn.classList.remove('selected');
-                    return;
-                }
-                if (currentlySelected.length >= maxPriorities) {
-                    return;
-                }
-                btn.classList.add('selected');
-            }
+            const btn = e.target.closest('.priority-btn');
+            if (!btn) return;
+            document.querySelectorAll('#priorityButtons .priority-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
         });
 
         // Handle form submission
@@ -232,16 +218,23 @@
             }
 
             document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('priorityError').style.display = 'none';
 
-            const priorities = Array.from(document.querySelectorAll('.priority-btn.selected'))
-                .map(btn => btn.getAttribute('data-value'));
+            const priorityBtn = document.querySelector('#priorityButtons .priority-btn.active');
+            const priorityValue = priorityBtn ? (priorityBtn.getAttribute('data-value') || '').trim() : '';
+
+            if (!priorityValue) {
+                document.getElementById('priorityError').textContent = t('errorPriorityRequired') || 'Выберите приоритет.';
+                document.getElementById('priorityError').style.display = 'block';
+                return;
+            }
 
             const formData = {
                 fullName: document.getElementById('fullName').value.trim(),
                 doorType: document.getElementById('doorType').value,
                 measurements: document.getElementById('measurements').value.trim(),
                 phoneNumber: document.getElementById('phoneNumber').value.trim(),
-                priorities,
+                priorities: [priorityValue],
                 language: currentLang
             };
 
@@ -265,6 +258,7 @@
 
                 if (response.ok) {
                     document.getElementById('contactForm').reset();
+                    document.querySelectorAll('#priorityButtons .priority-btn').forEach(b => b.classList.remove('active'));
                     showSuccessModal();
                 } else {
                     showError(t('errorGeneric'));
