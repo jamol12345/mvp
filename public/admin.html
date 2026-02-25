@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="kukcha.png">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -36,7 +37,7 @@
         </div>
         <!-- Login Section (shown when not authenticated) -->
         <div id="loginSection" class="login-wrapper">
-            <div class="login-box">
+            <div class="login-box glass">
                 <h1 data-i18n="loginTitle">Вход в админ‑панель</h1>
                 <p class="subtitle" data-i18n="loginSubtitle">Введите админ‑токен для доступа к панели</p>
                 
@@ -63,7 +64,7 @@
         </div>
 
         <!-- Admin Panel Section (shown when authenticated) -->
-        <div id="adminPanel" class="admin-panel fade-in" style="display: none;">
+        <div id="adminPanel" class="admin-panel glass fade-in" style="display: none;">
             <div class="admin-header">
                 <h1 data-i18n="adminTitle">Админ‑панель — управление лидами</h1>
                 <div class="header-actions">
@@ -89,7 +90,7 @@
             </div>
 
             <!-- Leads Table -->
-            <div class="table-controls-wrapper" id="activeControlsWrapper" style="margin-bottom: 10px;">
+            <div class="table-controls-wrapper glass" id="activeControlsWrapper" style="margin-bottom: 10px;">
                 <button id="activeControlsToggle" class="controls-toggle" type="button" data-i18n="controlsToggle">Поиск и фильтры</button>
                 <div class="header-actions table-controls">
                     <input id="activeSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
@@ -97,22 +98,121 @@
                     <button id="addClientBtn" class="add-client-btn" style="display: none;" data-i18n="addClientBtn">Добавить</button>
                 </div>
             </div>
-            <div id="leadsTableWrapper" style="display: none;">
-                <div id="leadsCardGrid" class="lead-cards-grid">
-                    <!-- Lead cards will be inserted here dynamically -->
-                </div>
-                <div id="activePagination" class="pagination" style="display: none;">
-                    <button type="button" class="pagination-btn" id="activePaginationPrev" aria-label="Previous">← <span data-i18n="paginationPrev">Назад</span></button>
-                    <span class="pagination-info" id="activePaginationInfo"></span>
-                    <button type="button" class="pagination-btn" id="activePaginationNext" aria-label="Next"><span data-i18n="paginationNext">Вперёд</span> →</button>
+            <div id="leadsTableWrapper" class="glass" style="display: none;">
+                <div id="kanbanBoard" class="kanban-board">
+                    <div class="kanban-column" data-stage="new">
+                        <div class="kanban-column-header">
+                            <div class="stage-header">
+                                <span class="stage-title">Новые</span>
+                                <span class="stage-counter counter-new" data-stage="new">0</span>
+                            </div>
+                        </div>
+                        <div class="kanban-column-cards" id="kanbanColNew"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="in_progress">
+                        <div class="kanban-column-header">
+                            <div class="stage-header">
+                                <span class="stage-title">В работе</span>
+                                <span class="stage-counter counter-in_progress" data-stage="in_progress">0</span>
+                            </div>
+                        </div>
+                        <div class="kanban-column-cards" id="kanbanColInProgress"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="thinking">
+                        <div class="kanban-column-header">
+                            <div class="stage-header">
+                                <span class="stage-title">Думает</span>
+                                <span class="stage-counter counter-thinking" data-stage="thinking">0</span>
+                            </div>
+                        </div>
+                        <div class="kanban-column-cards" id="kanbanColThinking"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="successful">
+                        <div class="kanban-column-header">
+                            <div class="stage-header">
+                                <span class="stage-title">Успешно</span>
+                                <span class="stage-counter counter-successful" data-stage="successful">0</span>
+                            </div>
+                        </div>
+                        <div class="kanban-column-cards" id="kanbanColSuccessful"></div>
+                    </div>
+                    <div class="kanban-column" data-stage="rejected">
+                        <div class="kanban-column-header">
+                            <div class="stage-header">
+                                <span class="stage-title">Отказ</span>
+                                <span class="stage-counter counter-rejected" data-stage="rejected">0</span>
+                            </div>
+                        </div>
+                        <div class="kanban-column-cards" id="kanbanColRejected"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Analytics (Manager only) -->
-            <div id="analyticsWrapper" style="display: none; margin-top: 20px;">
+            <!-- Analytics -->
+            <div id="analyticsWrapper" class="glass" style="display: none; margin-top: 20px;">
                 <div class="analytics-header" style="margin-bottom: 16px;">
                     <a href="admin.html" class="btn-link" data-i18n="backToActive">← Назад к активным</a>
                 </div>
+                <div id="managersTableSection" class="managers-analytics-section glass" style="display: none;">
+                    <h3 class="managers-analytics-title" data-i18n="managersAnalyticsTitle">По менеджерам</h3>
+                    <div class="managers-table-wrap">
+                        <table class="managers-table" id="managersTable">
+                            <thead>
+                                <tr>
+                                    <th data-i18n="thManager">Менеджер</th>
+                                    <th data-i18n="successfulDealsLabel">Успешные сделки</th>
+                                    <th data-i18n="totalRevenueLabel">Выручка</th>
+                                    <th data-i18n="averageDealLabel">Средний чек</th>
+                                    <th data-i18n="conversionLabel">Конверсия %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="managersTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="personalStatsSection" class="personal-stats-section glass" style="display: none;">
+                    <h3 class="personal-stats-title" data-i18n="personalStatsTitle">Ваша статистика</h3>
+                    <div class="financial-analytics-grid personal-stats-grid">
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="successfulDealsLabel">Успешные сделки</span>
+                            <span class="financial-metric-value" id="personalSuccessfulDeals">—</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="totalRevenueLabel">Выручка</span>
+                            <span class="financial-metric-value" id="personalRevenue">—</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="averageDealLabel">Средний чек</span>
+                            <span class="financial-metric-value" id="personalAverageDeal">—</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="conversionLabel">Конверсия %</span>
+                            <span class="financial-metric-value" id="personalConversion">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="financialAnalyticsBlock" class="financial-analytics-block glass" style="display: none;">
+                    <h3 class="financial-analytics-title" data-i18n="financialAnalyticsTitle">Финансовые показатели</h3>
+                    <div class="financial-analytics-grid">
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="totalRevenueLabel">Общая выручка</span>
+                            <span class="financial-metric-value" id="financialTotalRevenue">—</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="successfulDealsLabel">Успешные сделки</span>
+                            <span class="financial-metric-value" id="financialSuccessfulDeals">—</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="averageDealLabel">Средний чек</span>
+                            <span class="financial-metric-value" id="financialAverageDeal">—</span>
+                        </div>
+                        <div class="financial-metric">
+                            <span class="financial-metric-label" data-i18n="conversionLabel">Конверсия %</span>
+                            <span class="financial-metric-value" id="financialConversion">—</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="prioritySection">
                 <table class="leads-table">
                     <thead>
                         <tr>
@@ -129,6 +229,7 @@
                     </div>
                     <div class="analytics-legend" id="analyticsLegend" style=" flex: 1; min-width: 160px; font-size: 0.95em; line-height: 1.8;"></div>
                 </div>
+                </div>
             </div>
         </div>
     </div>
@@ -137,7 +238,7 @@
 
     <!-- Modal for Add Client (Manager only) -->
     <div id="addClientModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content glass">
             <div class="modal-header">
                 <h2 data-i18n="addClientTitle">Добавить клиента</h2>
                 <button class="modal-close" id="closeAddClientModal">&times;</button>
@@ -146,29 +247,40 @@
                 <form id="addClientForm">
                     <div class="form-group">
                         <label for="addFullName" data-i18n="fullNameLabel">ФИО</label>
-                        <input type="text" id="addFullName" name="fullName" required placeholder="Введите ФИО" data-i18n-placeholder="fullNamePlaceholder">
+                        <input type="text" id="addFullName" name="fullName" class="glass-input" required placeholder="Введите ФИО" data-i18n-placeholder="fullNamePlaceholder">
                     </div>
                     <div class="form-group">
                         <label for="addDoorType" data-i18n="doorTypeLabel">Тип двери</label>
-                        <select id="addDoorType" name="doorType" required>
+                        <select id="addDoorType" name="doorType" class="glass-input" required>
                             <option value="" data-i18n="doorTypePlaceholder">Выберите тип двери</option>
                             <option value="Standard Door" data-i18n="doorTypeStandard">Стандартная дверь</option>
                             <option value="Premium Door" data-i18n="doorTypePremium">Премиум дверь</option>
                             <option value="Custom Door" data-i18n="doorTypeCustom">Индивидуальная дверь</option>
                         </select>
                     </div>
+                    <div class="form-row form-row--length-width">
+                        <div class="form-group">
+                            <label for="addLength"><span data-i18n="lengthLabel">Длина</span> <span class="required">*</span></label>
+                            <input type="number" id="addLength" name="length" class="glass-input" required min="1" step="1" placeholder="см" data-i18n-placeholder="lengthPlaceholder">
+                        </div>
+                        <div class="form-group">
+                            <label for="addWidth"><span data-i18n="widthLabel">Ширина</span> <span class="required">*</span></label>
+                            <input type="number" id="addWidth" name="width" class="glass-input" required min="1" step="1" placeholder="см" data-i18n-placeholder="widthPlaceholder">
+                        </div>
+                    </div>
                     <div class="form-group">
-                        <label for="addMeasurements" data-i18n="measurementsLabel">Размеры</label>
-                        <input type="text" id="addMeasurements" name="measurements" required placeholder="например 9x20" data-i18n-placeholder="measurementsPlaceholder">
+                        <label for="addDobor" data-i18n="doborLabel">Добор</label>
+                        <input type="text" id="addDobor" name="dobor" class="glass-input" placeholder="" data-i18n-placeholder="doborPlaceholder">
                     </div>
                     <div class="form-group">
                         <label for="addPhoneNumber" data-i18n="phoneLabel">Телефон</label>
-                        <input type="tel" id="addPhoneNumber" name="phoneNumber" required placeholder="Введите телефон" data-i18n-placeholder="phonePlaceholder">
+                        <input type="tel" id="addPhoneNumber" name="phoneNumber" class="glass-input" required placeholder="Введите телефон" data-i18n-placeholder="phonePlaceholder">
                     </div>
                     <div class="form-group">
                         <label for="addSource"><span data-i18n="sourceLabel">Источник клиента</span> <span class="required">*</span></label>
-                        <select id="addSource" name="source" required>
+                        <select id="addSource" name="source" class="glass-input" required>
                             <option value="" data-i18n="sourceSelectPlaceholder">Выберите источник</option>
+                            <option value="manual" data-i18n="sourceManual">Ручной ввод</option>
                             <option value="instagram" data-i18n="sourceInstagram">Instagram</option>
                             <option value="telegram" data-i18n="sourceTelegram">Telegram</option>
                             <option value="word_of_mouth" data-i18n="sourceWordOfMouth">Сарафан</option>
@@ -176,9 +288,13 @@
                     </div>
                     <div class="form-group">
                         <label data-i18n="prioritiesLabel">Приоритет клиента</label> <span class="required">*</span>
-                        <div class="priority-buttons" id="addPriorityButtons" role="group" aria-label="Приоритет">
-                            <button type="button" class="priority-btn" data-value="Качество и надёжность" data-i18n="priorityQualityReliability">Качество и надёжность</button>
-                            <button type="button" class="priority-btn" data-value="Дизайн и стиль" data-i18n="priorityDesignStyle">Дизайн и стиль</button>
+                        <p class="priority-hint" data-i18n="priorityHint">Выберите ровно 2 варианта</p>
+                        <div class="priority-buttons priority-buttons--checkboxes" id="addPriorityButtons" role="group" aria-label="Приоритет">
+                            <button type="button" class="priority-btn priority-btn--check" data-value="Качество и надежность" data-i18n="priorityQuality">Качество и надежность</button>
+                            <button type="button" class="priority-btn priority-btn--check" data-value="Цена" data-i18n="priorityPrice">Цена</button>
+                            <button type="button" class="priority-btn priority-btn--check" data-value="Дизайн и стиль" data-i18n="priorityDesignStyle">Дизайн и стиль</button>
+                            <button type="button" class="priority-btn priority-btn--check" data-value="Гарантии и сервис" data-i18n="priorityWarrantyService">Гарантии и сервис</button>
+                            <button type="button" class="priority-btn priority-btn--check" data-value="Надежность и безопасность" data-i18n="prioritySafety">Надежность и безопасность</button>
                         </div>
                         <p id="addPriorityError" class="field-error" style="display: none;" data-i18n="errorPriorityRequired"></p>
                     </div>
@@ -193,7 +309,7 @@
 
     <!-- Modal for DONE action -->
     <div id="doneModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content glass">
             <div class="modal-header">
                 <h2 data-i18n="doneTitle">Закрыть клиента</h2>
                 <button class="modal-close" id="closeModal">&times;</button>
@@ -230,15 +346,46 @@
         </div>
     </div>
 
+    <!-- Modal: comment for successful deal (drag to successful) -->
+    <div id="successCommentModal" class="modal" style="display: none;">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2 id="successCommentModalTitle">Комментарий по успешной сделке</h2>
+                <button type="button" class="modal-close" id="closeSuccessCommentModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="successCommentError" class="field-error" style="display: none;"></p>
+                <div class="form-group form-group--deal-amount">
+                    <label for="successDealAmount"><span data-i18n="dealAmountLabel">Сумма сделки</span> <span class="required">*</span></label>
+                    <div class="money-input-wrapper">
+                        <span class="currency-icon" aria-hidden="true">💰</span>
+                        <input type="number" id="successDealAmount" class="success-amount-input" min="0.01" step="0.01" placeholder="0" data-i18n-placeholder="dealAmountPlaceholder" required>
+                        <span class="currency-text" data-i18n="currencySum">сум</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="successCommentText"><span data-i18n="commentLabel">Комментарий</span> <span class="required">*</span></label>
+                    <textarea id="successCommentText" rows="4" placeholder="Введите комментарий" data-i18n-placeholder="commentPlaceholder" required></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelSuccessComment" data-i18n="cancelBtn">Отмена</button>
+                    <button type="button" class="btn-submit" id="confirmSuccessComment" data-i18n="confirmBtn">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let adminToken = null;
         let userRole = null;
+        let userKey = null;
         let pollIntervalId = null;
         let allActiveLeads = [];
         let currentLang = 'ru';
         let lastNotificationCount = 0;
-        const ACTIVE_PAGE_SIZE = 10;
-        let activeCurrentPage = 1;
+        const KANBAN_STAGES = ['new', 'in_progress', 'thinking', 'successful', 'rejected'];
+        let kanbanSortables = [];
+        let pendingSuccessDrop = null;
 
         const LANG_KEY = 'crm_lang';
         const translations = {
@@ -258,6 +405,19 @@
                 accountTitle: 'Аккаунт',
                 loadingLeads: 'Загрузка лидов...',
                 noLeads: 'Новых лидов нет.',
+                stageNew: 'Новые',
+                stageInProgress: 'В работе',
+                stageThinking: 'Думает',
+                stageSuccessful: 'Успешно',
+                stageRejected: 'Отказ',
+                stageBadgeNew: 'Новый клиент',
+                stageBadgeInProgress: 'В работе',
+                stageBadgeThinking: 'Думает',
+                stageBadgeSuccessful: 'Успешно',
+                stageBadgeRejected: 'Отказ',
+                stalledDay1: '1 день без движения',
+                stalledDays2_4: 'дня без движения',
+                stalledDays5: 'дней без движения',
                 controlsToggle: 'Поиск и фильтры',
                 searchPlaceholder: 'Поиск по имени или телефону',
                 searchBtn: 'Поиск',
@@ -273,6 +433,14 @@
                 thActions: 'Действия',
                 thPriority: 'Приоритет',
                 thCount: 'Количество',
+                financialAnalyticsTitle: 'Финансовые показатели',
+                managersAnalyticsTitle: 'По менеджерам',
+                personalStatsTitle: 'Ваша статистика',
+                thManager: 'Менеджер',
+                totalRevenueLabel: 'Общая выручка',
+                successfulDealsLabel: 'Успешные сделки',
+                averageDealLabel: 'Средний чек',
+                conversionLabel: 'Конверсия %',
                 addClientTitle: 'Добавить клиента',
                 fullNameLabel: 'ФИО',
                 fullNamePlaceholder: 'Введите ФИО',
@@ -283,18 +451,33 @@
                 doorTypeCustom: 'Индивидуальная дверь',
                 measurementsLabel: 'Размеры',
                 measurementsPlaceholder: 'например 9x20',
+                lengthLabel: 'Длина',
+                lengthPlaceholder: 'см',
+                widthLabel: 'Ширина',
+                widthPlaceholder: 'см',
+                doborLabel: 'Добор',
+                doborPlaceholder: 'необязательно',
+                sizeLabel: 'Размер',
+                thDobor: 'Добор',
                 phoneLabel: 'Телефон',
                 phonePlaceholder: 'Введите телефон',
                 sourceLabel: 'Источник клиента',
                 sourceSelectPlaceholder: 'Выберите источник',
+                sourceManual: 'Ручной ввод',
                 sourceInstagram: 'Instagram',
                 sourceTelegram: 'Telegram',
                 sourceWordOfMouth: 'Сарафан',
                 sourceWebsite: 'Сайт',
                 prioritiesLabel: 'Приоритет клиента',
-                priorityQualityReliability: 'Качество и надёжность',
+                priorityHint: 'Выберите ровно 2 варианта',
+                priorityQuality: 'Качество и надежность',
+                priorityPrice: 'Цена',
                 priorityDesignStyle: 'Дизайн и стиль',
-                errorPriorityRequired: 'Выберите приоритет.',
+                priorityWarrantyService: 'Гарантии и сервис',
+                prioritySafety: 'Надежность и безопасность',
+                errorPriorityRequired: 'Выберите ровно 2 приоритета.',
+                errorLengthRequired: 'Введите корректную длину (число больше 0).',
+                errorWidthRequired: 'Введите корректную ширину (число больше 0).',
                 priorityQuality: 'Качество',
                 priorityDesign: 'Дизайн',
                 priorityProduction: 'Срок изготовления',
@@ -302,6 +485,13 @@
                 priorityWarranty: 'Гарантия',
                 cancelBtn: 'Отмена',
                 submitBtn: 'Сохранить',
+                confirmBtn: 'Подтвердить',
+                successCommentTitle: 'Комментарий по успешной сделке',
+                successCommentRequired: 'Введите комментарий.',
+                dealAmountLabel: 'Сумма сделки',
+                dealAmountPlaceholder: '0',
+                currencySum: 'сум',
+                dealAmountRequired: 'Введите сумму сделки больше 0.',
                 doneTitle: 'Закрыть клиента',
                 doneSubtitle: 'Добавьте комментарий:',
                 commentLabel: 'Комментарий',
@@ -314,6 +504,15 @@
                 labelNew: 'Новый клиент',
                 doneBtn: 'Закрыть',
                 archiveBtn: 'В архив',
+                assignLabel: 'Назначить:',
+                assignUnassigned: 'Не назначено',
+                assignCallManager: 'Колл‑менеджер',
+                managerAnvar: 'Анвар менеджер',
+                managerAkbar: 'Акбар менеджер',
+                managerDavron: 'Даврон менеджер',
+                assignLabelAssigned: 'Назначено:',
+                assignedToYou: 'Назначено вам',
+                yourClient: 'Ваш клиент',
                 roleManager: 'Босс‑менеджер',
                 roleCallManager: 'Колл‑менеджер',
                 errorTokenRequired: 'Введите админ‑токен.',
@@ -348,6 +547,19 @@
                 accountTitle: 'Hisob',
                 loadingLeads: 'Mijozlar yuklanmoqda...',
                 noLeads: 'Hozircha yangi mijozlar yo‘q.',
+                stageNew: 'Yangi',
+                stageInProgress: 'Jarayonda',
+                stageThinking: 'O‘ylanyapti',
+                stageSuccessful: 'Muvaffaqiyatli',
+                stageRejected: 'Rad etilgan',
+                stageBadgeNew: 'Yangi mijoz',
+                stageBadgeInProgress: 'Jarayonda',
+                stageBadgeThinking: 'O‘ylanyapti',
+                stageBadgeSuccessful: 'Muvaffaqiyatli',
+                stageBadgeRejected: 'Rad etilgan',
+                stalledDay1: '1 kun harakatsiz',
+                stalledDays2_4: 'kun harakatsiz',
+                stalledDays5: 'kun harakatsiz',
                 controlsToggle: 'Qidiruv va filtrlar',
                 searchPlaceholder: 'Ism yoki telefon bo‘yicha qidirish',
                 searchBtn: 'Qidirish',
@@ -363,6 +575,14 @@
                 thActions: 'Amallar',
                 thPriority: 'Ustuvorlik',
                 thCount: 'Soni',
+                financialAnalyticsTitle: 'Moliyaviy ko\'rsatkichlar',
+                managersAnalyticsTitle: 'Menejerlar bo\'yicha',
+                personalStatsTitle: 'Sizning statistikangiz',
+                thManager: 'Menejer',
+                totalRevenueLabel: 'Umumiy daromad',
+                successfulDealsLabel: 'Muvaffaqiyatli bitimlar',
+                averageDealLabel: 'O\'rtacha check',
+                conversionLabel: 'Konversiya %',
                 addClientTitle: 'Mijoz qo‘shish',
                 fullNameLabel: 'F.I.Sh.',
                 fullNamePlaceholder: 'F.I.Sh. kiriting',
@@ -373,18 +593,33 @@
                 doorTypeCustom: 'Individual eshik',
                 measurementsLabel: 'O‘lchamlar',
                 measurementsPlaceholder: 'masalan 9x20',
+                lengthLabel: 'Uzunlik',
+                lengthPlaceholder: 'sm',
+                widthLabel: 'Kenglik',
+                widthPlaceholder: 'sm',
+                doborLabel: 'Dobor',
+                doborPlaceholder: 'ixtiyoriy',
+                sizeLabel: 'O‘lcham',
+                thDobor: 'Dobor',
                 phoneLabel: 'Telefon',
                 phonePlaceholder: 'Telefon raqamini kiriting',
                 sourceLabel: 'Mijoz manbasi',
                 sourceSelectPlaceholder: 'Manbani tanlang',
+                sourceManual: 'Qo‘lda kiritilgan',
                 sourceInstagram: 'Instagram',
                 sourceTelegram: 'Telegram',
                 sourceWordOfMouth: 'Sarafan',
                 sourceWebsite: 'Veb‑sayt',
                 prioritiesLabel: 'Mijoz ustuvorligi',
-                priorityQualityReliability: 'Sifat va ishonchlilik',
+                priorityHint: 'Aniq 2 ta variantni tanlang',
+                priorityQuality: 'Sifat va ishonchlilik',
+                priorityPrice: 'Narx',
                 priorityDesignStyle: 'Dizayn va uslub',
-                errorPriorityRequired: 'Ustuvorlikni tanlang.',
+                priorityWarrantyService: 'Kafolat va xizmat',
+                prioritySafety: 'Ishonchlilik va xavfsizlik',
+                errorPriorityRequired: 'Aniq 2 ta ustuvorlikni tanlang.',
+                errorLengthRequired: 'To‘g‘ri uzunlikni kiriting (0 dan katta son).',
+                errorWidthRequired: 'To‘g‘ri kenglikni kiriting (0 dan katta son).',
                 priorityQuality: 'Sifat',
                 priorityDesign: 'Dizayn',
                 priorityProduction: 'Ishlab chiqarish muddati',
@@ -392,6 +627,13 @@
                 priorityWarranty: 'Kafolat',
                 cancelBtn: 'Bekor qilish',
                 submitBtn: 'Saqlash',
+                confirmBtn: 'Tasdiqlash',
+                successCommentTitle: 'Muvaffaqiyatli bitim uchun izoh',
+                successCommentRequired: 'Izoh kiriting.',
+                dealAmountLabel: 'Bitim summasi',
+                dealAmountPlaceholder: '0',
+                currencySum: 'so\'m',
+                dealAmountRequired: 'Bitim summasini 0 dan katta kiriting.',
                 doneTitle: 'Mijozni yopish',
                 doneSubtitle: 'Izoh kiriting:',
                 commentLabel: 'Izoh',
@@ -404,6 +646,15 @@
                 labelNew: 'Yangi mijoz',
                 doneBtn: 'Yopish',
                 archiveBtn: 'Arxivga',
+                assignLabel: 'Tayinlash:',
+                assignUnassigned: 'Tayinlanmagan',
+                assignCallManager: 'Qo‘ng‘iroq menejeri',
+                managerAnvar: 'Anvar menejer',
+                managerAkbar: 'Akbar menejer',
+                managerDavron: 'Davron menejer',
+                assignLabelAssigned: 'Tayinlangan:',
+                assignedToYou: 'Sizga tayinlangan',
+                yourClient: 'Sizning mijoyingiz',
                 roleManager: 'Bosh menejer',
                 roleCallManager: 'Qo‘ng‘iroq menejeri',
                 errorTokenRequired: 'Administrator tokenini kiriting.',
@@ -446,7 +697,7 @@
             });
             const roleLabel = document.getElementById('userRoleLabel');
             if (roleLabel && userRole) {
-                roleLabel.textContent = userRole === 'manager' ? t('roleManager') : t('roleCallManager');
+                roleLabel.textContent = (userRole === 'manager' || userRole === 'boss') ? t('roleManager') : t('roleCallManager');
             }
             updateNotificationText(lastNotificationCount);
         }
@@ -472,20 +723,28 @@
             return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
         }
 
+        function getManagerLabel(key) {
+            if (!key) return '';
+            const labels = { anvar: 'managerAnvar', akbar: 'managerAkbar', davron: 'managerDavron' };
+            return t(labels[key] || '');
+        }
+
         function setRoleUI(role) {
             userRole = role;
             const label = document.getElementById('userRoleLabel');
             const addBtn = document.getElementById('addClientBtn');
             const analyticsBtn = document.getElementById('analyticsBtn');
             const userMenu = document.getElementById('userMenuWrapper');
-            if (role === 'manager') {
+            const isBoss = role === 'manager' || role === 'boss';
+            if (addBtn) {
+                addBtn.style.display = role === 'boss' ? 'inline-block' : 'none';
+            }
+            if (isBoss) {
                 label.textContent = t('roleManager');
-                addBtn.style.display = 'inline-block';
                 analyticsBtn.style.display = 'inline-block';
             } else {
                 label.textContent = t('roleCallManager');
-                addBtn.style.display = 'none';
-                analyticsBtn.style.display = 'none';
+                analyticsBtn.style.display = 'inline-block';
             }
             if (userMenu) {
                 userMenu.style.display = 'flex';
@@ -526,8 +785,10 @@
                 if (response.ok) {
                     adminToken = data.token;
                     userRole = (data.role != null && data.role !== '') ? String(data.role).toLowerCase() : null;
+                    userKey = (data.key != null && data.key !== '') ? String(data.key) : null;
                     sessionStorage.setItem('authToken', data.token);
                     sessionStorage.setItem('authRole', userRole || '');
+                    sessionStorage.setItem('authKey', userKey || '');
                     setRoleUI(userRole);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
@@ -564,8 +825,10 @@
         document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
             adminToken = null;
             userRole = null;
+            userKey = null;
             sessionStorage.removeItem('authToken');
             sessionStorage.removeItem('authRole');
+            sessionStorage.removeItem('authKey');
             stopSilentRefresh();
             if (pollIntervalId) {
                 clearInterval(pollIntervalId);
@@ -592,6 +855,8 @@
             adminToken = token;
             const storedRole = sessionStorage.getItem('authRole');
             userRole = (storedRole != null && storedRole !== '') ? String(storedRole).toLowerCase() : null;
+            const storedKey = sessionStorage.getItem('authKey');
+            userKey = (storedKey != null && storedKey !== '') ? String(storedKey) : null;
             setRoleUI(userRole);
             document.getElementById('loginSection').style.display = 'none';
             document.getElementById('adminPanel').style.display = 'block';
@@ -603,21 +868,31 @@
         }
 
         // ============================================
-        // ADD CLIENT (Manager only)
+        // ADD CLIENT (Boss only)
         // ============================================
 
-        document.getElementById('addClientBtn').addEventListener('click', () => {
+        const addClientBtn = document.getElementById('addClientBtn');
+        if (addClientBtn) {
+        addClientBtn.addEventListener('click', () => {
             document.getElementById('addFullName').value = '';
+            document.getElementById('addLength').value = '';
+            document.getElementById('addWidth').value = '';
+            document.getElementById('addDobor').value = '';
             document.getElementById('addDoorType').value = '';
-            document.getElementById('addMeasurements').value = '';
             document.getElementById('addPhoneNumber').value = '';
-            document.getElementById('addSource').value = '';
+            document.getElementById('addSource').value = 'manual';
             document.getElementById('addPriorityError').style.display = 'none';
-            document.querySelectorAll('#addPriorityButtons .priority-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#addPriorityButtons .priority-btn').forEach(b => {
+                b.classList.remove('active', 'priority-btn--disabled');
+            });
             const modal = document.getElementById('addClientModal');
-            modal.style.display = 'flex';
-            setTimeout(() => modal.classList.add('modal-open'), 10);
+            if (modal) {
+                modal.style.display = 'flex';
+                modal.setAttribute('aria-hidden', 'false');
+                setTimeout(() => modal.classList.add('modal-open'), 10);
+            }
         });
+        }
 
         function closeAddClientModal() {
             const modal = document.getElementById('addClientModal');
@@ -634,8 +909,17 @@
         document.getElementById('addPriorityButtons').addEventListener('click', (e) => {
             const btn = e.target.closest('.priority-btn');
             if (!btn) return;
-            document.querySelectorAll('#addPriorityButtons .priority-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            const container = document.getElementById('addPriorityButtons');
+            const all = container.querySelectorAll('.priority-btn');
+            if (btn.classList.contains('active')) {
+                btn.classList.remove('active');
+            } else if (container.querySelectorAll('.priority-btn.active').length < 2) {
+                btn.classList.add('active');
+            }
+            const nowSelected = container.querySelectorAll('.priority-btn.active');
+            all.forEach(b => {
+                b.classList.toggle('priority-btn--disabled', !b.classList.contains('active') && nowSelected.length >= 2);
+            });
         });
 
         document.getElementById('addClientForm').addEventListener('submit', async (e) => {
@@ -643,17 +927,29 @@
             document.getElementById('addPriorityError').style.display = 'none';
             const fullName = document.getElementById('addFullName').value.trim();
             const doorType = document.getElementById('addDoorType').value;
-            const measurements = document.getElementById('addMeasurements').value.trim();
+            const lengthRaw = document.getElementById('addLength').value.trim();
+            const widthRaw = document.getElementById('addWidth').value.trim();
+            const lengthNum = lengthRaw === '' ? NaN : Number(lengthRaw);
+            const widthNum = widthRaw === '' ? NaN : Number(widthRaw);
+            const dobor = document.getElementById('addDobor').value.trim();
             const phoneNumber = document.getElementById('addPhoneNumber').value.trim();
             const source = document.getElementById('addSource').value;
-            const priorityBtn = document.querySelector('#addPriorityButtons .priority-btn.active');
-            const priority = priorityBtn ? (priorityBtn.getAttribute('data-value') || '').trim() : '';
-            if (!fullName || !doorType || !measurements || !phoneNumber) {
+            const priorityBtns = document.querySelectorAll('#addPriorityButtons .priority-btn.active');
+            const prioritiesArray = Array.from(priorityBtns).map(b => (b.getAttribute('data-value') || '').trim()).filter(Boolean);
+            if (!fullName || !doorType || !phoneNumber) {
                 alert(t('validationFillFields'));
                 return;
             }
-            if (!priority) {
-                document.getElementById('addPriorityError').textContent = t('errorPriorityRequired') || 'Выберите приоритет.';
+            if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || !/^\d*\.?\d*$/.test(lengthRaw)) {
+                alert(t('errorLengthRequired') || 'Введите корректную длину (число больше 0).');
+                return;
+            }
+            if (typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0 || !/^\d*\.?\d*$/.test(widthRaw)) {
+                alert(t('errorWidthRequired') || 'Введите корректную ширину (число больше 0).');
+                return;
+            }
+            if (prioritiesArray.length !== 2) {
+                document.getElementById('addPriorityError').textContent = t('errorPriorityRequired') || 'Выберите ровно 2 приоритета.';
                 document.getElementById('addPriorityError').style.display = 'block';
                 return;
             }
@@ -661,16 +957,39 @@
                 alert(t('validationSelectSource'));
                 return;
             }
+            const measurements = lengthNum + ' x ' + widthNum;
+            const payload = {
+                fullName,
+                phoneNumber,
+                doorType,
+                length: lengthNum,
+                width: widthNum,
+                dobor,
+                priorities: prioritiesArray,
+                source: source || 'manual',
+                measurements
+            };
             try {
                 const response = await fetch('/api/admin/leads', {
                     method: 'POST',
                     headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
-                    body: JSON.stringify({ fullName, doorType, measurements, phoneNumber, priorities: [priority], source })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
                 if (response.ok) {
                     closeAddClientModal();
-                    loadLeads();
+                    if (data.lead) {
+                        const lead = data.lead;
+                        lead.stage = lead.stage || 'new';
+                        lead.assignedTo = lead.assignedTo != null ? lead.assignedTo : null;
+                        allActiveLeads.unshift(lead);
+                        displayKanbanLeads();
+                        updateStageCounters();
+                    } else {
+                        loadLeads();
+                    }
+                } else if (response.status === 400) {
+                    alert(data.error || t('errorAddClient') || 'Проверьте данные и попробуйте снова.');
                 } else if (response.status === 403) {
                     alert(t('errorForbiddenManager'));
                 } else {
@@ -741,21 +1060,24 @@
 
                 if (response.ok) {
                     allActiveLeads = data.leads || [];
-                    activeCurrentPage = 1;
                     if (allActiveLeads.length > 0) {
                         updateLastSeenAtFromLeads(allActiveLeads);
-                        applyActiveSearch();
+                        displayKanbanLeads();
                         document.getElementById('newClientNotification').style.display = 'none';
                     } else {
                         document.getElementById('noLeadsMessage').style.display = 'block';
+                        document.getElementById('leadsTableWrapper').style.display = 'none';
                     }
                 } else {
                     if (response.status === 401) {
                         showError(t('errorSessionExpired'));
                         sessionStorage.removeItem('authToken');
                         sessionStorage.removeItem('authRole');
+                        sessionStorage.removeItem('authKey');
                         setTimeout(() => {
                             adminToken = null;
+                            userRole = null;
+                            userKey = null;
                             document.getElementById('loginSection').style.display = 'block';
                             document.getElementById('adminPanel').style.display = 'none';
                             const userMenu = document.getElementById('userMenuWrapper');
@@ -816,22 +1138,33 @@
         });
 
         document.getElementById('activeSearchInput').addEventListener('input', () => {
-            activeCurrentPage = 1;
-            applyActiveSearch();
+            displayKanbanLeads();
         });
 
-        document.getElementById('activePaginationPrev').addEventListener('click', () => {
-            if (activeCurrentPage > 1) {
-                activeCurrentPage--;
-                applyActiveSearch();
-            }
-        });
-        document.getElementById('activePaginationNext').addEventListener('click', () => {
-            const filtered = getFilteredActiveLeads();
-            const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVE_PAGE_SIZE));
-            if (activeCurrentPage < totalPages) {
-                activeCurrentPage++;
-                applyActiveSearch();
+        document.getElementById('leadsTableWrapper').addEventListener('change', async (e) => {
+            if (!e.target.matches('.assign-select')) return;
+            const select = e.target;
+            const leadId = select.getAttribute('data-lead-id');
+            const value = select.value;
+            const assignedTo = (value && value.trim()) ? value.trim() : null;
+            try {
+                const response = await fetch(`/api/admin/leads/${leadId}/assign`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+                    body: JSON.stringify({ assignedTo })
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    showError(err.error || t('errorNetwork'));
+                    return;
+                }
+                const data = await response.json();
+                const idx = allActiveLeads.findIndex(l => l._id === leadId);
+                if (idx !== -1 && data.lead) allActiveLeads[idx] = data.lead;
+                displayKanbanLeads();
+            } catch (err) {
+                console.error('Assign error:', err);
+                showError(t('errorNetwork'));
             }
         });
 
@@ -843,6 +1176,114 @@
         });
 
         let analyticsPieChartInstance = null;
+
+        let lastTotalRevenue = null;
+
+        function parseRevenueDisplay(str) {
+            if (!str || str === '—') return null;
+            const cleaned = String(str).replace(/\s/g, '').replace(',', '.');
+            const n = parseFloat(cleaned);
+            return isNaN(n) ? null : n;
+        }
+
+        function animateCounter(element, start, end, duration, formatter) {
+            if (!element || typeof start !== 'number' || typeof end !== 'number') return;
+            const form = formatter || (v => (typeof v === 'number' && !isNaN(v) ? v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—'));
+            const startTime = performance.now();
+            function tick(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeProgress = 1 - Math.pow(1 - progress, 3);
+                const current = start + (end - start) * easeProgress;
+                element.textContent = form(current);
+                if (progress < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        }
+
+        async function loadManagerAnalytics() {
+            const isBoss = userRole === 'manager' || userRole === 'boss';
+            const tableBody = document.getElementById('managersTableBody');
+            const personalDeals = document.getElementById('personalSuccessfulDeals');
+            const personalRevenue = document.getElementById('personalRevenue');
+            const personalAvg = document.getElementById('personalAverageDeal');
+            const personalConv = document.getElementById('personalConversion');
+            try {
+                const response = await fetch('/api/admin/analytics/managers', { method: 'GET', headers: getAuthHeader() });
+                const data = await response.json();
+                if (!response.ok) {
+                    if (tableBody) tableBody.innerHTML = '';
+                    if (personalDeals) personalDeals.textContent = '—';
+                    if (personalRevenue) personalRevenue.textContent = '—';
+                    if (personalAvg) personalAvg.textContent = '—';
+                    if (personalConv) personalConv.textContent = '—';
+                    return;
+                }
+                const managers = data.managers || [];
+                if (isBoss && tableBody) {
+                    tableBody.innerHTML = managers.map(m => {
+                        const avg = m.averageDeal != null ? m.averageDeal.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0';
+                        const rev = m.revenue != null ? m.revenue.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0';
+                        const conv = m.conversionPct != null ? m.conversionPct.toFixed(1) + '%' : '0%';
+                        return `<tr><td>${escapeHtml(m.name)}</td><td>${m.successfulDeals}</td><td>${rev}</td><td>${avg}</td><td>${conv}</td></tr>`;
+                    }).join('');
+                }
+                if (!isBoss && managers.length > 0) {
+                    const m = managers[0];
+                    if (personalDeals) personalDeals.textContent = String(m.successfulDeals);
+                    if (personalRevenue) personalRevenue.textContent = m.revenue != null ? m.revenue.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—';
+                    if (personalAvg) personalAvg.textContent = m.averageDeal != null ? m.averageDeal.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0';
+                    if (personalConv) personalConv.textContent = m.conversionPct != null ? m.conversionPct.toFixed(1) + '%' : '0%';
+                }
+            } catch (e) {
+                if (tableBody) tableBody.innerHTML = '';
+                if (personalDeals) personalDeals.textContent = '—';
+                if (personalRevenue) personalRevenue.textContent = '—';
+                if (personalAvg) personalAvg.textContent = '—';
+                if (personalConv) personalConv.textContent = '—';
+            }
+        }
+
+        async function loadFinancialAnalytics() {
+            const totalEl = document.getElementById('financialTotalRevenue');
+            const dealsEl = document.getElementById('financialSuccessfulDeals');
+            const avgEl = document.getElementById('financialAverageDeal');
+            const convEl = document.getElementById('financialConversion');
+            if (!totalEl || !dealsEl || !avgEl || !convEl) return;
+            try {
+                const response = await fetch('/api/admin/analytics/financial', { method: 'GET', headers: getAuthHeader() });
+                const data = await response.json();
+                if (!response.ok) {
+                    lastTotalRevenue = null;
+                    totalEl.textContent = '—';
+                    dealsEl.textContent = '—';
+                    avgEl.textContent = '—';
+                    convEl.textContent = '—';
+                    return;
+                }
+                const totalRevenue = data.totalRevenue || 0;
+                const successfulDealsCount = data.successfulDealsCount || 0;
+                const totalLeads = data.totalLeads || 0;
+                const averageDeal = successfulDealsCount > 0 ? totalRevenue / successfulDealsCount : 0;
+                const conversionPct = totalLeads > 0 ? (successfulDealsCount / totalLeads) * 100 : 0;
+                const prevTotal = lastTotalRevenue ?? parseRevenueDisplay(totalEl.textContent) ?? 0;
+                lastTotalRevenue = totalRevenue;
+                if (typeof totalRevenue === 'number' && totalEl) {
+                    animateCounter(totalEl, prevTotal, totalRevenue, 600, v => v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
+                } else if (totalEl) {
+                    totalEl.textContent = typeof totalRevenue === 'number' ? totalRevenue.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '—';
+                }
+                dealsEl.textContent = String(successfulDealsCount);
+                avgEl.textContent = typeof averageDeal === 'number' ? averageDeal.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0';
+                convEl.textContent = typeof conversionPct === 'number' ? conversionPct.toFixed(1) + '%' : '0%';
+            } catch (e) {
+                lastTotalRevenue = null;
+                totalEl.textContent = '—';
+                dealsEl.textContent = '—';
+                avgEl.textContent = '—';
+                convEl.textContent = '—';
+            }
+        }
 
         async function loadPriorityAnalytics() {
             if (!adminToken) return;
@@ -858,7 +1299,7 @@
                 });
                 const data = await response.json();
                 if (response.ok) {
-                    const priorityOrder = ['Качество и надёжность', 'Дизайн и стиль'];
+                    const priorityOrder = ['Качество и надежность', 'Цена', 'Дизайн и стиль', 'Гарантии и сервис', 'Надежность и безопасность'];
                     const counts = {};
                     let total = 0;
                     priorityOrder.forEach(label => {
@@ -922,6 +1363,9 @@
                 } else if (response.status === 401) {
                     sessionStorage.removeItem('authToken');
                     sessionStorage.removeItem('authRole');
+                    sessionStorage.removeItem('authKey');
+                    userRole = null;
+                    userKey = null;
                     showError(t('errorSessionExpired'));
                 } else {
                     showError(t('errorLoadLeads'));
@@ -936,11 +1380,26 @@
             const analyticsWrapper = document.getElementById('analyticsWrapper');
             const leadsWrapper = document.getElementById('leadsTableWrapper');
             const noLeads = document.getElementById('noLeadsMessage');
+            const isBoss = userRole === 'manager' || userRole === 'boss';
             if (analyticsWrapper.style.display === 'none') {
                 leadsWrapper.style.display = 'none';
                 noLeads.style.display = 'none';
                 analyticsWrapper.style.display = 'block';
-                await loadPriorityAnalytics();
+                const managersSection = document.getElementById('managersTableSection');
+                const personalSection = document.getElementById('personalStatsSection');
+                const prioritySection = document.getElementById('prioritySection');
+                if (isBoss) {
+                    if (managersSection) managersSection.style.display = 'block';
+                    if (personalSection) personalSection.style.display = 'none';
+                    if (prioritySection) prioritySection.style.display = 'block';
+                    await loadManagerAnalytics();
+                    await loadPriorityAnalytics();
+                } else {
+                    if (managersSection) managersSection.style.display = 'none';
+                    if (personalSection) personalSection.style.display = 'block';
+                    if (prioritySection) prioritySection.style.display = 'none';
+                    await loadManagerAnalytics();
+                }
             } else {
                 analyticsWrapper.style.display = 'none';
                 await loadLeads();
@@ -949,12 +1408,14 @@
 
         function buildLeadCardHTML(lead, index) {
             const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
-            const label = lead.label || 'New Client';
-            const isNew = label === 'New Client';
+            const stage = lead.stage || 'new';
+            const isNew = stage === 'new';
             const date = new Date(lead.createdAt).toLocaleString();
-            const priorityVal = lead.priorities && lead.priorities.length > 0 ? lead.priorities[0] : null;
-            const priorities = priorityVal != null ? getPriorityDisplay(priorityVal) : '—';
-            const labelBadge = renderLabelBadge(label);
+            const prioritiesArr = lead.priorities && Array.isArray(lead.priorities) ? lead.priorities : [];
+            const prioritiesChipsHTML = prioritiesArr.length > 0
+                ? prioritiesArr.map(p => `<span class="priority-chip">${escapeHtml(getPriorityDisplay(p))}</span>`).join('')
+                : '';
+            const stageBadge = renderStageBadge(stage);
             const source = lead.source || 'website';
             const sourceBadge = renderSourceBadge(source);
             const doorTypeDisplay = getDoorTypeDisplay(lead.doorType);
@@ -965,26 +1426,49 @@
                 </div>
                 <div class="lead-card-meta">
                     <div class="lead-card-phone">${escapeHtml(lead.phoneNumber)}</div>
-                    <div class="lead-card-label">${labelBadge}</div>
+                    <div class="lead-card-label">${stageBadge}</div>
                 </div>
+                ${(function() {
+                    const isBoss = userRole === 'manager' || userRole === 'boss';
+                    if (isBoss) {
+                        const keys = ['anvar', 'akbar', 'davron'];
+                        const isAssigned = lead.assignedTo && keys.includes(lead.assignedTo);
+                        const chipText = isAssigned ? ('👤 ' + t('assignLabelAssigned') + ' ' + getManagerLabel(lead.assignedTo)) : ('👤 ' + t('assignUnassigned'));
+                        const options = keys.map(k => `<option value="${escapeHtml(k)}" ${lead.assignedTo === k ? 'selected' : ''}>${escapeHtml(getManagerLabel(k))}</option>`).join('');
+                        return `<div class="lead-card-assign"><div class="assign-chip" title="${escapeHtml(chipText)}">${escapeHtml(chipText)}</div><select class="assign-select assign-dropdown" data-lead-id="${lead._id}" aria-label="${t('assignLabel')}"><option value="" ${!isAssigned ? 'selected' : ''}>${t('assignUnassigned')}</option>${options}</select></div>`;
+                    }
+                    if (userKey && lead.assignedTo === userKey) {
+                        return `<div class="lead-card-assign"><span class="badge badge-assigned">${t('yourClient')}</span></div>`;
+                    }
+                    return '';
+                })()}
                 <div class="lead-card-details">
                     <div class="lead-field">
                         <span class="field-label">${t('thDoorType')}</span>
                         <span class="field-value">${escapeHtml(doorTypeDisplay || '—')}</span>
                     </div>
                     <div class="lead-field">
-                        <span class="field-label">${t('thMeasurements')}</span>
-                        <span class="field-value">${escapeHtml(lead.measurements || '—')}</span>
+                        <span class="field-label">${t('sizeLabel')}</span>
+                        <span class="field-value">${escapeHtml((lead.length != null && lead.width != null && (Number(lead.length) !== 0 || Number(lead.width) !== 0)) ? (lead.length + ' x ' + lead.width) : (lead.measurements || '—'))}</span>
+                    </div>
+                    <div class="lead-field">
+                        <span class="field-label">${t('thDobor')}</span>
+                        <span class="field-value">${escapeHtml(lead.dobor != null && String(lead.dobor).trim() !== '' ? lead.dobor : '—')}</span>
                     </div>
                     <div class="lead-field">
                         <span class="field-label">${t('thSubmitted')}</span>
                         <span class="field-value">${escapeHtml(date)}</span>
                     </div>
-                    <div class="lead-field">
-                        <span class="field-label">${t('thPriorities')}</span>
-                        <span class="field-value">${escapeHtml(priorities)}</span>
-                    </div>
+                    ${prioritiesChipsHTML ? `<div class="lead-field lead-field--priorities"><span class="field-label">${t('thPriorities')}</span><div class="priority-chips">${prioritiesChipsHTML}</div></div>` : ''}
                 </div>
+                ${(function() {
+                    const stalled = isStalled(lead);
+                    if (stalled) {
+                        const days = getDaysInStage(lead);
+                        return `<div class="stalled-badge">${escapeHtml(getStalledBadgeText(days))}</div>`;
+                    }
+                    return '';
+                })()}
                 <div class="lead-card-actions">
                     <button class="btn-done" onclick="handleDone('${lead._id}')">${t('doneBtn')}</button>
                     <button class="btn-not" onclick="handleNot('${lead._id}')">${t('archiveBtn')}</button>
@@ -994,44 +1478,150 @@
 
         function createLeadCardElement(lead, index) {
             const card = document.createElement('div');
-            const label = lead.label || 'New Client';
-            const isNew = label === 'New Client';
-            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}`;
+            const stage = lead.stage || 'new';
+            const isNew = stage === 'new';
+            const stalled = isStalled(lead);
+            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}`;
             card.setAttribute('data-lead-id', lead._id);
             card.style.animationDelay = `${index * 0.05}s`;
             card.innerHTML = buildLeadCardHTML(lead, index);
             return card;
         }
 
-        function displayLeads(leads) {
-            const grid = document.getElementById('leadsCardGrid');
-            grid.innerHTML = '';
-            leads.forEach((lead, index) => {
-                const card = createLeadCardElement(lead, index);
-                grid.appendChild(card);
-            });
-            document.getElementById('leadsTableWrapper').style.display = 'block';
+        function getKanbanColId(stage) {
+            const map = { new: 'kanbanColNew', in_progress: 'kanbanColInProgress', thinking: 'kanbanColThinking', successful: 'kanbanColSuccessful', rejected: 'kanbanColRejected' };
+            return map[stage] || 'kanbanColNew';
         }
 
-        function syncLeadsDOM(pageLeads) {
-            const grid = document.getElementById('leadsCardGrid');
-            if (!grid) return;
-            const wantedIds = new Set(pageLeads.map(l => l._id));
-            for (const card of [...grid.children]) {
-                const id = card.getAttribute('data-lead-id');
-                if (id && !wantedIds.has(id)) card.remove();
-            }
-            for (let i = 0; i < pageLeads.length; i++) {
-                const lead = pageLeads[i];
-                const existing = grid.querySelector(`[data-lead-id="${lead._id}"]`);
-                if (existing) {
-                    existing.innerHTML = buildLeadCardHTML(lead, i);
-                    if (existing !== grid.children[i]) grid.insertBefore(existing, grid.children[i] || null);
-                } else {
-                    const card = createLeadCardElement(lead, i);
-                    grid.insertBefore(card, grid.children[i] || null);
+        function getStageDisplayKey(stage) {
+            const keys = { new: 'stageNew', in_progress: 'stageInProgress', thinking: 'stageThinking', successful: 'stageSuccessful', rejected: 'stageRejected' };
+            return keys[stage] || 'stageNew';
+        }
+
+        const DAY_MS = 1000 * 60 * 60 * 24;
+        const STALLED_DAYS_THRESHOLD = 3;
+
+        function getDaysInStage(lead) {
+            const date = lead.updatedAt || lead.createdAt;
+            if (!date) return 0;
+            const now = Date.now();
+            const then = new Date(date).getTime();
+            return Math.floor((now - then) / DAY_MS);
+        }
+
+        function isStalled(lead) {
+            const stage = lead.stage || 'new';
+            if (stage === 'successful' || stage === 'rejected') return false;
+            return getDaysInStage(lead) > STALLED_DAYS_THRESHOLD;
+        }
+
+        function getStalledBadgeText(days) {
+            if (days <= 0) return '';
+            if (days === 1) return '⚠ ' + t('stalledDay1');
+            if (days >= 2 && days <= 4) return '⚠ ' + days + ' ' + t('stalledDays2_4');
+            return '⚠ ' + days + ' ' + t('stalledDays5');
+        }
+
+        function updateStageCounters() {
+            KANBAN_STAGES.forEach(stage => {
+                const col = document.getElementById(getKanbanColId(stage));
+                if (!col) return;
+                const count = col.children.length;
+                const header = col.previousElementSibling;
+                if (header) {
+                    const countEl = header.querySelector('.stage-counter');
+                    if (countEl) {
+                        const prev = countEl.textContent;
+                        countEl.textContent = String(count);
+                        if (prev !== String(count)) {
+                            countEl.classList.add('counter-update');
+                            clearTimeout(countEl._counterUpdateTimer);
+                            countEl._counterUpdateTimer = setTimeout(() => countEl.classList.remove('counter-update'), 400);
+                        }
+                    }
                 }
-            }
+            });
+        }
+
+        function displayKanbanLeads() {
+            const filtered = getFilteredActiveLeads();
+            destroyKanbanSortables();
+            KANBAN_STAGES.forEach(stage => {
+                const col = document.getElementById(getKanbanColId(stage));
+                if (!col) return;
+                const header = col.previousElementSibling;
+                if (header && header.classList.contains('kanban-column-header')) {
+                    header.innerHTML = `<div class="stage-header"><span class="stage-title">${escapeHtml(t(getStageDisplayKey(stage)))}</span><span class="stage-counter counter-${escapeHtml(stage)}" data-stage="${escapeHtml(stage)}">0</span></div>`;
+                }
+                col.innerHTML = '';
+                const inStage = filtered.filter(lead => (lead.stage || 'new') === stage);
+                inStage.forEach((lead, index) => {
+                    const card = createLeadCardElement(lead, index);
+                    col.appendChild(card);
+                });
+            });
+            document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
+            document.getElementById('leadsTableWrapper').style.display = filtered.length > 0 ? 'block' : 'none';
+            updateStageCounters();
+            initKanbanSortables();
+        }
+
+        function destroyKanbanSortables() {
+            kanbanSortables.forEach(s => { if (s && s.destroy) s.destroy(); });
+            kanbanSortables = [];
+        }
+
+        function initKanbanSortables() {
+            if (typeof Sortable === 'undefined') return;
+            const containers = document.querySelectorAll('.kanban-column-cards');
+            containers.forEach(el => {
+                const sortable = Sortable.create(el, {
+                    group: { name: 'kanban', pull: true, put: true },
+                    animation: 150,
+                    onEnd: async (evt) => {
+                        const leadId = evt.item.getAttribute('data-lead-id');
+                        const toColumn = evt.to.closest('.kanban-column');
+                        const newStage = toColumn ? toColumn.getAttribute('data-stage') : null;
+                        if (!leadId || !newStage) return;
+
+                        if (newStage === 'successful') {
+                            const fromColumn = evt.from.closest('.kanban-column');
+                            const previousStage = fromColumn ? fromColumn.getAttribute('data-stage') : 'new';
+                            pendingSuccessDrop = { leadId, previousStage, fromEl: evt.from, oldIndex: evt.oldIndex, item: evt.item };
+                            openSuccessCommentModal();
+                            return;
+                        }
+
+                        try {
+                            const res = await fetch('/api/admin/leads/' + leadId + '/stage', {
+                                method: 'PATCH',
+                                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                                body: JSON.stringify({ stage: newStage })
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                                if (data.lead && (data.lead.status === 'done' || newStage === 'successful' || newStage === 'rejected')) {
+                                    allActiveLeads = allActiveLeads.filter(l => l._id !== leadId);
+                                } else {
+                                    const idx = allActiveLeads.findIndex(l => l._id === leadId);
+                                    if (idx !== -1) allActiveLeads[idx] = data.lead;
+                                }
+                                displayKanbanLeads();
+                            } else {
+                                displayKanbanLeads();
+                            }
+                        } catch (err) {
+                            console.error(err);
+                            displayKanbanLeads();
+                        }
+                    }
+                });
+                kanbanSortables.push(sortable);
+            });
+        }
+
+        function displayLeads(leads) {
+            displayKanbanLeads();
         }
 
         const SILENT_REFRESH_INTERVAL_MS = 30000;
@@ -1046,24 +1636,7 @@
                 if (!response.ok) return;
                 allActiveLeads = data.leads || [];
                 if (analyticsVisible) return;
-                const filtered = getFilteredActiveLeads();
-                const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVE_PAGE_SIZE));
-                if (activeCurrentPage > totalPages) activeCurrentPage = totalPages;
-                const start = (activeCurrentPage - 1) * ACTIVE_PAGE_SIZE;
-                const pageLeads = filtered.slice(start, start + ACTIVE_PAGE_SIZE);
-                syncLeadsDOM(pageLeads);
-                const paginationEl = document.getElementById('activePagination');
-                const infoEl = document.getElementById('activePaginationInfo');
-                const prevBtn = document.getElementById('activePaginationPrev');
-                const nextBtn = document.getElementById('activePaginationNext');
-                if (totalPages > 1 && paginationEl && infoEl) {
-                    paginationEl.style.display = 'flex';
-                    infoEl.textContent = (t('paginationPage') || 'Стр. {{current}} из {{total}}').replace('{{current}}', String(activeCurrentPage)).replace('{{total}}', String(totalPages));
-                    if (prevBtn) prevBtn.disabled = activeCurrentPage <= 1;
-                    if (nextBtn) nextBtn.disabled = activeCurrentPage >= totalPages;
-                } else if (paginationEl) paginationEl.style.display = 'none';
-                document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
-                if (filtered.length === 0) document.getElementById('leadsTableWrapper').style.display = 'none';
+                displayKanbanLeads();
             } catch (e) { /* silent */ }
         }
 
@@ -1090,32 +1663,7 @@
         }
 
         function applyActiveSearch() {
-            const filtered = getFilteredActiveLeads();
-            const totalPages = Math.max(1, Math.ceil(filtered.length / ACTIVE_PAGE_SIZE));
-            if (activeCurrentPage > totalPages) activeCurrentPage = totalPages;
-            const start = (activeCurrentPage - 1) * ACTIVE_PAGE_SIZE;
-            const pageLeads = filtered.slice(start, start + ACTIVE_PAGE_SIZE);
-
-            document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
-            if (filtered.length > 0) {
-                displayLeads(pageLeads);
-                const paginationEl = document.getElementById('activePagination');
-                const infoEl = document.getElementById('activePaginationInfo');
-                const prevBtn = document.getElementById('activePaginationPrev');
-                const nextBtn = document.getElementById('activePaginationNext');
-                if (totalPages > 1) {
-                    paginationEl.style.display = 'flex';
-                    infoEl.textContent = (t('paginationPage') || 'Стр. {{current}} из {{total}}')
-                        .replace('{{current}}', String(activeCurrentPage))
-                        .replace('{{total}}', String(totalPages));
-                    prevBtn.disabled = activeCurrentPage <= 1;
-                    nextBtn.disabled = activeCurrentPage >= totalPages;
-                } else {
-                    paginationEl.style.display = 'none';
-                }
-            } else {
-                document.getElementById('leadsTableWrapper').style.display = 'none';
-            }
+            displayKanbanLeads();
         }
 
         function escapeHtml(text) {
@@ -1148,6 +1696,23 @@
                 default:
                     return t('labelNew');
             }
+        }
+
+        function getStageBadgeDisplay(stage) {
+            const keys = { new: 'stageBadgeNew', in_progress: 'stageBadgeInProgress', thinking: 'stageBadgeThinking', successful: 'stageBadgeSuccessful', rejected: 'stageBadgeRejected' };
+            return t(keys[stage || 'new'] || 'stageBadgeNew');
+        }
+
+        function getStageBadgeClass(stage) {
+            const map = { new: 'badge-new', in_progress: 'badge-call-back', thinking: 'badge-call-back', successful: 'badge-successful', rejected: 'badge-rejected' };
+            return map[stage] || 'badge-new';
+        }
+
+        function renderStageBadge(stage) {
+            const s = stage || 'new';
+            const safe = escapeHtml(getStageBadgeDisplay(s));
+            const cls = getStageBadgeClass(s);
+            return `<span class="badge ${cls}">${safe}</span>`;
         }
 
         function renderLabelBadge(label) {
@@ -1189,22 +1754,15 @@
         }
 
         function getPriorityDisplay(priority) {
-            if (priority === 'Качество и надёжность') return t('priorityQualityReliability') || priority;
-            if (priority === 'Дизайн и стиль') return t('priorityDesignStyle') || priority;
-            switch (priority) {
-                case 'Quality':
-                    return t('priorityQuality') || 'Качество';
-                case 'Design':
-                    return t('priorityDesign') || 'Дизайн';
-                case 'Production Time':
-                    return t('priorityProduction') || 'Срок изготовления';
-                case 'Price':
-                    return t('priorityPrice') || 'Цена';
-                case 'Warranty':
-                    return t('priorityWarranty') || 'Гарантия';
-                default:
-                    return priority || '—';
-            }
+            const map = {
+                'Качество и надежность': 'priorityQuality',
+                'Цена': 'priorityPrice',
+                'Дизайн и стиль': 'priorityDesignStyle',
+                'Гарантии и сервис': 'priorityWarrantyService',
+                'Надежность и безопасность': 'prioritySafety'
+            };
+            if (map[priority]) return t(map[priority]) || priority;
+            return priority || '—';
         }
 
         function getDoorTypeDisplay(doorType) {
@@ -1331,6 +1889,9 @@
                     if (response.status === 401) {
                         sessionStorage.removeItem('authToken');
                         sessionStorage.removeItem('authRole');
+                        sessionStorage.removeItem('authKey');
+                        userRole = null;
+                        userKey = null;
                         showError(t('errorSessionExpired'));
                         setTimeout(() => {
                             adminToken = null;
@@ -1371,6 +1932,118 @@
             }
         });
 
+        // Success comment modal (drag to successful)
+        const successCommentModalEl = document.getElementById('successCommentModal');
+        const successCommentTextEl = document.getElementById('successCommentText');
+        const successCommentErrorEl = document.getElementById('successCommentError');
+        const successDealAmountEl = document.getElementById('successDealAmount');
+
+        function openSuccessCommentModal() {
+            if (!pendingSuccessDrop) return;
+            document.getElementById('successCommentModalTitle').textContent = t('successCommentTitle') || 'Комментарий по успешной сделке';
+            successCommentTextEl.value = '';
+            successDealAmountEl.value = '';
+            successCommentErrorEl.style.display = 'none';
+            successCommentErrorEl.textContent = '';
+            successCommentModalEl.style.display = 'flex';
+            setTimeout(() => successCommentModalEl.classList.add('modal-open'), 10);
+        }
+
+        function closeSuccessCommentModal() {
+            successCommentModalEl.classList.remove('modal-open');
+            setTimeout(() => {
+                successCommentModalEl.style.display = 'none';
+                pendingSuccessDrop = null;
+            }, 300);
+        }
+
+        function revertSuccessDrop() {
+            if (!pendingSuccessDrop) return;
+            const { fromEl, oldIndex, item } = pendingSuccessDrop;
+            const child = fromEl.children[oldIndex];
+            if (child) {
+                fromEl.insertBefore(item, child);
+            } else {
+                fromEl.appendChild(item);
+            }
+        }
+
+        document.getElementById('closeSuccessCommentModal').addEventListener('click', () => {
+            revertSuccessDrop();
+            closeSuccessCommentModal();
+        });
+
+        document.getElementById('cancelSuccessComment').addEventListener('click', () => {
+            revertSuccessDrop();
+            closeSuccessCommentModal();
+        });
+
+        successCommentModalEl.addEventListener('click', (e) => {
+            if (e.target.id === 'successCommentModal') {
+                revertSuccessDrop();
+                closeSuccessCommentModal();
+            }
+        });
+
+        document.getElementById('confirmSuccessComment').addEventListener('click', async () => {
+            const comment = successCommentTextEl.value.trim();
+            const amountRaw = successDealAmountEl.value.trim();
+            const amount = amountRaw === '' ? NaN : Number(amountRaw);
+            const isAmountValid = typeof amount === 'number' && !isNaN(amount) && amount > 0;
+
+            if (!isAmountValid) {
+                successCommentErrorEl.textContent = t('dealAmountRequired') || 'Введите сумму сделки больше 0.';
+                successCommentErrorEl.style.display = 'block';
+                return;
+            }
+            if (!comment) {
+                successCommentErrorEl.textContent = t('successCommentRequired') || 'Введите комментарий.';
+                successCommentErrorEl.style.display = 'block';
+                return;
+            }
+            if (!pendingSuccessDrop) {
+                closeSuccessCommentModal();
+                return;
+            }
+            const { leadId } = pendingSuccessDrop;
+            successCommentErrorEl.style.display = 'none';
+            try {
+                const res = await fetch('/api/admin/leads/' + leadId + '/stage', {
+                    method: 'PATCH',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ stage: 'successful', comment: comment, dealAmount: amount })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    const { leadId, item } = pendingSuccessDrop;
+                    allActiveLeads = allActiveLeads.filter(l => l._id !== leadId);
+                    closeSuccessCommentModal();
+                    if (item && item.classList) {
+                        item.classList.add('success-flash');
+                        const animationDuration = 800;
+                        setTimeout(() => {
+                            displayKanbanLeads();
+                            if (document.getElementById('analyticsWrapper').style.display !== 'none') {
+                                loadManagerAnalytics();
+                            }
+                        }, animationDuration);
+                    } else {
+                        displayKanbanLeads();
+                        if (document.getElementById('analyticsWrapper').style.display !== 'none') {
+                            loadManagerAnalytics();
+                        }
+                    }
+                } else {
+                    successCommentErrorEl.textContent = data.error || t('errorNetwork');
+                    successCommentErrorEl.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                successCommentErrorEl.textContent = t('errorNetwork');
+                successCommentErrorEl.style.display = 'block';
+            }
+        });
+
         // ============================================
         // NOT ACTION (Archive)
         // ============================================
@@ -1395,6 +2068,9 @@
                     if (response.status === 401) {
                         sessionStorage.removeItem('authToken');
                         sessionStorage.removeItem('authRole');
+                        sessionStorage.removeItem('authKey');
+                        userRole = null;
+                        userKey = null;
                         showError(t('errorSessionExpired'));
                         setTimeout(() => {
                             adminToken = null;

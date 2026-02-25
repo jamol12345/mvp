@@ -17,7 +17,7 @@
                 <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
             </div>
         </div>
-        <div class="form-wrapper fade-in-up">
+        <div class="form-wrapper glass fade-in-up">
             <h1 data-i18n="title">Свяжитесь с нами</h1>
             <p class="subtitle" data-i18n="subtitle">Заполните форму, и мы свяжемся с вами в ближайшее время!</p>
             
@@ -34,6 +34,7 @@
                         type="text" 
                         id="fullName" 
                         name="fullName" 
+                        class="glass-input"
                         required 
                         placeholder="Введите ФИО"
                         data-i18n-placeholder="fullNamePlaceholder"
@@ -42,7 +43,7 @@
 
                 <div class="form-group">
                     <label for="doorType"><span data-i18n="doorTypeLabel">Выбранная дверь</span> <span class="required">*</span></label>
-                    <select id="doorType" name="doorType" required>
+                    <select id="doorType" name="doorType" class="glass-input" required>
                         <option value="" data-i18n="doorTypePlaceholder">Выберите тип двери</option>
                         <option value="Standard Door" data-i18n="doorTypeStandard">Стандартная дверь</option>
                         <option value="Premium Door" data-i18n="doorTypePremium">Премиум дверь</option>
@@ -50,23 +51,30 @@
                     </select>
                 </div>
 
+                <div class="form-row form-row--length-width">
+                    <div class="form-group">
+                        <label for="length"><span data-i18n="lengthLabel">Длина</span> <span class="required">*</span></label>
+                        <input type="number" id="length" name="length" class="glass-input" required min="1" step="1" placeholder="см" data-i18n-placeholder="lengthPlaceholder">
+                    </div>
+                    <div class="form-group">
+                        <label for="width"><span data-i18n="widthLabel">Ширина</span> <span class="required">*</span></label>
+                        <input type="number" id="width" name="width" class="glass-input" required min="1" step="1" placeholder="см" data-i18n-placeholder="widthPlaceholder">
+                    </div>
+                </div>
                 <div class="form-group">
-                    <label for="measurements"><span data-i18n="measurementsLabel">Размеры</span> <span class="required">*</span></label>
-                    <input 
-                        type="text" 
-                        id="measurements" 
-                        name="measurements" 
-                        required 
-                        placeholder="например 9x20"
-                        data-i18n-placeholder="measurementsPlaceholder"
-                    >
+                    <label for="dobor"><span data-i18n="doborLabel">Добор</span></label>
+                    <input type="text" id="dobor" name="dobor" class="glass-input" placeholder="" data-i18n-placeholder="doborPlaceholder">
                 </div>
 
                 <div class="form-group">
                     <label data-i18n="prioritiesLabel">Что для вас важнее всего?</label> <span class="required">*</span>
-                    <div class="priority-buttons" id="priorityButtons" role="group" aria-label="Приоритет">
-                        <button type="button" class="priority-btn" data-value="Качество и надёжность" data-i18n="priorityQualityReliability">Качество и надёжность</button>
-                        <button type="button" class="priority-btn" data-value="Дизайн и стиль" data-i18n="priorityDesignStyle">Дизайн и стиль</button>
+                    <p class="priority-hint" data-i18n="priorityHint">Выберите ровно 2 варианта</p>
+                    <div class="priority-buttons priority-buttons--checkboxes" id="priorityButtons" role="group" aria-label="Приоритет">
+                        <button type="button" class="priority-btn priority-btn--check" data-value="Качество и надежность" data-i18n="priorityQuality">Качество и надежность</button>
+                        <button type="button" class="priority-btn priority-btn--check" data-value="Цена" data-i18n="priorityPrice">Цена</button>
+                        <button type="button" class="priority-btn priority-btn--check" data-value="Дизайн и стиль" data-i18n="priorityDesignStyle">Дизайн и стиль</button>
+                        <button type="button" class="priority-btn priority-btn--check" data-value="Гарантии и сервис" data-i18n="priorityWarrantyService">Гарантии и сервис</button>
+                        <button type="button" class="priority-btn priority-btn--check" data-value="Надежность и безопасность" data-i18n="prioritySafety">Надежность и безопасность</button>
                     </div>
                     <p id="priorityError" class="field-error" style="display: none;" data-i18n="errorPriorityRequired"></p>
                 </div>
@@ -77,6 +85,7 @@
                         type="tel" 
                         id="phoneNumber" 
                         name="phoneNumber" 
+                        class="glass-input"
                         required 
                         placeholder="Введите телефон"
                         data-i18n-placeholder="phonePlaceholder"
@@ -93,7 +102,7 @@
 
     <!-- Success modal (animated) -->
     <div id="successModal" class="modal" style="display: none;">
-        <div class="modal-content success-modal-content">
+        <div class="modal-content glass success-modal-content">
             <div class="modal-body">
                 <p class="success-modal-text" data-i18n="successMessage">Ваши данные успешно отправлены.<br>Мы свяжемся с вами в течение 24 часов.</p>
             </div>
@@ -120,17 +129,27 @@
                 doorTypeStandard: 'Стандартная дверь',
                 doorTypePremium: 'Премиум дверь',
                 doorTypeCustom: 'Индивидуальная дверь',
-                measurementsLabel: 'Размеры',
-                measurementsPlaceholder: 'например 9x20',
+                lengthLabel: 'Длина',
+                lengthPlaceholder: 'см',
+                widthLabel: 'Ширина',
+                widthPlaceholder: 'см',
+                doborLabel: 'Добор',
+                doborPlaceholder: 'необязательно',
                 prioritiesLabel: 'Что для вас важнее всего?',
-                priorityQualityReliability: 'Качество и надёжность',
+                priorityHint: 'Выберите ровно 2 варианта',
+                priorityQuality: 'Качество и надежность',
+                priorityPrice: 'Цена',
                 priorityDesignStyle: 'Дизайн и стиль',
-                errorPriorityRequired: 'Выберите приоритет.',
+                priorityWarrantyService: 'Гарантии и сервис',
+                prioritySafety: 'Надежность и безопасность',
+                errorPriorityRequired: 'Выберите ровно 2 приоритета.',
                 phoneLabel: 'Телефон',
                 phonePlaceholder: 'Введите телефон',
                 submitBtn: 'Отправить',
                 successMessage: 'Ваши данные успешно отправлены.<br>Мы свяжемся с вами в течение 24 часов.',
                 errorRequired: 'Пожалуйста, заполните все обязательные поля.',
+                errorLengthRequired: 'Введите корректную длину (число больше 0).',
+                errorWidthRequired: 'Введите корректную ширину (число больше 0).',
                 errorNetwork: 'Ошибка сети. Проверьте соединение и попробуйте снова.',
                 errorGeneric: 'Произошла ошибка. Попробуйте снова.'
             },
@@ -145,17 +164,27 @@
                 doorTypeStandard: 'Standart eshik',
                 doorTypePremium: 'Premium eshik',
                 doorTypeCustom: 'Individual eshik',
-                measurementsLabel: 'O‘lchamlar',
-                measurementsPlaceholder: 'masalan 9x20',
+                lengthLabel: 'Uzunlik',
+                lengthPlaceholder: 'sm',
+                widthLabel: 'Kenglik',
+                widthPlaceholder: 'sm',
+                doborLabel: 'Dobor',
+                doborPlaceholder: 'ixtiyoriy',
                 prioritiesLabel: 'Siz uchun eng muhim narsa nima?',
-                priorityQualityReliability: 'Sifat va ishonchlilik',
+                priorityHint: 'Aniq 2 ta variantni tanlang',
+                priorityQuality: 'Sifat va ishonchlilik',
+                priorityPrice: 'Narx',
                 priorityDesignStyle: 'Dizayn va uslub',
-                errorPriorityRequired: 'Ustuvorlikni tanlang.',
+                priorityWarrantyService: 'Kafolat va xizmat',
+                prioritySafety: 'Ishonchlilik va xavfsizlik',
+                errorPriorityRequired: 'Aniq 2 ta ustuvorlikni tanlang.',
                 phoneLabel: 'Telefon',
                 phonePlaceholder: 'Telefon raqamini kiriting',
                 submitBtn: 'Yuborish',
                 successMessage: 'Ma’lumotlaringiz muvaffaqiyatli yuborildi.<br>24 soat ichida siz bilan bog‘lanamiz.',
                 errorRequired: 'Iltimos, barcha majburiy maydonlarni to‘ldiring.',
+                errorLengthRequired: 'To‘g‘ri uzunlikni kiriting (0 dan katta son).',
+                errorWidthRequired: 'To‘g‘ri kenglikni kiriting (0 dan katta son).',
                 errorNetwork: 'Tarmoq xatosi. Ulanishni tekshirib qayta urinib ko‘ring.',
                 errorGeneric: 'Xatolik yuz berdi. Qayta urinib ko‘ring.'
             }
@@ -200,12 +229,22 @@
         });
         initLanguage();
 
-        // Priority: single-choice toggle buttons
+        // Priority: exactly 2 choices (checkbox-style buttons)
         document.getElementById('priorityButtons').addEventListener('click', (e) => {
             const btn = e.target.closest('.priority-btn');
             if (!btn) return;
-            document.querySelectorAll('#priorityButtons .priority-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            const container = document.getElementById('priorityButtons');
+            const all = container.querySelectorAll('.priority-btn');
+            const selected = container.querySelectorAll('.priority-btn.active');
+            if (btn.classList.contains('active')) {
+                btn.classList.remove('active');
+            } else if (selected.length < 2) {
+                btn.classList.add('active');
+            }
+            const nowSelected = container.querySelectorAll('.priority-btn.active');
+            all.forEach(b => {
+                b.classList.toggle('priority-btn--disabled', !b.classList.contains('active') && nowSelected.length >= 2);
+            });
         });
 
         // Handle form submission
@@ -220,25 +259,42 @@
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('priorityError').style.display = 'none';
 
-            const priorityBtn = document.querySelector('#priorityButtons .priority-btn.active');
-            const priorityValue = priorityBtn ? (priorityBtn.getAttribute('data-value') || '').trim() : '';
+            const priorityBtns = document.querySelectorAll('#priorityButtons .priority-btn.active');
+            const prioritiesArray = Array.from(priorityBtns).map(b => (b.getAttribute('data-value') || '').trim()).filter(Boolean);
 
-            if (!priorityValue) {
-                document.getElementById('priorityError').textContent = t('errorPriorityRequired') || 'Выберите приоритет.';
+            if (prioritiesArray.length !== 2) {
+                document.getElementById('priorityError').textContent = t('errorPriorityRequired') || 'Выберите ровно 2 приоритета.';
                 document.getElementById('priorityError').style.display = 'block';
                 return;
             }
 
+            const lengthRaw = document.getElementById('length').value.trim();
+            const widthRaw = document.getElementById('width').value.trim();
+            const lengthNum = lengthRaw === '' ? NaN : Number(lengthRaw);
+            const widthNum = widthRaw === '' ? NaN : Number(widthRaw);
+            if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || !/^\d*\.?\d*$/.test(lengthRaw)) {
+                showError(t('errorLengthRequired') || 'Введите корректную длину (число больше 0).');
+                return;
+            }
+            if (typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0 || !/^\d*\.?\d*$/.test(widthRaw)) {
+                showError(t('errorWidthRequired') || 'Введите корректную ширину (число больше 0).');
+                return;
+            }
+
+            const dobor = document.getElementById('dobor').value.trim();
             const formData = {
                 fullName: document.getElementById('fullName').value.trim(),
                 doorType: document.getElementById('doorType').value,
-                measurements: document.getElementById('measurements').value.trim(),
+                measurements: lengthNum + ' x ' + widthNum,
+                length: lengthNum,
+                width: widthNum,
+                dobor: dobor,
                 phoneNumber: document.getElementById('phoneNumber').value.trim(),
-                priorities: [priorityValue],
+                priorities: prioritiesArray,
                 language: currentLang
             };
 
-            if (!formData.fullName || !formData.doorType || !formData.measurements || !formData.phoneNumber) {
+            if (!formData.fullName || !formData.doorType || !formData.phoneNumber) {
                 showError(t('errorRequired'));
                 return;
             }

@@ -35,7 +35,7 @@
         </div>
         <!-- Login Section (shown when not authenticated) -->
         <div id="loginSection" class="login-wrapper">
-            <div class="login-box">
+            <div class="login-box glass">
                 <h1 data-i18n="loginTitle">Вход в админ‑панель</h1>
                 <p class="subtitle" data-i18n="loginSubtitle">Введите админ‑токен для доступа к архиву</p>
                 
@@ -62,7 +62,7 @@
         </div>
 
         <!-- Done Calls Archive Section (shown when authenticated) -->
-        <div id="archivePanel" class="admin-panel" style="display: none;">
+        <div id="archivePanel" class="admin-panel glass" style="display: none;">
             <div class="admin-header">
                 <div>
                     <h1 data-i18n="archiveTitle">Архив</h1>
@@ -86,7 +86,7 @@
                 <p data-i18n="noArchive">Архив пуст.</p>
             </div>
 
-            <div class="table-controls-wrapper" id="archiveControlsWrapper" style="margin-bottom: 10px;">
+            <div class="table-controls-wrapper glass" id="archiveControlsWrapper" style="margin-bottom: 10px;">
                 <button id="archiveControlsToggle" class="controls-toggle" type="button" data-i18n="controlsToggle">Поиск и фильтры</button>
                 <div class="header-actions table-controls">
                     <input id="archiveSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
@@ -102,7 +102,7 @@
             </div>
 
             <!-- Done Calls Table -->
-            <div id="leadsTableWrapper" style="display: none;">
+            <div id="leadsTableWrapper" class="glass" style="display: none;">
                 <div id="archiveCardGrid" class="lead-cards-grid">
                     <!-- Archive cards will be inserted here dynamically -->
                 </div>
@@ -117,7 +117,7 @@
 
     <!-- Modal for Date Filter -->
     <div id="dateFilterModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content glass">
             <div class="modal-header">
                 <h2 data-i18n="dateFilterTitle">Фильтр по дате</h2>
                 <button class="modal-close" id="closeDateFilterModal">&times;</button>
@@ -147,7 +147,7 @@
 
     <!-- Modal for Edit Comment -->
     <div id="editCommentModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content glass">
             <div class="modal-header">
                 <h2 data-i18n="editCommentTitle">Редактировать комментарий</h2>
                 <button class="modal-close" id="closeEditCommentModal">&times;</button>

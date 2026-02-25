@@ -33,7 +33,7 @@ const corsOrigins = process.env.CORS_ORIGIN
 
 app.use(cors({
   origin: corsOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -77,9 +77,10 @@ mongoose.connect(MONGODB_URI)
 // ============================================
 
 const PRIORITY_OPTIONS = ['Quality', 'Design', 'Production Time', 'Price', 'Warranty'];
-const PRIORITY_OPTIONS_NEW = ['Качество и надёжность', 'Дизайн и стиль'];
+const PRIORITY_OPTIONS_NEW = ['Качество и надежность', 'Цена', 'Дизайн и стиль', 'Гарантии и сервис', 'Надежность и безопасность'];
 const LABEL_OPTIONS = ['New Client', 'Call Back', 'Successful', 'Rejected'];
-const SOURCE_OPTIONS = ['instagram', 'telegram', 'word_of_mouth', 'website'];
+const STAGE_OPTIONS = ['new', 'in_progress', 'thinking', 'successful', 'rejected'];
+const SOURCE_OPTIONS = ['instagram', 'telegram', 'word_of_mouth', 'website', 'manual'];
 
 const leadSchema = new mongoose.Schema({
   name: {
@@ -99,6 +100,20 @@ const leadSchema = new mongoose.Schema({
     default: ''
   },
   measurements: {
+    type: String,
+    default: ''
+  },
+  length: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  width: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  dobor: {
     type: String,
     default: ''
   },
@@ -144,9 +159,21 @@ const leadSchema = new mongoose.Schema({
     enum: ['new', 'done', 'archived'],
     default: 'new'
   },
+  stage: {
+    type: String,
+    default: 'new'
+  },
   comment: {
     type: String,
     default: ''
+  },
+  dealAmount: {
+    type: Number,
+    default: 0
+  },
+  assignedTo: {
+    type: String,
+    default: null
   },
   createdAt: {
     type: Date,
@@ -182,12 +209,21 @@ function sanitizePriorities(input) {
   if (!Array.isArray(input)) return [];
   const filtered = input
     .map(item => String(item).trim())
-    .filter(item => PRIORITY_OPTIONS.includes(item));
+    .filter(item => PRIORITY_OPTIONS_NEW.includes(item));
   const unique = [];
   filtered.forEach(item => {
     if (!unique.includes(item)) unique.push(item);
   });
   return unique.slice(0, 2);
+}
+
+function validatePrioritiesExactlyTwo(priorities) {
+  if (!Array.isArray(priorities) || priorities.length !== 2) return null;
+  const trimmed = priorities.map(p => String(p).trim()).filter(Boolean);
+  if (trimmed.length !== 2) return null;
+  const valid = trimmed.every(p => PRIORITY_OPTIONS_NEW.includes(p));
+  if (!valid) return null;
+  return [...new Set(trimmed)].length === 2 ? trimmed : null;
 }
 
 function sanitizeSource(input) {
@@ -211,10 +247,19 @@ if (!JWT_SECRET) {
   console.error('❌ JWT_SECRET is not set');
   process.exit(1);
 }
-const MANAGER_TOKEN = process.env.MANAGER_TOKEN || '';
-const CALL_MANAGER_TOKEN = process.env.CALL_MANAGER_TOKEN || '';
 
-// Middleware: verify JWT and attach user (role) to request
+// Static USERS: Boss + Call Managers (tokens from env)
+const USERS = [
+  { role: 'boss', name: 'Boss', token: process.env.BOSS_TOKEN || process.env.MANAGER_TOKEN || '' },
+  { role: 'call', key: 'anvar', name: 'Анвар', token: process.env.CALL_ANVAR_TOKEN || '' },
+  { role: 'call', key: 'akbar', name: 'Акбар', token: process.env.CALL_AKBAR_TOKEN || '' },
+  { role: 'call', key: 'davron', name: 'Даврон', token: process.env.CALL_DAVRON_TOKEN || '' }
+];
+const CALL_MANAGER_KEYS = ['anvar', 'akbar', 'davron'];
+const MANAGER_ANALYTICS_KEYS = ['boss', 'anvar', 'akbar', 'davron'];
+const MANAGER_DISPLAY_NAMES = { boss: 'Boss', anvar: 'Анвар', akbar: 'Акбар', davron: 'Даврон' };
+
+// Middleware: verify JWT and attach user (role, key?) to request
 const authenticateAdmin = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -223,23 +268,34 @@ const authenticateAdmin = (req, res, next) => {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (!decoded.role || !['manager', 'call_manager'].includes(decoded.role)) {
+    const role = decoded.role;
+    // Accept new roles (boss, call) and legacy (manager -> boss, call_manager -> call)
+    if (!role || !['manager', 'call_manager', 'boss', 'call'].includes(role)) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
-    req.user = { role: decoded.role };
+    if (role === 'boss' || role === 'manager') {
+      req.user = { role: 'boss' };
+      return next();
+    }
+    // role === 'call' or 'call_manager'
+    const key = decoded.key || (role === 'call_manager' ? 'call' : decoded.key);
+    req.user = { role: 'call', key: key || null };
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };
 
-// Middleware: require manager role (403 if not manager)
-const requireManager = (req, res, next) => {
-  if (req.user && req.user.role === 'manager') {
+// Middleware: require boss role (403 if call manager)
+const requireBoss = (req, res, next) => {
+  if (req.user && req.user.role === 'boss') {
     return next();
   }
-  return res.status(403).json({ error: 'Forbidden: Manager access required' });
+  return res.status(403).json({ error: 'Forbidden: Boss access required' });
 };
+
+// Legacy alias for routes that already use requireManager
+const requireManager = requireBoss;
 
 // ============================================
 // PUBLIC API ENDPOINTS
@@ -248,7 +304,7 @@ const requireManager = (req, res, next) => {
 // POST /api/leads - Public endpoint to submit lead form
 app.post('/api/leads', async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities, priority, language } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities, priority, language, length, width, dobor } = req.body;
 
     if (!fullName || !doorType || !measurements || !phoneNumber) {
       return res.status(400).json({
@@ -256,21 +312,19 @@ app.post('/api/leads', async (req, res) => {
       });
     }
 
-    let prioritiesArray;
-    if (Array.isArray(priorities) && priorities.length > 0) {
-      const first = String(priorities[0]).trim();
-      if (PRIORITY_OPTIONS_NEW.includes(first)) prioritiesArray = [first];
+    const lengthNum = length != null ? Number(length) : NaN;
+    const widthNum = width != null ? Number(width) : NaN;
+    if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0) {
+      return res.status(400).json({
+        error: 'length and width are required and must be greater than 0'
+      });
     }
+
+    const doborValue = dobor != null ? String(dobor).trim() : '';
+
+    const prioritiesArray = validatePrioritiesExactlyTwo(priorities);
     if (!prioritiesArray) {
-      const priorityStr = typeof priority === 'string' ? priority.trim() : '';
-      if (priorityStr && PRIORITY_OPTIONS_NEW.includes(priorityStr)) {
-        prioritiesArray = [priorityStr];
-      } else {
-        prioritiesArray = sanitizePriorities(priorities);
-      }
-    }
-    if (prioritiesArray.length === 0) {
-      return res.status(400).json({ error: 'Priority is required' });
+      return res.status(400).json({ error: 'priorities must be an array of exactly 2 values from the allowed list' });
     }
 
     const languageValue = sanitizeLanguage(language);
@@ -279,6 +333,9 @@ app.post('/api/leads', async (req, res) => {
       fullName: fullName.trim(),
       doorType: doorType.trim(),
       measurements: measurements.trim(),
+      length: lengthNum,
+      width: widthNum,
+      dobor: doborValue,
       phoneNumber: phoneNumber.trim(),
       priorities: prioritiesArray,
       name: '',
@@ -308,68 +365,64 @@ app.post('/api/leads', async (req, res) => {
 // ADMIN API ENDPOINTS
 // ============================================
 
-// POST /api/admin/login - Admin login endpoint (returns JWT with role)
+// POST /api/admin/login - Admin login (returns JWT with role, name, key for call)
 app.post('/api/admin/login', (req, res) => {
   const { token } = req.body;
   if (!token) {
     return res.status(400).json({ error: 'Token is required' });
   }
   const trimmed = token.trim();
-  let role = null;
-  if (MANAGER_TOKEN && trimmed === MANAGER_TOKEN) {
-    role = 'manager';
-  } else if (CALL_MANAGER_TOKEN && trimmed === CALL_MANAGER_TOKEN) {
-    role = 'call_manager';
-  }
-  if (!role) {
+  const user = USERS.find(u => u.token && u.token.trim() === trimmed);
+  if (!user) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
-  const jwtToken = jwt.sign(
-    { role },
-    JWT_SECRET,
-    { algorithm: 'HS256' }
-  );
-  res.json({
+  const payload = user.role === 'boss' ? { role: 'boss' } : { role: 'call', key: user.key };
+  const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256' });
+  const response = {
     success: true,
     message: 'Login successful',
     token: jwtToken,
-    role
-  });
+    role: user.role,
+    name: user.name
+  };
+  if (user.role === 'call') {
+    response.key = user.key;
+  }
+  res.json(response);
 });
 
 // POST /api/admin/leads - Add client manually (Manager only)
 app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities, priority, source } = req.body;
+    const { fullName, doorType, measurements, phoneNumber, priorities, priority, source, length, width, dobor } = req.body;
     if (!fullName || !doorType || !measurements || !phoneNumber) {
       return res.status(400).json({
         error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
       });
     }
+    const lengthNum = length != null ? Number(length) : NaN;
+    const widthNum = width != null ? Number(width) : NaN;
+    if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0) {
+      return res.status(400).json({
+        error: 'length and width are required and must be greater than 0'
+      });
+    }
+    const doborValue = dobor != null ? String(dobor).trim() : '';
     const sourceValue = sanitizeSource(source);
     if (!sourceValue || sourceValue === 'website') {
       return res.status(400).json({ error: 'Source is required' });
     }
-    let prioritiesArray;
-    if (Array.isArray(priorities) && priorities.length > 0) {
-      const first = String(priorities[0]).trim();
-      if (PRIORITY_OPTIONS_NEW.includes(first)) prioritiesArray = [first];
-    }
+    const prioritiesArray = validatePrioritiesExactlyTwo(priorities);
     if (!prioritiesArray) {
-      const priorityStr = typeof priority === 'string' ? priority.trim() : '';
-      if (priorityStr && PRIORITY_OPTIONS_NEW.includes(priorityStr)) {
-        prioritiesArray = [priorityStr];
-      } else {
-        prioritiesArray = sanitizePriorities(priorities);
-      }
-    }
-    if (prioritiesArray.length === 0) {
-      return res.status(400).json({ error: 'Priority is required' });
+      return res.status(400).json({ error: 'priorities must be an array of exactly 2 values from the allowed list' });
     }
     const lead = new Lead({
       fullName: fullName.trim(),
       doorType: doorType.trim(),
       measurements: measurements.trim(),
+      length: lengthNum,
+      width: widthNum,
+      dobor: doborValue,
       phoneNumber: phoneNumber.trim(),
       priorities: prioritiesArray,
       name: '',
@@ -387,12 +440,16 @@ app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res)
   }
 });
 
-// GET /api/admin/leads - Get all leads with status "new" (Protected)
+// GET /api/admin/leads - Get leads with status "new" (Boss: all; Call: only assignedTo === key)
 app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
   try {
-    const leads = await Lead.find({ status: 'new' })
+    const query = { status: 'new' };
+    if (req.user.role === 'call' && req.user.key) {
+      query.assignedTo = req.user.key;
+    }
+    const leads = await Lead.find(query)
       .sort({ createdAt: -1 })
-      .select('name surname fullName doorType measurements phoneNumber priorities label source createdAt _id');
+      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities label source stage assignedTo createdAt _id');
 
     res.json({
       success: true,
@@ -400,6 +457,94 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching leads:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/admin/leads/:id/assign - Assign lead to call manager (Boss only)
+app.patch('/api/admin/leads/:id/assign', authenticateAdmin, requireBoss, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { assignedTo } = req.body;
+    const value = (assignedTo && CALL_MANAGER_KEYS.includes(String(assignedTo))) ? String(assignedTo) : null;
+
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    if (lead.status !== 'new') {
+      return res.status(400).json({ error: 'Only active leads can be assigned' });
+    }
+
+    lead.assignedTo = value;
+    lead.updatedAt = new Date();
+    await lead.save();
+
+    res.json({
+      success: true,
+      message: 'Assignment updated',
+      lead
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error updating lead assignment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/admin/leads/:id/stage - Update lead stage (Protected; both roles can move cards)
+app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stage, comment, dealAmount } = req.body;
+    const stageValue = typeof stage === 'string' ? stage.trim() : '';
+    if (!STAGE_OPTIONS.includes(stageValue)) {
+      return res.status(400).json({ error: 'Invalid stage' });
+    }
+
+    if (stageValue === 'successful') {
+      const amount = dealAmount != null ? Number(dealAmount) : NaN;
+      if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'dealAmount is required and must be greater than 0' });
+      }
+    }
+
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    if (lead.status !== 'new') {
+      return res.status(400).json({ error: 'Only active leads can be moved' });
+    }
+
+    lead.stage = stageValue;
+    lead.updatedAt = new Date();
+    const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
+    if (stageValue === 'successful' || stageValue === 'rejected') {
+      lead.status = 'done';
+      lead.closedAt = new Date();
+      lead.closedBy = closedByValue;
+      lead.label = stageValue === 'successful' ? 'Successful' : 'Rejected';
+      if (stageValue === 'successful') {
+        const amount = dealAmount != null ? Number(dealAmount) : NaN;
+        if (typeof amount === 'number' && !isNaN(amount) && amount > 0) {
+          lead.dealAmount = amount;
+        }
+        if (comment != null && String(comment).trim() !== '') {
+          lead.comment = String(comment).trim();
+          lead.commentUpdatedAt = new Date();
+          lead.lastEditedBy = closedByValue;
+        }
+      }
+    }
+    await lead.save();
+
+    res.json({
+      success: true,
+      message: 'Stage updated',
+      lead
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error updating lead stage:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -420,16 +565,17 @@ app.post('/api/admin/leads/:id/done', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
+    const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
     // Update lead status and comment
     lead.status = 'done';
-    lead.closedBy = req.user.role;
+    lead.closedBy = closedByValue;
     lead.closedAt = new Date();
     lead.label = trimmedLabel;
     lead.updatedAt = new Date();
     if (comment) {
       lead.comment = comment.trim();
       lead.commentUpdatedAt = new Date();
-      lead.lastEditedBy = req.user.role;
+      lead.lastEditedBy = closedByValue;
     }
 
     // Save to MongoDB - this is immediate (not queued) for admin actions
@@ -458,9 +604,10 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
+    const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
     // Update lead status to archived
     lead.status = 'archived';
-    lead.closedBy = req.user.role;
+    lead.closedBy = closedByValue;
     lead.closedAt = new Date();
     lead.label = 'Rejected';
     lead.updatedAt = new Date();
@@ -502,7 +649,7 @@ app.get('/api/admin/done-calls', authenticateAdmin, async (req, res) => {
 
     const leads = await Lead.find(filter)
       .sort({ updatedAt: -1 })
-      .select('name surname fullName doorType measurements phoneNumber priorities comment createdAt updatedAt closedBy closedAt label source lastEditedBy commentUpdatedAt status _id');
+      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities comment createdAt updatedAt closedBy closedAt label source lastEditedBy commentUpdatedAt status _id');
 
     console.log(`📊 [API] Returning ${leads.length} completed lead(s) for done-calls archive`);
 
@@ -538,7 +685,7 @@ app.get('/api/admin/archive/export', authenticateAdmin, async (req, res) => {
 
     const leads = await Lead.find(filter)
       .sort({ updatedAt: -1 })
-      .select('name surname fullName doorType measurements phoneNumber priorities comment createdAt updatedAt closedBy closedAt label source _id')
+      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities comment createdAt updatedAt closedBy closedAt label source _id')
       .lean();
 
     const workbook = new ExcelJS.Workbook();
@@ -566,8 +713,8 @@ app.get('/api/admin/archive/export', authenticateAdmin, async (req, res) => {
 
     // Human-readable helpers for export
     const closedByDisplay = (role) => {
-      if (role === 'manager') return 'Boss Manager';
-      if (role === 'call_manager') return 'Call Manager';
+      if (role === 'manager' || role === 'boss') return 'Boss Manager';
+      if (role === 'call_manager' || role === 'call') return 'Call Manager';
       return role || '—';
     };
     const sourceDisplay = (src) => {
@@ -653,7 +800,7 @@ app.post('/api/admin/leads/:id/comment', authenticateAdmin, async (req, res) => 
       return res.status(400).json({ error: 'Only archived leads can be edited' });
     }
 
-    if (req.user.role === 'call_manager' && lead.lastEditedBy === 'manager') {
+    if (req.user.role === 'call' && (lead.lastEditedBy === 'manager' || lead.lastEditedBy === 'boss')) {
       return res.status(403).json({ error: 'Forbidden: Manager has locked this comment' });
     }
 
@@ -707,7 +854,90 @@ app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, as
   }
 });
 
-// Lightweight polling endpoint: detect new "new" status clients since given timestamp
+// GET /api/admin/analytics/financial - Revenue and conversion (Manager only)
+app.get('/api/admin/analytics/financial', authenticateAdmin, requireManager, async (req, res) => {
+  try {
+    const totalLeads = await Lead.countDocuments();
+
+    const financial = await Lead.aggregate([
+      {
+        $match: {
+          status: 'done',
+          $or: [{ stage: 'successful' }, { label: 'Successful' }],
+          dealAmount: { $gt: 0 }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          successfulDealsCount: { $sum: 1 },
+          totalRevenue: { $sum: '$dealAmount' }
+        }
+      }
+    ]);
+
+    const result = financial[0] || { successfulDealsCount: 0, totalRevenue: 0 };
+    res.json({
+      success: true,
+      totalLeads,
+      successfulDealsCount: result.successfulDealsCount,
+      totalRevenue: result.totalRevenue
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error fetching financial analytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/analytics/managers - Per-manager stats (Boss: all; Call: own only)
+app.get('/api/admin/analytics/managers', authenticateAdmin, async (req, res) => {
+  try {
+    const keysToReturn = req.user.role === 'call' && req.user.key
+      ? [req.user.key]
+      : MANAGER_ANALYTICS_KEYS;
+
+    const pipeline = [
+      { $match: { status: 'done', closedBy: { $in: keysToReturn } } },
+      {
+        $group: {
+          _id: '$closedBy',
+          successfulDealsCount: { $sum: { $cond: [{ $and: [{ $eq: ['$stage', 'successful'] }, { $gt: ['$dealAmount', 0] }] }, 1, 0] } },
+          totalRevenue: { $sum: { $cond: [{ $and: [{ $eq: ['$stage', 'successful'] }, { $gt: ['$dealAmount', 0] }] }, '$dealAmount', 0] } },
+          totalClosed: { $sum: 1 }
+        }
+      }
+    ];
+    const raw = await Lead.aggregate(pipeline);
+    const byKey = {};
+    raw.forEach(item => {
+      byKey[item._id] = item;
+    });
+
+    const managers = keysToReturn.map(key => {
+      const row = byKey[key] || { successfulDealsCount: 0, totalRevenue: 0, totalClosed: 0 };
+      const successfulDeals = row.successfulDealsCount || 0;
+      const revenue = row.totalRevenue || 0;
+      const totalClosed = row.totalClosed || 0;
+      const averageDeal = successfulDeals > 0 ? revenue / successfulDeals : 0;
+      const conversionPct = totalClosed > 0 ? (successfulDeals / totalClosed) * 100 : 0;
+      return {
+        key,
+        name: MANAGER_DISPLAY_NAMES[key] || key,
+        successfulDeals,
+        revenue,
+        averageDeal,
+        conversionPct
+      };
+    });
+
+    res.json({ success: true, managers });
+  } catch (error) {
+    console.error('❌ [ERROR] Error fetching manager analytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Lightweight polling endpoint: detect new "new" status clients since given timestamp detect new "new" status clients since given timestamp
 // Query params:
 //   since: ISO timestamp string representing last seen createdAt
 // Response:
