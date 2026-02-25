@@ -369,29 +369,13 @@ app.post('/api/leads', async (req, res) => {
 // POST /api/admin/login - Admin login (returns JWT with role, name, key for call)
 app.post('/api/admin/login', (req, res) => {
   const incomingToken = String(req.body.token || '').trim();
-  // Temporary debug: do not log actual token value
-  console.log('[LOGIN] incoming token length:', incomingToken.length);
-  console.log('[LOGIN] BOSS_TOKEN exists:', !!process.env.BOSS_TOKEN);
-  console.log('[LOGIN] CALL_ANVAR_TOKEN exists:', !!process.env.CALL_ANVAR_TOKEN);
-  console.log('[LOGIN] CALL_AKBAR_TOKEN exists:', !!process.env.CALL_AKBAR_TOKEN);
-  console.log('[LOGIN] CALL_DAVRON_TOKEN exists:', !!process.env.CALL_DAVRON_TOKEN);
   if (!incomingToken) {
     return res.status(400).json({ error: 'Token is required' });
   }
   const user = USERS.find(u => u.token && u.token === incomingToken);
   if (!user) {
-    console.log('[LOGIN] No matching user for provided token');
-    return res.status(401).json({
-      error: 'Invalid token',
-      debug: {
-        hasBoss: !!process.env.BOSS_TOKEN,
-        hasAnvar: !!process.env.CALL_ANVAR_TOKEN,
-        hasAkbar: !!process.env.CALL_AKBAR_TOKEN,
-        hasDavron: !!process.env.CALL_DAVRON_TOKEN
-      }
-    });
+    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
-  console.log('[LOGIN] Authenticated as:', user.role, user.key || '');
   const payload = user.role === 'boss' ? { role: 'boss' } : { role: 'call', key: user.key };
   const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256' });
   const response = {
@@ -998,10 +982,10 @@ app.get('/api/admin/leads/poll', authenticateAdmin, async (req, res) => {
 });
 
 // ============================================
-// SERVER START (LOCAL) + SERVERLESS EXPORT
+// SERVER START (LOCAL ONLY — do not listen when deployed to Vercel)
 // ============================================
 
-if (require.main === module) {
+if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📝 Public form: http://localhost:${PORT}/`);
