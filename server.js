@@ -248,12 +248,13 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// Static USERS: Boss + Call Managers (tokens from env)
+// Static USERS: Boss + Call Managers (tokens from env). Vercel dashboard must use exact names: BOSS_TOKEN, CALL_ANVAR_TOKEN, CALL_AKBAR_TOKEN, CALL_DAVRON_TOKEN.
+const trimEnv = (v) => String(v || '').trim();
 const USERS = [
-  { role: 'boss', name: 'Boss', token: process.env.BOSS_TOKEN || process.env.MANAGER_TOKEN || '' },
-  { role: 'call', key: 'anvar', name: 'Анвар', token: process.env.CALL_ANVAR_TOKEN || '' },
-  { role: 'call', key: 'akbar', name: 'Акбар', token: process.env.CALL_AKBAR_TOKEN || '' },
-  { role: 'call', key: 'davron', name: 'Даврон', token: process.env.CALL_DAVRON_TOKEN || '' }
+  { role: 'boss', name: 'Boss', token: trimEnv(process.env.BOSS_TOKEN || process.env.MANAGER_TOKEN) },
+  { role: 'call', key: 'anvar', name: 'Анвар', token: trimEnv(process.env.CALL_ANVAR_TOKEN) },
+  { role: 'call', key: 'akbar', name: 'Акбар', token: trimEnv(process.env.CALL_AKBAR_TOKEN) },
+  { role: 'call', key: 'davron', name: 'Даврон', token: trimEnv(process.env.CALL_DAVRON_TOKEN) }
 ];
 const CALL_MANAGER_KEYS = ['anvar', 'akbar', 'davron'];
 const MANAGER_ANALYTICS_KEYS = ['boss', 'anvar', 'akbar', 'davron'];
@@ -367,21 +368,28 @@ app.post('/api/leads', async (req, res) => {
 
 // POST /api/admin/login - Admin login (returns JWT with role, name, key for call)
 app.post('/api/admin/login', (req, res) => {
-  const { token } = req.body;
-  // Temporary debug for production: verify env and request (do not log token value)
-  console.log('[LOGIN] Incoming token length:', token ? String(token).length : 0);
-  console.log('[LOGIN] Env BOSS_TOKEN set:', !!process.env.BOSS_TOKEN);
-  console.log('[LOGIN] Env CALL_ANVAR_TOKEN set:', !!process.env.CALL_ANVAR_TOKEN);
-  console.log('[LOGIN] Env CALL_AKBAR_TOKEN set:', !!process.env.CALL_AKBAR_TOKEN);
-  console.log('[LOGIN] Env CALL_DAVRON_TOKEN set:', !!process.env.CALL_DAVRON_TOKEN);
-  if (!token) {
+  const incomingToken = String(req.body.token || '').trim();
+  // Temporary debug: do not log actual token value
+  console.log('[LOGIN] incoming token length:', incomingToken.length);
+  console.log('[LOGIN] BOSS_TOKEN exists:', !!process.env.BOSS_TOKEN);
+  console.log('[LOGIN] CALL_ANVAR_TOKEN exists:', !!process.env.CALL_ANVAR_TOKEN);
+  console.log('[LOGIN] CALL_AKBAR_TOKEN exists:', !!process.env.CALL_AKBAR_TOKEN);
+  console.log('[LOGIN] CALL_DAVRON_TOKEN exists:', !!process.env.CALL_DAVRON_TOKEN);
+  if (!incomingToken) {
     return res.status(400).json({ error: 'Token is required' });
   }
-  const trimmed = token.trim();
-  const user = USERS.find(u => u.token && u.token.trim() === trimmed);
+  const user = USERS.find(u => u.token && u.token === incomingToken);
   if (!user) {
     console.log('[LOGIN] No matching user for provided token');
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    return res.status(401).json({
+      error: 'Invalid token',
+      debug: {
+        hasBoss: !!process.env.BOSS_TOKEN,
+        hasAnvar: !!process.env.CALL_ANVAR_TOKEN,
+        hasAkbar: !!process.env.CALL_AKBAR_TOKEN,
+        hasDavron: !!process.env.CALL_DAVRON_TOKEN
+      }
+    });
   }
   console.log('[LOGIN] Authenticated as:', user.role, user.key || '');
   const payload = user.role === 'boss' ? { role: 'boss' } : { role: 'call', key: user.key };
