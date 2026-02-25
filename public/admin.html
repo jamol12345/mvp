@@ -719,6 +719,13 @@
             setLanguage(stored || 'ru');
         }
 
+        function getApiBase() {
+            if (typeof window === 'undefined') return '';
+            const h = window.location.hostname;
+            if (h === 'localhost' || h === '127.0.0.1') return '';
+            return 'https://api.kukcha-eshiklari.uz';
+        }
+
         function getAuthHeader() {
             return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
         }
@@ -774,7 +781,7 @@
             }
 
             try {
-                const response = await fetch('/api/admin/login', {
+                const response = await fetch(getApiBase() + '/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token })
@@ -970,7 +977,7 @@
                 measurements
             };
             try {
-                const response = await fetch('/api/admin/leads', {
+                const response = await fetch(getApiBase() + '/api/admin/leads', {
                     method: 'POST',
                     headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
                     body: JSON.stringify(payload)
@@ -1049,7 +1056,7 @@
             document.getElementById('leadsTableWrapper').style.display = 'none';
 
             try {
-                const response = await fetch('/api/admin/leads', {
+                const response = await fetch(getApiBase() + '/api/admin/leads', {
                     method: 'GET',
                     headers: getAuthHeader()
                 });
@@ -1106,7 +1113,7 @@
                 return;
             }
             try {
-                const response = await fetch('/api/admin/leads/poll?since=' + encodeURIComponent(since), {
+                const response = await fetch(getApiBase() + '/api/admin/leads/poll?since=' + encodeURIComponent(since), {
                     method: 'GET',
                     headers: getAuthHeader()
                 });
@@ -1148,7 +1155,7 @@
             const value = select.value;
             const assignedTo = (value && value.trim()) ? value.trim() : null;
             try {
-                const response = await fetch(`/api/admin/leads/${leadId}/assign`, {
+                const response = await fetch(getApiBase() + `/api/admin/leads/${leadId}/assign`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
                     body: JSON.stringify({ assignedTo })
@@ -1209,7 +1216,7 @@
             const personalAvg = document.getElementById('personalAverageDeal');
             const personalConv = document.getElementById('personalConversion');
             try {
-                const response = await fetch('/api/admin/analytics/managers', { method: 'GET', headers: getAuthHeader() });
+                const response = await fetch(getApiBase() + '/api/admin/analytics/managers', { method: 'GET', headers: getAuthHeader() });
                 const data = await response.json();
                 if (!response.ok) {
                     if (tableBody) tableBody.innerHTML = '';
@@ -1251,7 +1258,7 @@
             const convEl = document.getElementById('financialConversion');
             if (!totalEl || !dealsEl || !avgEl || !convEl) return;
             try {
-                const response = await fetch('/api/admin/analytics/financial', { method: 'GET', headers: getAuthHeader() });
+                const response = await fetch(getApiBase() + '/api/admin/analytics/financial', { method: 'GET', headers: getAuthHeader() });
                 const data = await response.json();
                 if (!response.ok) {
                     lastTotalRevenue = null;
@@ -1293,7 +1300,7 @@
             const legendEl = document.getElementById('analyticsLegend');
             if (legendEl) legendEl.innerHTML = '';
             try {
-                const response = await fetch('/api/admin/analytics/priorities', {
+                const response = await fetch(getApiBase() + '/api/admin/analytics/priorities', {
                     method: 'GET',
                     headers: getAuthHeader()
                 });
@@ -1593,7 +1600,7 @@
                         }
 
                         try {
-                            const res = await fetch('/api/admin/leads/' + leadId + '/stage', {
+                            const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/stage', {
                                 method: 'PATCH',
                                 headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
                                 body: JSON.stringify({ stage: newStage })
@@ -1631,7 +1638,7 @@
             if (!adminToken) return;
             const analyticsVisible = document.getElementById('analyticsWrapper').style.display !== 'none';
             try {
-                const response = await fetch('/api/admin/leads', { method: 'GET', headers: getAuthHeader() });
+                const response = await fetch(getApiBase() + '/api/admin/leads', { method: 'GET', headers: getAuthHeader() });
                 const data = await response.json();
                 if (!response.ok) return;
                 allActiveLeads = data.leads || [];
@@ -1873,7 +1880,7 @@
             }
 
             try {
-                const response = await fetch(`/api/admin/leads/${leadId}/done`, {
+                const response = await fetch(getApiBase() + `/api/admin/leads/${leadId}/done`, {
                     method: 'POST',
                     headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
                     body: JSON.stringify({ comment, label })
@@ -2008,7 +2015,7 @@
             const { leadId } = pendingSuccessDrop;
             successCommentErrorEl.style.display = 'none';
             try {
-                const res = await fetch('/api/admin/leads/' + leadId + '/stage', {
+                const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/stage', {
                     method: 'PATCH',
                     headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
                     body: JSON.stringify({ stage: 'successful', comment: comment, dealAmount: amount })
@@ -2054,7 +2061,7 @@
             }
 
             try {
-                const response = await fetch(`/api/admin/leads/${leadId}/not`, {
+                const response = await fetch(getApiBase() + `/api/admin/leads/${leadId}/not`, {
                     method: 'POST',
                     headers: getAuthHeader()
                 });

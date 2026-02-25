@@ -21,8 +21,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Enable CORS for frontend deployments.
-// If CORS_ORIGIN is set, it can be a single origin or a comma-separated list.
+// Enable CORS for frontend deployments. Production: Netlify frontend must be allowed.
+// If CORS_ORIGIN is set, it overrides (single origin or comma-separated list).
 const defaultCorsOrigins = [
   'https://mvp-kokcha.netlify.app',
   'https://api.kukcha-eshiklari.uz'
@@ -368,14 +368,22 @@ app.post('/api/leads', async (req, res) => {
 // POST /api/admin/login - Admin login (returns JWT with role, name, key for call)
 app.post('/api/admin/login', (req, res) => {
   const { token } = req.body;
+  // Temporary debug for production: verify env and request (do not log token value)
+  console.log('[LOGIN] Incoming token length:', token ? String(token).length : 0);
+  console.log('[LOGIN] Env BOSS_TOKEN set:', !!process.env.BOSS_TOKEN);
+  console.log('[LOGIN] Env CALL_ANVAR_TOKEN set:', !!process.env.CALL_ANVAR_TOKEN);
+  console.log('[LOGIN] Env CALL_AKBAR_TOKEN set:', !!process.env.CALL_AKBAR_TOKEN);
+  console.log('[LOGIN] Env CALL_DAVRON_TOKEN set:', !!process.env.CALL_DAVRON_TOKEN);
   if (!token) {
     return res.status(400).json({ error: 'Token is required' });
   }
   const trimmed = token.trim();
   const user = USERS.find(u => u.token && u.token.trim() === trimmed);
   if (!user) {
+    console.log('[LOGIN] No matching user for provided token');
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
+  console.log('[LOGIN] Authenticated as:', user.role, user.key || '');
   const payload = user.role === 'boss' ? { role: 'boss' } : { role: 'call', key: user.key };
   const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256' });
   const response = {

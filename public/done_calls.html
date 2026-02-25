@@ -359,6 +359,13 @@
             setLanguage(stored || 'ru');
         }
 
+        function getApiBase() {
+            if (typeof window === 'undefined') return '';
+            const h = window.location.hostname;
+            if (h === 'localhost' || h === '127.0.0.1') return '';
+            return 'https://api.kukcha-eshiklari.uz';
+        }
+
         function getAuthHeader() {
             return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
         }
@@ -396,7 +403,7 @@
             }
 
             try {
-                const response = await fetch('/api/admin/login', {
+                const response = await fetch(getApiBase() + '/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ token })
@@ -487,7 +494,7 @@
             document.getElementById('leadsTableWrapper').style.display = 'none';
 
             try {
-                let url = '/api/admin/done-calls';
+                let url = getApiBase() + '/api/admin/done-calls';
                 if (dateFilterEnabled && (dateFilterFrom || dateFilterTo)) {
                     const params = new URLSearchParams();
                     if (dateFilterFrom) params.set('dateFrom', dateFilterFrom);
@@ -692,7 +699,7 @@
 
         async function silentRefreshArchive() {
             if (!adminToken) return;
-            let url = '/api/admin/done-calls';
+            let url = getApiBase() + '/api/admin/done-calls';
             if (dateFilterEnabled && (dateFilterFrom || dateFilterTo)) {
                 const params = new URLSearchParams();
                 if (dateFilterFrom) params.set('dateFrom', dateFilterFrom);
@@ -863,7 +870,7 @@
 
         document.getElementById('archiveExportExcelBtn').addEventListener('click', async () => {
             if (!adminToken) return;
-            let url = '/api/admin/archive/export';
+            let url = getApiBase() + '/api/admin/archive/export';
             if (dateFilterEnabled && (dateFilterFrom || dateFilterTo)) {
                 const params = new URLSearchParams();
                 if (dateFilterFrom) params.set('dateFrom', dateFilterFrom);
@@ -927,7 +934,7 @@
             const comment = document.getElementById('editComment').value.trim();
 
             try {
-                const response = await fetch(`/api/admin/leads/${leadId}/comment`, {
+                const response = await fetch(getApiBase() + `/api/admin/leads/${leadId}/comment`, {
                     method: 'POST',
                     headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
                     body: JSON.stringify({ comment })

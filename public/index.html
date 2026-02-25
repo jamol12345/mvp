@@ -217,6 +217,13 @@
             applyTranslations();
         }
 
+        function getApiBase() {
+            if (typeof window === 'undefined') return '';
+            const h = window.location.hostname;
+            if (h === 'localhost' || h === '127.0.0.1') return '';
+            return 'https://api.kukcha-eshiklari.uz';
+        }
+
         function initLanguage() {
             const stored = localStorage.getItem(LANG_KEY);
             setLanguage(stored || 'ru');
@@ -302,7 +309,7 @@
             setLoadingState(true);
 
             try {
-                const response = await fetch('/api/leads', {
+                const response = await fetch(getApiBase() + '/api/leads', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
