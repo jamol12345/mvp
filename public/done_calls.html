@@ -360,10 +360,11 @@
         }
 
         function getApiBase() {
-            if (typeof window === 'undefined') return '';
-            const h = window.location.hostname;
-            if (h === 'localhost' || h === '127.0.0.1') return '';
-            return 'https://api.kukcha-eshiklari.uz';
+            const host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1') {
+                return '';
+            }
+            return 'https://kukcha-backend.vercel.app';
         }
 
         function getAuthHeader() {
