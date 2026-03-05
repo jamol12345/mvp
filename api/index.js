@@ -3,7 +3,8 @@ const app = require('../server');
 module.exports = (req, res) => {
   const allowedOrigins = [
     'http://localhost:5173',
-    'https://crm-kukcha.vercel.app'
+    'https://crm-kukcha.vercel.app',
+    'https://kokscha-doors.vercel.app'
   ];
 
   const origin = req.headers.origin;
