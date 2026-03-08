@@ -57,6 +57,16 @@ app.get('/api/test-cors', (req, res) => {
   res.json({ ok: true });
 });
 
+// Public doors catalog (no auth)
+const doors = require('./data/doors');
+app.get('/api/doors', (req, res) => {
+  res.json({
+    success: true,
+    count: doors.length,
+    data: doors
+  });
+});
+
 // Friendly route for done calls (matches /done_calls navigation)
 app.get('/done_calls', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'done_calls.html'));
