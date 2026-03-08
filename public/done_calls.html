@@ -229,6 +229,9 @@
                 saveBtn: 'Сохранить',
                 roleManager: 'Босс‑менеджер',
                 roleCallManager: 'Колл‑менеджер',
+                managerAnvar: 'Анвар',
+                managerAkbar: 'Акбар',
+                managerDavron: 'Даврон',
                 sourceInstagram: 'Instagram',
                 sourceTelegram: 'Telegram',
                 sourceWordOfMouth: 'Сарафан',
@@ -292,6 +295,9 @@
                 saveBtn: 'Saqlash',
                 roleManager: 'Bosh menejer',
                 roleCallManager: 'Qo‘ng‘iroq menejeri',
+                managerAnvar: 'Anvar',
+                managerAkbar: 'Akbar',
+                managerDavron: 'Davron',
                 sourceInstagram: 'Instagram',
                 sourceTelegram: 'Telegram',
                 sourceWordOfMouth: 'Sarafan',
@@ -542,9 +548,14 @@
         }
 
         function roleLabel(role) {
-            if (role === 'manager') return t('roleManager');
-            if (role === 'call_manager') return t('roleCallManager');
-            return '—';
+            if (!role) return '—';
+            const r = String(role).trim();
+            if (r === 'manager' || r === 'boss') return t('roleManager');
+            if (r === 'call_manager' || r === 'call') return t('roleCallManager');
+            if (r === 'anvar') return t('managerAnvar');
+            if (r === 'akbar') return t('managerAkbar');
+            if (r === 'davron') return t('managerDavron');
+            return r || '—';
         }
 
         function getLabelClass(label) {

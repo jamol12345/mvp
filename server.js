@@ -4,7 +4,6 @@
 
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const path = require('path');
@@ -13,30 +12,37 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// CORS first (before any other middleware) so it always runs in Vercel serverless.
+const defaultCorsOrigins = [
+  'http://localhost:5173',
+  'https://crm-kukcha.vercel.app',
+  'https://mvp-kokcha.netlify.app',
+  'https://api.kukcha-eshiklari.uz'
+];
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
+  : defaultCorsOrigins;
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 // ============================================
 // MIDDLEWARE
 // ============================================
 
-// Parse JSON and URL-encoded bodies
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Enable CORS for frontend deployments. Production: Netlify frontend must be allowed.
-// If CORS_ORIGIN is set, it overrides (single origin or comma-separated list).
-const defaultCorsOrigins = [
-  'https://mvp-kokcha.netlify.app',
-  'https://api.kukcha-eshiklari.uz'
-];
-const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
-  : defaultCorsOrigins;
-
-app.use(cors({
-  origin: corsOrigins,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // Serve static files (HTML, CSS)
 app.use(express.static(path.join(__dirname, 'public')));
@@ -44,6 +50,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Health check: no DB dependency, always available (for Vercel/probes)
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Temporary: test CORS headers in production (remove after verifying)
+app.get('/api/test-cors', (req, res) => {
+  res.json({ ok: true });
 });
 
 // Friendly route for done calls (matches /done_calls navigation)
@@ -259,6 +270,14 @@ const USERS = [
 const CALL_MANAGER_KEYS = ['anvar', 'akbar', 'davron'];
 const MANAGER_ANALYTICS_KEYS = ['boss', 'anvar', 'akbar', 'davron'];
 const MANAGER_DISPLAY_NAMES = { boss: 'Boss', anvar: 'Анвар', akbar: 'Акбар', davron: 'Даврон' };
+
+// Log required env on load (for Vercel: Settings → Environment Variables must set these, then redeploy)
+console.log('BOSS_TOKEN exists:', !!process.env.BOSS_TOKEN);
+console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
+console.log('CALL_ANVAR_TOKEN exists:', !!process.env.CALL_ANVAR_TOKEN);
+console.log('CALL_AKBAR_TOKEN exists:', !!process.env.CALL_AKBAR_TOKEN);
+console.log('CALL_DAVRON_TOKEN exists:', !!process.env.CALL_DAVRON_TOKEN);
 
 // Middleware: verify JWT and attach user (role, key?) to request
 const authenticateAdmin = (req, res, next) => {

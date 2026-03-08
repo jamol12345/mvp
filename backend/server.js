@@ -736,4 +736,13 @@ if (require.main === module) {
   });
 }
 
+const doors = require("./data/doors");
+
+app.get("/api/doors", (req, res) => {
+  res.json({
+    success: true,
+    count: doors.length,
+    data: doors
+  });
+});
 module.exports = app;
