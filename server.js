@@ -100,7 +100,7 @@ mongoose.connect(MONGODB_URI)
 const PRIORITY_OPTIONS = ['Quality', 'Design', 'Production Time', 'Price', 'Warranty'];
 const PRIORITY_OPTIONS_NEW = ['Качество и надежность', 'Цена', 'Дизайн и стиль', 'Гарантии и сервис', 'Надежность и безопасность'];
 const LABEL_OPTIONS = ['New Client', 'Call Back', 'Successful', 'Rejected'];
-const STAGE_OPTIONS = ['new', 'in_progress', 'thinking', 'successful', 'rejected'];
+const STAGE_OPTIONS = ['new', 'in_progress', 'thinking', 'successful', 'preparing'];
 const SOURCE_OPTIONS = ['instagram', 'telegram', 'word_of_mouth', 'website', 'manual'];
 
 const leadSchema = new mongoose.Schema({
@@ -126,13 +126,19 @@ const leadSchema = new mongoose.Schema({
   },
   length: {
     type: Number,
-    required: true,
     default: 0
   },
   width: {
     type: Number,
-    required: true,
     default: 0
+  },
+  isPreparing: {
+    type: Boolean,
+    default: false
+  },
+  readyDate: {
+    type: Date,
+    default: null
   },
   dobor: {
     type: String,
@@ -235,7 +241,7 @@ function sanitizePriorities(input) {
   filtered.forEach(item => {
     if (!unique.includes(item)) unique.push(item);
   });
-  return unique.slice(0, 2);
+  return unique;
 }
 
 function validatePrioritiesExactlyTwo(priorities) {
@@ -331,55 +337,114 @@ const requireManager = requireBoss;
 // PUBLIC API ENDPOINTS
 // ============================================
 
+function parseReadyDateFromBody(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const s = String(value).trim();
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00') : new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
 // POST /api/leads - Public endpoint to submit lead form
+// New contract: { fullName?, phone|phoneNumber, priorities } — phone required; fullName optional.
+// Legacy contract: full door/measurements + length/width + exactly 2 priorities (unchanged).
 app.post('/api/leads', async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities, priority, language, length, width, dobor } = req.body;
-
-    if (!fullName || !doorType || !measurements || !phoneNumber) {
+    const body = req.body || {};
+    const phoneRaw = (body.phone != null ? body.phone : body.phoneNumber);
+    const phoneNumber = phoneRaw != null ? String(phoneRaw).trim() : '';
+    if (!phoneNumber) {
       return res.status(400).json({
-        error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
+        error: 'phone is required'
       });
     }
 
-    const lengthNum = length != null ? Number(length) : NaN;
-    const widthNum = width != null ? Number(width) : NaN;
-    if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0) {
-      return res.status(400).json({
-        error: 'length and width are required and must be greater than 0'
-      });
+    const languageValue = sanitizeLanguage(body.language);
+
+    const legacyLen = body.length != null ? Number(body.length) : NaN;
+    const legacyWid = body.width != null ? Number(body.width) : NaN;
+    const hasLegacyShape =
+      body.doorType &&
+      String(body.doorType).trim() !== '' &&
+      body.measurements != null &&
+      String(body.measurements).trim() !== '' &&
+      Number.isFinite(legacyLen) && legacyLen > 0 &&
+      Number.isFinite(legacyWid) && legacyWid > 0;
+
+    let leadData;
+
+    if (hasLegacyShape) {
+      const { fullName, doorType, measurements, priorities, length, width, dobor } = body;
+      if (!fullName || !doorType || !measurements) {
+        return res.status(400).json({
+          error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
+        });
+      }
+
+      const lengthNum = length != null ? Number(length) : NaN;
+      const widthNum = width != null ? Number(width) : NaN;
+      if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0) {
+        return res.status(400).json({
+          error: 'length and width are required and must be greater than 0'
+        });
+      }
+
+      const doborValue = dobor != null ? String(dobor).trim() : '';
+
+      const prioritiesArray = validatePrioritiesExactlyTwo(priorities);
+      if (!prioritiesArray) {
+        return res.status(400).json({ error: 'priorities must be an array of exactly 2 values from the allowed list' });
+      }
+
+      leadData = {
+        fullName: fullName.trim(),
+        doorType: doorType.trim(),
+        measurements: String(measurements).trim(),
+        length: lengthNum,
+        width: widthNum,
+        dobor: doborValue,
+        phoneNumber,
+        priorities: prioritiesArray,
+        name: '',
+        surname: '',
+        status: 'new',
+        label: 'New Client',
+        source: 'website',
+        language: languageValue,
+        isPreparing: false,
+        readyDate: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    } else {
+      const fullNameVal = body.fullName != null ? String(body.fullName).trim() : '';
+      const prioritiesArray = sanitizePriorities(body.priorities);
+
+      leadData = {
+        fullName: fullNameVal,
+        doorType: '',
+        measurements: '',
+        length: 0,
+        width: 0,
+        dobor: '',
+        phoneNumber,
+        priorities: prioritiesArray,
+        name: '',
+        surname: '',
+        status: 'new',
+        label: 'New Client',
+        source: 'website',
+        language: languageValue,
+        isPreparing: false,
+        readyDate: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
     }
 
-    const doborValue = dobor != null ? String(dobor).trim() : '';
-
-    const prioritiesArray = validatePrioritiesExactlyTwo(priorities);
-    if (!prioritiesArray) {
-      return res.status(400).json({ error: 'priorities must be an array of exactly 2 values from the allowed list' });
-    }
-
-    const languageValue = sanitizeLanguage(language);
-
-    const leadData = {
-      fullName: fullName.trim(),
-      doorType: doorType.trim(),
-      measurements: measurements.trim(),
-      length: lengthNum,
-      width: widthNum,
-      dobor: doborValue,
-      phoneNumber: phoneNumber.trim(),
-      priorities: prioritiesArray,
-      name: '',
-      surname: '',
-      status: 'new',
-      label: 'New Client',
-      source: 'website',
-      language: languageValue,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
     const lead = new Lead(leadData);
     await lead.save();
-    console.log(`✅ [MONGODB] Lead submitted: ${lead.fullName}`);
+    console.log(`✅ [MONGODB] Lead submitted: ${lead.fullName || lead.phoneNumber}`);
 
     res.status(201).json({
       success: true,
@@ -421,47 +486,98 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 // POST /api/admin/leads - Add client manually (Manager only)
+// New payload: { fullName?, phone|phoneNumber, priorities?, source } — phone + source required.
+// Legacy: full door + measurements + length/width + exactly 2 priorities (unchanged).
 app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res) => {
   try {
-    const { fullName, doorType, measurements, phoneNumber, priorities, priority, source, length, width, dobor } = req.body;
-    if (!fullName || !doorType || !measurements || !phoneNumber) {
-      return res.status(400).json({
-        error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
+    const body = req.body || {};
+    const phoneRaw = body.phone != null ? body.phone : body.phoneNumber;
+    const phoneNumber = phoneRaw != null ? String(phoneRaw).trim() : '';
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'phone is required' });
+    }
+
+    const legacyLen = body.length != null ? Number(body.length) : NaN;
+    const legacyWid = body.width != null ? Number(body.width) : NaN;
+    const hasLegacyShape =
+      body.doorType &&
+      String(body.doorType).trim() !== '' &&
+      body.measurements != null &&
+      String(body.measurements).trim() !== '' &&
+      Number.isFinite(legacyLen) && legacyLen > 0 &&
+      Number.isFinite(legacyWid) && legacyWid > 0;
+
+    let lead;
+
+    if (hasLegacyShape) {
+      const { fullName, doorType, measurements, priorities, length, width, dobor, source } = body;
+      if (!fullName || !doorType || !measurements) {
+        return res.status(400).json({
+          error: 'Missing required fields: fullName, doorType, measurements, phoneNumber'
+        });
+      }
+      const lengthNum = length != null ? Number(length) : NaN;
+      const widthNum = width != null ? Number(width) : NaN;
+      if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0) {
+        return res.status(400).json({
+          error: 'length and width are required and must be greater than 0'
+        });
+      }
+      const doborValue = dobor != null ? String(dobor).trim() : '';
+      const sourceValue = sanitizeSource(source);
+      if (!sourceValue || sourceValue === 'website') {
+        return res.status(400).json({ error: 'Source is required' });
+      }
+      const prioritiesArray = validatePrioritiesExactlyTwo(priorities);
+      if (!prioritiesArray) {
+        return res.status(400).json({ error: 'priorities must be an array of exactly 2 values from the allowed list' });
+      }
+      lead = new Lead({
+        fullName: fullName.trim(),
+        doorType: doorType.trim(),
+        measurements: String(measurements).trim(),
+        length: lengthNum,
+        width: widthNum,
+        dobor: doborValue,
+        phoneNumber,
+        priorities: prioritiesArray,
+        name: '',
+        surname: '',
+        status: 'new',
+        label: 'New Client',
+        source: sourceValue,
+        isPreparing: false,
+        readyDate: null
+      });
+    } else {
+      const sourceValue = sanitizeSource(body.source);
+      if (!sourceValue || sourceValue === 'website') {
+        return res.status(400).json({ error: 'Source is required' });
+      }
+      const fullNameVal = body.fullName != null ? String(body.fullName).trim() : '';
+      const prioritiesArray = sanitizePriorities(body.priorities);
+      lead = new Lead({
+        fullName: fullNameVal,
+        doorType: '',
+        measurements: '',
+        length: 0,
+        width: 0,
+        dobor: '',
+        phoneNumber,
+        priorities: prioritiesArray,
+        name: '',
+        surname: '',
+        status: 'new',
+        label: 'New Client',
+        source: sourceValue,
+        language: 'ru',
+        isPreparing: false,
+        readyDate: null
       });
     }
-    const lengthNum = length != null ? Number(length) : NaN;
-    const widthNum = width != null ? Number(width) : NaN;
-    if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0) {
-      return res.status(400).json({
-        error: 'length and width are required and must be greater than 0'
-      });
-    }
-    const doborValue = dobor != null ? String(dobor).trim() : '';
-    const sourceValue = sanitizeSource(source);
-    if (!sourceValue || sourceValue === 'website') {
-      return res.status(400).json({ error: 'Source is required' });
-    }
-    const prioritiesArray = validatePrioritiesExactlyTwo(priorities);
-    if (!prioritiesArray) {
-      return res.status(400).json({ error: 'priorities must be an array of exactly 2 values from the allowed list' });
-    }
-    const lead = new Lead({
-      fullName: fullName.trim(),
-      doorType: doorType.trim(),
-      measurements: measurements.trim(),
-      length: lengthNum,
-      width: widthNum,
-      dobor: doborValue,
-      phoneNumber: phoneNumber.trim(),
-      priorities: prioritiesArray,
-      name: '',
-      surname: '',
-      status: 'new',
-      label: 'New Client',
-      source: sourceValue
-    });
+
     await lead.save();
-    console.log(`✅ [MONGODB] Lead added by manager: ${lead.fullName}`);
+    console.log(`✅ [MONGODB] Lead added by manager: ${lead.fullName || lead.phoneNumber}`);
     res.status(201).json({ success: true, message: 'Client added', lead });
   } catch (error) {
     console.error('❌ [ERROR] Error adding lead:', error);
@@ -478,7 +594,7 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
     }
     const leads = await Lead.find(query)
       .sort({ createdAt: -1 })
-      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities label source stage assignedTo createdAt _id');
+      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities label source stage assignedTo isPreparing readyDate createdAt updatedAt _id');
 
     res.json({
       success: true,
@@ -524,7 +640,7 @@ app.patch('/api/admin/leads/:id/assign', authenticateAdmin, requireBoss, async (
 app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { stage, comment, dealAmount } = req.body;
+    const { stage, comment, dealAmount, readyDate } = req.body;
     const stageValue = typeof stage === 'string' ? stage.trim() : '';
     if (!STAGE_OPTIONS.includes(stageValue)) {
       return res.status(400).json({ error: 'Invalid stage' });
@@ -537,6 +653,13 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
       }
     }
 
+    if (stageValue === 'preparing') {
+      const rd = parseReadyDateFromBody(readyDate);
+      if (!rd) {
+        return res.status(400).json({ error: 'readyDate is required for preparing stage' });
+      }
+    }
+
     const lead = await Lead.findById(id);
     if (!lead) {
       return res.status(404).json({ error: 'Lead not found' });
@@ -545,26 +668,37 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Only active leads can be moved' });
     }
 
+    if (lead.stage === 'preparing' && stageValue !== 'preparing') {
+      lead.isPreparing = false;
+      lead.readyDate = null;
+    }
+
     lead.stage = stageValue;
     lead.updatedAt = new Date();
     const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
-    if (stageValue === 'successful' || stageValue === 'rejected') {
+
+    if (stageValue === 'preparing') {
+      const rd = parseReadyDateFromBody(readyDate);
+      lead.readyDate = rd;
+      lead.isPreparing = true;
+    }
+
+    if (stageValue === 'successful') {
       lead.status = 'done';
       lead.closedAt = new Date();
       lead.closedBy = closedByValue;
-      lead.label = stageValue === 'successful' ? 'Successful' : 'Rejected';
-      if (stageValue === 'successful') {
-        const amount = dealAmount != null ? Number(dealAmount) : NaN;
-        if (typeof amount === 'number' && !isNaN(amount) && amount > 0) {
-          lead.dealAmount = amount;
-        }
-        if (comment != null && String(comment).trim() !== '') {
-          lead.comment = String(comment).trim();
-          lead.commentUpdatedAt = new Date();
-          lead.lastEditedBy = closedByValue;
-        }
+      lead.label = 'Successful';
+      const amount = dealAmount != null ? Number(dealAmount) : NaN;
+      if (typeof amount === 'number' && !isNaN(amount) && amount > 0) {
+        lead.dealAmount = amount;
+      }
+      if (comment != null && String(comment).trim() !== '') {
+        lead.comment = String(comment).trim();
+        lead.commentUpdatedAt = new Date();
+        lead.lastEditedBy = closedByValue;
       }
     }
+
     await lead.save();
 
     res.json({
@@ -574,6 +708,44 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [ERROR] Error updating lead stage:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/admin/leads/:id/preparing-date - Update ready date for preparing leads (Protected)
+app.patch('/api/admin/leads/:id/preparing-date', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { readyDate } = req.body;
+
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    if (lead.status !== 'new') {
+      return res.status(400).json({ error: 'Only active leads can be updated' });
+    }
+    if (lead.stage !== 'preparing') {
+      return res.status(400).json({ error: 'Lead is not in preparing stage' });
+    }
+
+    const rd = parseReadyDateFromBody(readyDate);
+    if (!rd) {
+      return res.status(400).json({ error: 'readyDate is required' });
+    }
+
+    lead.readyDate = rd;
+    lead.isPreparing = true;
+    lead.updatedAt = new Date();
+    await lead.save();
+
+    res.json({
+      success: true,
+      message: 'Ready date updated',
+      lead
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error updating preparing date:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

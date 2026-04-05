@@ -62,8 +62,12 @@ body::before {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1600px;
+    width: 100%;
     margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
 }
 
 /* ============================================
@@ -796,24 +800,85 @@ textarea {
     margin-top: 16px;
 }
 
+/* Kanban: wrapper does not clip column fixed height; board scrolls horizontally */
+.leads-kanban-wrap {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    min-height: 0;
+}
+
 /* Kanban board */
 .kanban-board {
     display: flex;
+    align-items: stretch;
     gap: 16px;
     overflow-x: auto;
-    padding-bottom: 12px;
-    min-height: 320px;
+    overflow-y: hidden;
+    padding-bottom: 10px;
+    flex: 1;
+    min-height: calc(100vh - 220px);
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+.kanban-board--dragging .kanban-column {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+}
+
+.kanban-board--dragging .kanban-column-cards,
+.kanban-board--dragging .column-content {
+    outline: 1px dashed rgba(255, 255, 255, 0.12);
+    outline-offset: 2px;
+    border-radius: 10px;
 }
 
 .kanban-column {
-    flex: 0 0 280px;
-    min-width: 280px;
+    flex: 0 0 320px;
+    min-width: 300px;
+    max-width: 340px;
+    width: 320px;
+    height: calc(100vh - 220px);
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     display: flex;
     flex-direction: column;
-    max-height: 70vh;
+    overflow: hidden;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.kanban-column.drag-over {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* Subtle column accents */
+.kanban-column[data-stage="new"] {
+    border-top: 3px solid rgba(59, 130, 246, 0.85);
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.08) 0%, rgba(255, 255, 255, 0.04) 48px);
+}
+
+.kanban-column[data-stage="in_progress"] {
+    border-top: 3px solid rgba(168, 85, 247, 0.9);
+    background: linear-gradient(180deg, rgba(168, 85, 247, 0.09) 0%, rgba(255, 255, 255, 0.04) 48px);
+}
+
+.kanban-column[data-stage="thinking"] {
+    border-top: 3px solid rgba(234, 179, 8, 0.95);
+    background: linear-gradient(180deg, rgba(234, 179, 8, 0.1) 0%, rgba(255, 255, 255, 0.04) 48px);
+}
+
+.kanban-column[data-stage="successful"] {
+    border-top: 3px solid rgba(34, 197, 94, 0.9);
+    background: linear-gradient(180deg, rgba(34, 197, 94, 0.08) 0%, rgba(255, 255, 255, 0.04) 48px);
+}
+
+.kanban-column[data-stage="preparing"] {
+    border-top: 3px solid rgba(245, 158, 11, 0.95);
+    background: linear-gradient(180deg, rgba(245, 158, 11, 0.1) 0%, rgba(255, 255, 255, 0.04) 48px);
 }
 
 .kanban-column-header {
@@ -866,13 +931,13 @@ textarea {
 }
 
 .stage-counter.counter-in_progress {
-    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.35);
+    background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.35);
 }
 
 .stage-counter.counter-thinking {
-    background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
-    box-shadow: 0 2px 8px rgba(168, 85, 247, 0.35);
+    background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%);
+    box-shadow: 0 2px 8px rgba(234, 179, 8, 0.4);
 }
 
 .stage-counter.counter-successful {
@@ -885,6 +950,11 @@ textarea {
     box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
 }
 
+.stage-counter.counter-preparing {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
 .stage-counter.counter-update {
     animation: counterUpdate 0.4s ease-out;
 }
@@ -895,18 +965,42 @@ textarea {
     100% { transform: scale(1); filter: brightness(1); }
 }
 
-.kanban-column-cards {
+/* Scrollable card list inside each column */
+.kanban-column-cards.column-content,
+.kanban-column .column-content {
     flex: 1;
+    min-height: 0;
+    min-width: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 8px;
-    min-height: 80px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    box-sizing: border-box;
 }
 
-.kanban-column-cards .lead-card {
+.kanban-column-cards .lead-card,
+.column-content .lead-card {
     margin-bottom: 8px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
-.kanban-column-cards .lead-card:last-child {
+.kanban-column-cards .lead-card *,
+.column-content .lead-card * {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.kanban-column-cards .lead-card svg,
+.column-content .lead-card svg {
+    max-width: none;
+}
+
+.kanban-column-cards .lead-card:last-child,
+.column-content .lead-card:last-child {
     margin-bottom: 0;
 }
 
@@ -915,15 +1009,38 @@ textarea {
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 20px;
-    padding: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 12px 12px 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     color: #fff;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     min-width: 0;
     overflow-wrap: anywhere;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.kanban-column-cards .lead-card:hover,
+.column-content .lead-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.lead-card--chosen {
+    cursor: grabbing;
+}
+
+.lead-card--drag {
+    opacity: 0.98;
+    transform: scale(1.03);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.lead-card--ghost {
+    opacity: 0.35;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .lead-card--new {
@@ -935,6 +1052,93 @@ textarea {
     box-shadow:
         0 0 12px rgba(250, 204, 21, 0.4),
         0 0 2px rgba(250, 204, 21, 0.2);
+}
+
+/* Preparing stage urgency (classes on .lead-card from Kanban) */
+.lead-card.warning {
+    border: 1px solid #f97316;
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.35);
+}
+
+.lead-card.urgent {
+    border: 1px solid #ef4444;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+}
+
+.lead-card.overdue {
+    border: 2px solid #ef4444;
+    background: rgba(255, 0, 0, 0.1);
+}
+
+.lead-card-preparing-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: -4px 0 0 0;
+}
+
+.preparing-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 0.9));
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+}
+
+.btn-preparing-edit {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.btn-preparing-edit:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: scale(1.04);
+}
+
+.preparing-edit-icon {
+    display: block;
+}
+
+.lead-card-preparing-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.lead-card-preparing-meta .preparing-countdown {
+    font-weight: 600;
+    color: #fde68a;
+}
+
+.lead-card.overdue .lead-card-preparing-meta .preparing-countdown,
+.lead-card.urgent .lead-card-preparing-meta .preparing-countdown {
+    color: #fecaca;
+}
+
+.optional-hint {
+    font-weight: 400;
+    opacity: 0.85;
+    font-size: 0.88em;
 }
 
 @keyframes successGlow {
@@ -954,6 +1158,14 @@ textarea {
     opacity: 0.9;
 }
 
+.lead-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+}
+
 .lead-card-header {
     display: flex;
     justify-content: space-between;
@@ -962,10 +1174,11 @@ textarea {
 }
 
 .lead-card-name {
-    font-size: 1.05em;
-    font-weight: 700;
+    font-size: 1.2em;
+    font-weight: 800;
     color: #fff;
-    line-height: 1.3;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -983,13 +1196,33 @@ textarea {
     align-items: center;
 }
 
+.lead-card-priorities {
+    margin-top: 2px;
+}
+
+.lead-card-date {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 500;
+    margin-top: 2px;
+}
+
 .lead-card-assign {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 6px;
     min-width: 0;
+}
+
+.lead-card-assign--compact {
+    margin-top: 4px;
+}
+
+.lead-card-assign--compact .assign-dropdown {
+    width: 100%;
+    max-width: 100%;
 }
 
 .assign-chip {
@@ -1062,10 +1295,12 @@ textarea {
 }
 
 .lead-card-phone {
-    font-size: 1em;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
+    color: rgba(255, 255, 255, 0.88);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .lead-card-details {
@@ -1107,22 +1342,55 @@ textarea {
     min-width: 0;
 }
 
+.priority-chips--kanban {
+    gap: 5px;
+    min-width: 0;
+}
+
 .priority-chip {
     display: inline-flex;
     align-items: center;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 0.75em;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.95);
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    border: 1px solid transparent;
+}
+
+.priority-chip--quality {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.priority-chip--price {
+    background: linear-gradient(135deg, #22c55e, #15803d);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.priority-chip--design {
+    background: linear-gradient(135deg, #ec4899, #be185d);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.priority-chip--warranty {
+    background: linear-gradient(135deg, #14b8a6, #0f766e);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.priority-chip--safety {
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.priority-chip--default {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .lead-field--priorities {
@@ -1143,13 +1411,6 @@ textarea {
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-}
-
-.lead-card-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
 }
 
 .lead-card .badge {
@@ -1196,6 +1457,11 @@ textarea {
     color: white;
 }
 
+.badge-preparing {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+}
+
 .badge-instagram {
     background: linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045);
 }
@@ -1221,6 +1487,33 @@ textarea {
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.lead-card-actions .btn-done.btn-card,
+.lead-card-actions .btn-not.btn-card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    border-radius: 8px;
+    line-height: 1.2;
+}
+
+.lead-card-actions .btn-card-icon {
+    flex-shrink: 0;
+    opacity: 0.95;
+}
+
+.lead-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    justify-content: flex-end;
 }
 
 .btn-done {

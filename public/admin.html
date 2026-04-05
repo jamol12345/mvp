@@ -98,7 +98,7 @@
                     <button id="addClientBtn" class="add-client-btn" style="display: none;" data-i18n="addClientBtn">Добавить</button>
                 </div>
             </div>
-            <div id="leadsTableWrapper" class="glass" style="display: none;">
+            <div id="leadsTableWrapper" class="glass leads-kanban-wrap" style="display: none;">
                 <div id="kanbanBoard" class="kanban-board">
                     <div class="kanban-column" data-stage="new">
                         <div class="kanban-column-header">
@@ -107,7 +107,7 @@
                                 <span class="stage-counter counter-new" data-stage="new">0</span>
                             </div>
                         </div>
-                        <div class="kanban-column-cards" id="kanbanColNew"></div>
+                        <div class="kanban-column-cards column-content" id="kanbanColNew"></div>
                     </div>
                     <div class="kanban-column" data-stage="in_progress">
                         <div class="kanban-column-header">
@@ -116,7 +116,7 @@
                                 <span class="stage-counter counter-in_progress" data-stage="in_progress">0</span>
                             </div>
                         </div>
-                        <div class="kanban-column-cards" id="kanbanColInProgress"></div>
+                        <div class="kanban-column-cards column-content" id="kanbanColInProgress"></div>
                     </div>
                     <div class="kanban-column" data-stage="thinking">
                         <div class="kanban-column-header">
@@ -125,7 +125,7 @@
                                 <span class="stage-counter counter-thinking" data-stage="thinking">0</span>
                             </div>
                         </div>
-                        <div class="kanban-column-cards" id="kanbanColThinking"></div>
+                        <div class="kanban-column-cards column-content" id="kanbanColThinking"></div>
                     </div>
                     <div class="kanban-column" data-stage="successful">
                         <div class="kanban-column-header">
@@ -134,16 +134,16 @@
                                 <span class="stage-counter counter-successful" data-stage="successful">0</span>
                             </div>
                         </div>
-                        <div class="kanban-column-cards" id="kanbanColSuccessful"></div>
+                        <div class="kanban-column-cards column-content" id="kanbanColSuccessful"></div>
                     </div>
-                    <div class="kanban-column" data-stage="rejected">
+                    <div class="kanban-column" data-stage="preparing">
                         <div class="kanban-column-header">
                             <div class="stage-header">
-                                <span class="stage-title">Отказ</span>
-                                <span class="stage-counter counter-rejected" data-stage="rejected">0</span>
+                                <span class="stage-title">Готовится</span>
+                                <span class="stage-counter counter-preparing" data-stage="preparing">0</span>
                             </div>
                         </div>
-                        <div class="kanban-column-cards" id="kanbanColRejected"></div>
+                        <div class="kanban-column-cards column-content" id="kanbanColPreparing"></div>
                     </div>
                 </div>
             </div>
@@ -246,35 +246,12 @@
             <div class="modal-body">
                 <form id="addClientForm">
                     <div class="form-group">
-                        <label for="addFullName" data-i18n="fullNameLabel">ФИО</label>
-                        <input type="text" id="addFullName" name="fullName" class="glass-input" required placeholder="Введите ФИО" data-i18n-placeholder="fullNamePlaceholder">
+                        <label for="addFullName"><span data-i18n="fullNameLabel">ФИО</span> <span class="optional-hint" data-i18n="addClientFullNameHint">(необязательно)</span></label>
+                        <input type="text" id="addFullName" name="fullName" class="glass-input" placeholder="Введите ФИО" data-i18n-placeholder="fullNamePlaceholder">
                     </div>
                     <div class="form-group">
-                        <label for="addDoorType" data-i18n="doorTypeLabel">Тип двери</label>
-                        <select id="addDoorType" name="doorType" class="glass-input" required>
-                            <option value="" data-i18n="doorTypePlaceholder">Выберите тип двери</option>
-                            <option value="Standard Door" data-i18n="doorTypeStandard">Стандартная дверь</option>
-                            <option value="Premium Door" data-i18n="doorTypePremium">Премиум дверь</option>
-                            <option value="Custom Door" data-i18n="doorTypeCustom">Индивидуальная дверь</option>
-                        </select>
-                    </div>
-                    <div class="form-row form-row--length-width">
-                        <div class="form-group">
-                            <label for="addLength"><span data-i18n="lengthLabel">Длина</span> <span class="required">*</span></label>
-                            <input type="number" id="addLength" name="length" class="glass-input" required min="1" step="1" placeholder="см" data-i18n-placeholder="lengthPlaceholder">
-                        </div>
-                        <div class="form-group">
-                            <label for="addWidth"><span data-i18n="widthLabel">Ширина</span> <span class="required">*</span></label>
-                            <input type="number" id="addWidth" name="width" class="glass-input" required min="1" step="1" placeholder="см" data-i18n-placeholder="widthPlaceholder">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="addDobor" data-i18n="doborLabel">Добор</label>
-                        <input type="text" id="addDobor" name="dobor" class="glass-input" placeholder="" data-i18n-placeholder="doborPlaceholder">
-                    </div>
-                    <div class="form-group">
-                        <label for="addPhoneNumber" data-i18n="phoneLabel">Телефон</label>
-                        <input type="tel" id="addPhoneNumber" name="phoneNumber" class="glass-input" required placeholder="Введите телефон" data-i18n-placeholder="phonePlaceholder">
+                        <label for="addPhone"><span data-i18n="phoneLabel">Телефон</span> <span class="required">*</span></label>
+                        <input type="tel" id="addPhone" name="phone" class="glass-input" required placeholder="Введите телефон" data-i18n-placeholder="phonePlaceholder" autocomplete="tel">
                     </div>
                     <div class="form-group">
                         <label for="addSource"><span data-i18n="sourceLabel">Источник клиента</span> <span class="required">*</span></label>
@@ -287,8 +264,8 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label data-i18n="prioritiesLabel">Приоритет клиента</label> <span class="required">*</span>
-                        <p class="priority-hint" data-i18n="priorityHint">Выберите ровно 2 варианта</p>
+                        <label><span data-i18n="prioritiesLabel">Приоритет клиента</span></label>
+                        <p class="priority-hint" data-i18n="addClientPriorityHint">Выберите один или несколько вариантов</p>
                         <div class="priority-buttons priority-buttons--checkboxes" id="addPriorityButtons" role="group" aria-label="Приоритет">
                             <button type="button" class="priority-btn priority-btn--check" data-value="Качество и надежность" data-i18n="priorityQuality">Качество и надежность</button>
                             <button type="button" class="priority-btn priority-btn--check" data-value="Цена" data-i18n="priorityPrice">Цена</button>
@@ -296,7 +273,6 @@
                             <button type="button" class="priority-btn priority-btn--check" data-value="Гарантии и сервис" data-i18n="priorityWarrantyService">Гарантии и сервис</button>
                             <button type="button" class="priority-btn priority-btn--check" data-value="Надежность и безопасность" data-i18n="prioritySafety">Надежность и безопасность</button>
                         </div>
-                        <p id="addPriorityError" class="field-error" style="display: none;" data-i18n="errorPriorityRequired"></p>
                     </div>
                     <div class="modal-actions">
                         <button type="button" class="btn-cancel" id="cancelAddClient" data-i18n="cancelBtn">Отмена</button>
@@ -375,6 +351,27 @@
         </div>
     </div>
 
+    <!-- Modal: date when moving to preparing -->
+    <div id="preparingDateModal" class="modal" style="display: none;">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2 id="preparingDateModalTitle" data-i18n="preparingDateTitle">Дата готовности объекта</h2>
+                <button type="button" class="modal-close" id="closePreparingDateModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="preparingDateError" class="field-error" style="display: none;"></p>
+                <div class="form-group">
+                    <label for="preparingReadyDateInput"><span data-i18n="preparingReadyLabel">Ожидаемая дата готовности</span> <span class="required">*</span></label>
+                    <input type="date" id="preparingReadyDateInput" class="glass-input" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelPreparingDate" data-i18n="cancelBtn">Отмена</button>
+                    <button type="button" class="btn-submit" id="confirmPreparingDate" data-i18n="confirmBtn">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let adminToken = null;
         let userRole = null;
@@ -383,9 +380,10 @@
         let allActiveLeads = [];
         let currentLang = 'ru';
         let lastNotificationCount = 0;
-        const KANBAN_STAGES = ['new', 'in_progress', 'thinking', 'successful', 'rejected'];
+        const KANBAN_STAGES = ['new', 'in_progress', 'thinking', 'successful', 'preparing'];
         let kanbanSortables = [];
         let pendingSuccessDrop = null;
+        let pendingPreparingAction = null;
 
         const LANG_KEY = 'crm_lang';
         const translations = {
@@ -409,12 +407,22 @@
                 stageInProgress: 'В работе',
                 stageThinking: 'Думает',
                 stageSuccessful: 'Успешно',
-                stageRejected: 'Отказ',
+                stagePreparing: 'Готовится',
                 stageBadgeNew: 'Новый клиент',
                 stageBadgeInProgress: 'В работе',
                 stageBadgeThinking: 'Думает',
                 stageBadgeSuccessful: 'Успешно',
-                stageBadgeRejected: 'Отказ',
+                stageBadgePreparing: 'Готовится',
+                preparingDateTitle: 'Дата готовности объекта',
+                preparingDateEditTitle: 'Изменить дату готовности',
+                preparingReadyLabel: 'Ожидаемая дата готовности объекта',
+                preparingBadge: 'Готовится',
+                preparingReadyShort: 'Готовность:',
+                preparingExpired: 'Срок истёк',
+                preparingToday: 'Сегодня',
+                preparingOverdue: 'Просрочено',
+                preparingDateRequired: 'Укажите дату.',
+                editReadyDateAria: 'Изменить дату',
                 stalledDay1: '1 день без движения',
                 stalledDays2_4: 'дня без движения',
                 stalledDays5: 'дней без движения',
@@ -442,6 +450,9 @@
                 averageDealLabel: 'Средний чек',
                 conversionLabel: 'Конверсия %',
                 addClientTitle: 'Добавить клиента',
+                addClientFullNameHint: '(необязательно)',
+                addClientPriorityHint: 'Выберите один или несколько вариантов',
+                validationPhoneRequired: 'Укажите номер телефона.',
                 fullNameLabel: 'ФИО',
                 fullNamePlaceholder: 'Введите ФИО',
                 doorTypeLabel: 'Тип двери',
@@ -551,12 +562,22 @@
                 stageInProgress: 'Jarayonda',
                 stageThinking: 'O‘ylanyapti',
                 stageSuccessful: 'Muvaffaqiyatli',
-                stageRejected: 'Rad etilgan',
+                stagePreparing: 'Tayyorlanmoqda',
                 stageBadgeNew: 'Yangi mijoz',
                 stageBadgeInProgress: 'Jarayonda',
                 stageBadgeThinking: 'O‘ylanyapti',
                 stageBadgeSuccessful: 'Muvaffaqiyatli',
-                stageBadgeRejected: 'Rad etilgan',
+                stageBadgePreparing: 'Tayyorlanmoqda',
+                preparingDateTitle: 'Ob’ekt tayyor bo‘lish sanasi',
+                preparingDateEditTitle: 'Tayyorlik sanasini o‘zgartirish',
+                preparingReadyLabel: 'Kutilayotgan tayyorlik sanasi',
+                preparingBadge: 'Tayyorlanmoqda',
+                preparingReadyShort: 'Tayyorlik:',
+                preparingExpired: 'Muddati o‘tdi',
+                preparingToday: 'Bugun',
+                preparingOverdue: 'Muddati o‘tgan',
+                preparingDateRequired: 'Sanani kiriting.',
+                editReadyDateAria: 'Sanani o‘zgartirish',
                 stalledDay1: '1 kun harakatsiz',
                 stalledDays2_4: 'kun harakatsiz',
                 stalledDays5: 'kun harakatsiz',
@@ -584,6 +605,9 @@
                 averageDealLabel: 'O\'rtacha check',
                 conversionLabel: 'Konversiya %',
                 addClientTitle: 'Mijoz qo‘shish',
+                addClientFullNameHint: '(ixtiyoriy)',
+                addClientPriorityHint: 'Bitta yoki bir nechta variantni tanlang',
+                validationPhoneRequired: 'Telefon raqamini kiriting.',
                 fullNameLabel: 'F.I.Sh.',
                 fullNamePlaceholder: 'F.I.Sh. kiriting',
                 doorTypeLabel: 'Eshik turi',
@@ -879,13 +903,8 @@
         if (addClientBtn) {
         addClientBtn.addEventListener('click', () => {
             document.getElementById('addFullName').value = '';
-            document.getElementById('addLength').value = '';
-            document.getElementById('addWidth').value = '';
-            document.getElementById('addDobor').value = '';
-            document.getElementById('addDoorType').value = '';
-            document.getElementById('addPhoneNumber').value = '';
+            document.getElementById('addPhone').value = '';
             document.getElementById('addSource').value = 'manual';
-            document.getElementById('addPriorityError').style.display = 'none';
             document.querySelectorAll('#addPriorityButtons .priority-btn').forEach(b => {
                 b.classList.remove('active', 'priority-btn--disabled');
             });
@@ -913,65 +932,29 @@
         document.getElementById('addPriorityButtons').addEventListener('click', (e) => {
             const btn = e.target.closest('.priority-btn');
             if (!btn) return;
-            const container = document.getElementById('addPriorityButtons');
-            const all = container.querySelectorAll('.priority-btn');
-            if (btn.classList.contains('active')) {
-                btn.classList.remove('active');
-            } else if (container.querySelectorAll('.priority-btn.active').length < 2) {
-                btn.classList.add('active');
-            }
-            const nowSelected = container.querySelectorAll('.priority-btn.active');
-            all.forEach(b => {
-                b.classList.toggle('priority-btn--disabled', !b.classList.contains('active') && nowSelected.length >= 2);
-            });
+            btn.classList.toggle('active');
         });
 
         document.getElementById('addClientForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            document.getElementById('addPriorityError').style.display = 'none';
             const fullName = document.getElementById('addFullName').value.trim();
-            const doorType = document.getElementById('addDoorType').value;
-            const lengthRaw = document.getElementById('addLength').value.trim();
-            const widthRaw = document.getElementById('addWidth').value.trim();
-            const lengthNum = lengthRaw === '' ? NaN : Number(lengthRaw);
-            const widthNum = widthRaw === '' ? NaN : Number(widthRaw);
-            const dobor = document.getElementById('addDobor').value.trim();
-            const phoneNumber = document.getElementById('addPhoneNumber').value.trim();
+            const phone = document.getElementById('addPhone').value.trim();
             const source = document.getElementById('addSource').value;
             const priorityBtns = document.querySelectorAll('#addPriorityButtons .priority-btn.active');
             const prioritiesArray = Array.from(priorityBtns).map(b => (b.getAttribute('data-value') || '').trim()).filter(Boolean);
-            if (!fullName || !doorType || !phoneNumber) {
-                alert(t('validationFillFields'));
-                return;
-            }
-            if (typeof lengthNum !== 'number' || isNaN(lengthNum) || lengthNum <= 0 || !/^\d*\.?\d*$/.test(lengthRaw)) {
-                alert(t('errorLengthRequired') || 'Введите корректную длину (число больше 0).');
-                return;
-            }
-            if (typeof widthNum !== 'number' || isNaN(widthNum) || widthNum <= 0 || !/^\d*\.?\d*$/.test(widthRaw)) {
-                alert(t('errorWidthRequired') || 'Введите корректную ширину (число больше 0).');
-                return;
-            }
-            if (prioritiesArray.length !== 2) {
-                document.getElementById('addPriorityError').textContent = t('errorPriorityRequired') || 'Выберите ровно 2 приоритета.';
-                document.getElementById('addPriorityError').style.display = 'block';
+            if (!phone) {
+                alert(t('validationPhoneRequired'));
                 return;
             }
             if (!source) {
                 alert(t('validationSelectSource'));
                 return;
             }
-            const measurements = lengthNum + ' x ' + widthNum;
             const payload = {
                 fullName,
-                phoneNumber,
-                doorType,
-                length: lengthNum,
-                width: widthNum,
-                dobor,
+                phone,
                 priorities: prioritiesArray,
-                source: source || 'manual',
-                measurements
+                source: source || 'manual'
             };
             try {
                 const response = await fetch(getApiBase() + '/api/admin/leads', {
@@ -1410,72 +1393,100 @@
             }
         });
 
+        function getPriorityChipClass(priority) {
+            const map = {
+                'Качество и надежность': 'priority-chip--quality',
+                'Цена': 'priority-chip--price',
+                'Дизайн и стиль': 'priority-chip--design',
+                'Гарантии и сервис': 'priority-chip--warranty',
+                'Надежность и безопасность': 'priority-chip--safety'
+            };
+            return map[priority] || 'priority-chip--default';
+        }
+
+        function formatLeadCardDateTime(createdAt) {
+            if (!createdAt) return '';
+            const d = new Date(createdAt);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
         function buildLeadCardHTML(lead, index) {
             const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
             const stage = lead.stage || 'new';
-            const isNew = stage === 'new';
-            const date = new Date(lead.createdAt).toLocaleString();
+            const createdCompact = formatLeadCardDateTime(lead.createdAt);
             const prioritiesArr = lead.priorities && Array.isArray(lead.priorities) ? lead.priorities : [];
             const prioritiesChipsHTML = prioritiesArr.length > 0
-                ? prioritiesArr.map(p => `<span class="priority-chip">${escapeHtml(getPriorityDisplay(p))}</span>`).join('')
+                ? prioritiesArr.map(p => `<span class="priority-chip ${getPriorityChipClass(p)}">${escapeHtml(getPriorityDisplay(p))}</span>`).join('')
                 : '';
-            const stageBadge = renderStageBadge(stage);
-            const source = lead.source || 'website';
-            const sourceBadge = renderSourceBadge(source);
-            const doorTypeDisplay = getDoorTypeDisplay(lead.doorType);
-            return `
-                <div class="lead-card-header">
+            const preparingBlock = stage === 'preparing' ? (function() {
+                const idAttr = escapeHtml(String(lead._id));
+                const ready = lead.readyDate != null && String(lead.readyDate).trim() !== '' ? new Date(lead.readyDate) : null;
+                const hasValidReady = ready && !isNaN(ready.getTime());
+                const dateStr = hasValidReady ? ready.toLocaleDateString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU') : '';
+                const daysLeft = getPreparingDaysLeft(lead);
+                const showTimer = hasValidReady && daysLeft !== null && !isNaN(daysLeft);
+                const timerText = showTimer ? formatDaysLeftCountdown(daysLeft) : '';
+                const dateLineHtml = dateStr
+                    ? `<span class="preparing-date-line">${escapeHtml(dateStr)}</span>`
+                    : '';
+                const timerHtml = showTimer && timerText
+                    ? `<span class="preparing-countdown">${escapeHtml(timerText)}</span>`
+                    : '';
+                return `
+                <div class="lead-card-preparing-top">
+                    <span class="preparing-badge">${escapeHtml(t('preparingBadge'))}</span>
+                    <button type="button" class="btn-preparing-edit" data-lead-id="${idAttr}" title="${escapeHtml(t('editReadyDateAria'))}" aria-label="${escapeHtml(t('editReadyDateAria'))}">
+                        <svg class="preparing-edit-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                </div>
+                <div class="lead-card-preparing-meta">
+                    ${dateLineHtml}
+                    ${timerHtml}
+                </div>`;
+            })() : '';
+            const assignBlock = (function() {
+                const isBoss = userRole === 'manager' || userRole === 'boss';
+                if (isBoss) {
+                    const keys = ['anvar', 'akbar', 'davron'];
+                    const isAssigned = lead.assignedTo && keys.includes(lead.assignedTo);
+                    const options = keys.map(k => `<option value="${escapeHtml(k)}" ${lead.assignedTo === k ? 'selected' : ''}>${escapeHtml(getManagerLabel(k))}</option>`).join('');
+                    const sid = escapeHtml(String(lead._id));
+                    return `<div class="lead-card-assign lead-card-assign--compact"><select id="assign-select-${sid}" class="assign-select assign-dropdown" data-lead-id="${lead._id}" aria-label="${escapeHtml(t('assignLabel'))}"><option value="" ${!isAssigned ? 'selected' : ''}>${escapeHtml(t('assignUnassigned'))}</option>${options}</select></div>`;
+                }
+                if (userKey && lead.assignedTo === userKey) {
+                    return `<div class="lead-card-assign lead-card-assign--compact"><span class="badge badge-assigned">${t('yourClient')}</span></div>`;
+                }
+                return '';
+            })();
+            const stalledHtml = (function() {
+                const stalled = isStalled(lead);
+                if (stalled) {
+                    const days = getDaysInStage(lead);
+                    return `<div class="stalled-badge">${escapeHtml(getStalledBadgeText(days))}</div>`;
+                }
+                return '';
+            })();
+            const doneIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+            const archIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1zM10 12h4"/></svg>';
+            return `${preparingBlock}
+                <div class="lead-card-body">
                     <div class="lead-card-name">${escapeHtml(fullName)}</div>
-                    <div class="lead-card-source">${sourceBadge}</div>
-                </div>
-                <div class="lead-card-meta">
-                    <div class="lead-card-phone">${escapeHtml(lead.phoneNumber)}</div>
-                    <div class="lead-card-label">${stageBadge}</div>
-                </div>
-                ${(function() {
-                    const isBoss = userRole === 'manager' || userRole === 'boss';
-                    if (isBoss) {
-                        const keys = ['anvar', 'akbar', 'davron'];
-                        const isAssigned = lead.assignedTo && keys.includes(lead.assignedTo);
-                        const chipText = isAssigned ? ('👤 ' + t('assignLabelAssigned') + ' ' + getManagerLabel(lead.assignedTo)) : ('👤 ' + t('assignUnassigned'));
-                        const options = keys.map(k => `<option value="${escapeHtml(k)}" ${lead.assignedTo === k ? 'selected' : ''}>${escapeHtml(getManagerLabel(k))}</option>`).join('');
-                        return `<div class="lead-card-assign"><div class="assign-chip" title="${escapeHtml(chipText)}">${escapeHtml(chipText)}</div><select class="assign-select assign-dropdown" data-lead-id="${lead._id}" aria-label="${t('assignLabel')}"><option value="" ${!isAssigned ? 'selected' : ''}>${t('assignUnassigned')}</option>${options}</select></div>`;
-                    }
-                    if (userKey && lead.assignedTo === userKey) {
-                        return `<div class="lead-card-assign"><span class="badge badge-assigned">${t('yourClient')}</span></div>`;
-                    }
-                    return '';
-                })()}
-                <div class="lead-card-details">
-                    <div class="lead-field">
-                        <span class="field-label">${t('thDoorType')}</span>
-                        <span class="field-value">${escapeHtml(doorTypeDisplay || '—')}</span>
+                    <div class="lead-card-phone">${escapeHtml(lead.phoneNumber || '')}</div>
+                    ${prioritiesChipsHTML ? `<div class="lead-card-priorities"><div class="priority-chips priority-chips--kanban">${prioritiesChipsHTML}</div></div>` : ''}
+                    ${assignBlock}
+                    ${createdCompact ? `<div class="lead-card-date">${escapeHtml(createdCompact)}</div>` : ''}
+                    ${stalledHtml}
+                    <div class="lead-card-actions">
+                        <button type="button" class="btn-done btn-card" onclick="handleDone('${lead._id}')">${doneIcon}<span>${t('doneBtn')}</span></button>
+                        <button type="button" class="btn-not btn-card" onclick="handleNot('${lead._id}')">${archIcon}<span>${t('archiveBtn')}</span></button>
                     </div>
-                    <div class="lead-field">
-                        <span class="field-label">${t('sizeLabel')}</span>
-                        <span class="field-value">${escapeHtml((lead.length != null && lead.width != null && (Number(lead.length) !== 0 || Number(lead.width) !== 0)) ? (lead.length + ' x ' + lead.width) : (lead.measurements || '—'))}</span>
-                    </div>
-                    <div class="lead-field">
-                        <span class="field-label">${t('thDobor')}</span>
-                        <span class="field-value">${escapeHtml(lead.dobor != null && String(lead.dobor).trim() !== '' ? lead.dobor : '—')}</span>
-                    </div>
-                    <div class="lead-field">
-                        <span class="field-label">${t('thSubmitted')}</span>
-                        <span class="field-value">${escapeHtml(date)}</span>
-                    </div>
-                    ${prioritiesChipsHTML ? `<div class="lead-field lead-field--priorities"><span class="field-label">${t('thPriorities')}</span><div class="priority-chips">${prioritiesChipsHTML}</div></div>` : ''}
-                </div>
-                ${(function() {
-                    const stalled = isStalled(lead);
-                    if (stalled) {
-                        const days = getDaysInStage(lead);
-                        return `<div class="stalled-badge">${escapeHtml(getStalledBadgeText(days))}</div>`;
-                    }
-                    return '';
-                })()}
-                <div class="lead-card-actions">
-                    <button class="btn-done" onclick="handleDone('${lead._id}')">${t('doneBtn')}</button>
-                    <button class="btn-not" onclick="handleNot('${lead._id}')">${t('archiveBtn')}</button>
                 </div>
             `;
         }
@@ -1485,7 +1496,14 @@
             const stage = lead.stage || 'new';
             const isNew = stage === 'new';
             const stalled = isStalled(lead);
-            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}`;
+            const dl = stage === 'preparing' ? getPreparingDaysLeft(lead) : null;
+            let prepStateClass = '';
+            if (stage === 'preparing' && dl !== null && typeof dl === 'number' && !isNaN(dl)) {
+                if (dl < 0) prepStateClass = ' overdue';
+                else if (dl === 0) prepStateClass = ' urgent';
+                else if (dl === 1) prepStateClass = ' warning';
+            }
+            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}${prepStateClass}`;
             card.setAttribute('data-lead-id', lead._id);
             card.style.animationDelay = `${index * 0.05}s`;
             card.innerHTML = buildLeadCardHTML(lead, index);
@@ -1493,12 +1511,12 @@
         }
 
         function getKanbanColId(stage) {
-            const map = { new: 'kanbanColNew', in_progress: 'kanbanColInProgress', thinking: 'kanbanColThinking', successful: 'kanbanColSuccessful', rejected: 'kanbanColRejected' };
+            const map = { new: 'kanbanColNew', in_progress: 'kanbanColInProgress', thinking: 'kanbanColThinking', successful: 'kanbanColSuccessful', preparing: 'kanbanColPreparing' };
             return map[stage] || 'kanbanColNew';
         }
 
         function getStageDisplayKey(stage) {
-            const keys = { new: 'stageNew', in_progress: 'stageInProgress', thinking: 'stageThinking', successful: 'stageSuccessful', rejected: 'stageRejected' };
+            const keys = { new: 'stageNew', in_progress: 'stageInProgress', thinking: 'stageThinking', successful: 'stageSuccessful', preparing: 'stagePreparing' };
             return keys[stage] || 'stageNew';
         }
 
@@ -1515,7 +1533,7 @@
 
         function isStalled(lead) {
             const stage = lead.stage || 'new';
-            if (stage === 'successful' || stage === 'rejected') return false;
+            if (stage === 'successful' || stage === 'preparing') return false;
             return getDaysInStage(lead) > STALLED_DAYS_THRESHOLD;
         }
 
@@ -1524,6 +1542,32 @@
             if (days === 1) return '⚠ ' + t('stalledDay1');
             if (days >= 2 && days <= 4) return '⚠ ' + days + ' ' + t('stalledDays2_4');
             return '⚠ ' + days + ' ' + t('stalledDays5');
+        }
+
+        function getPreparingDaysLeft(lead) {
+            if (!lead || lead.readyDate == null || String(lead.readyDate).trim() === '') return null;
+            const ready = new Date(lead.readyDate);
+            const now = new Date();
+            if (!ready || isNaN(ready.getTime())) return null;
+            const diff = ready.getTime() - now.getTime();
+            const daysLeft = Math.ceil(diff / DAY_MS);
+            if (typeof daysLeft !== 'number' || isNaN(daysLeft)) return null;
+            return daysLeft;
+        }
+
+        function formatDaysLeftCountdown(days) {
+            if (days === null || days === undefined || typeof days !== 'number' || isNaN(days)) return '';
+            if (days < 0) return t('preparingOverdue');
+            if (days === 0) return t('preparingToday');
+            if (currentLang === 'uz') {
+                return 'Qoldi: ' + days + ' kun';
+            }
+            const mod10 = days % 10;
+            const mod100 = days % 100;
+            let word = 'дней';
+            if (mod10 === 1 && mod100 !== 11) word = 'день';
+            else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = 'дня';
+            return 'Осталось ' + days + ' ' + word;
         }
 
         function updateStageCounters() {
@@ -1575,14 +1619,34 @@
             kanbanSortables = [];
         }
 
+        function clearKanbanColumnDragOver() {
+            document.querySelectorAll('.kanban-column.drag-over').forEach((col) => col.classList.remove('drag-over'));
+        }
+
         function initKanbanSortables() {
             if (typeof Sortable === 'undefined') return;
+            const boardEl = document.getElementById('kanbanBoard');
             const containers = document.querySelectorAll('.kanban-column-cards');
             containers.forEach(el => {
                 const sortable = Sortable.create(el, {
                     group: { name: 'kanban', pull: true, put: true },
-                    animation: 150,
+                    animation: 180,
+                    dragClass: 'lead-card--drag',
+                    ghostClass: 'lead-card--ghost',
+                    chosenClass: 'lead-card--chosen',
+                    onStart() {
+                        clearKanbanColumnDragOver();
+                        if (boardEl) boardEl.classList.add('kanban-board--dragging');
+                    },
+                    onMove(evt) {
+                        clearKanbanColumnDragOver();
+                        const col = evt.to && evt.to.closest ? evt.to.closest('.kanban-column') : null;
+                        if (col) col.classList.add('drag-over');
+                        return true;
+                    },
                     onEnd: async (evt) => {
+                        clearKanbanColumnDragOver();
+                        if (boardEl) boardEl.classList.remove('kanban-board--dragging');
                         const leadId = evt.item.getAttribute('data-lead-id');
                         const toColumn = evt.to.closest('.kanban-column');
                         const newStage = toColumn ? toColumn.getAttribute('data-stage') : null;
@@ -1596,6 +1660,12 @@
                             return;
                         }
 
+                        if (newStage === 'preparing') {
+                            pendingPreparingAction = { type: 'drag', leadId, fromEl: evt.from, oldIndex: evt.oldIndex, item: evt.item };
+                            openPreparingDateModalForDrag();
+                            return;
+                        }
+
                         try {
                             const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/stage', {
                                 method: 'PATCH',
@@ -1604,7 +1674,7 @@
                             });
                             const data = await res.json();
                             if (res.ok) {
-                                if (data.lead && (data.lead.status === 'done' || newStage === 'successful' || newStage === 'rejected')) {
+                                if (data.lead && (data.lead.status === 'done' || newStage === 'successful')) {
                                     allActiveLeads = allActiveLeads.filter(l => l._id !== leadId);
                                 } else {
                                     const idx = allActiveLeads.findIndex(l => l._id === leadId);
@@ -1703,12 +1773,12 @@
         }
 
         function getStageBadgeDisplay(stage) {
-            const keys = { new: 'stageBadgeNew', in_progress: 'stageBadgeInProgress', thinking: 'stageBadgeThinking', successful: 'stageBadgeSuccessful', rejected: 'stageBadgeRejected' };
+            const keys = { new: 'stageBadgeNew', in_progress: 'stageBadgeInProgress', thinking: 'stageBadgeThinking', successful: 'stageBadgeSuccessful', preparing: 'stageBadgePreparing' };
             return t(keys[stage || 'new'] || 'stageBadgeNew');
         }
 
         function getStageBadgeClass(stage) {
-            const map = { new: 'badge-new', in_progress: 'badge-call-back', thinking: 'badge-call-back', successful: 'badge-successful', rejected: 'badge-rejected' };
+            const map = { new: 'badge-new', in_progress: 'badge-call-back', thinking: 'badge-call-back', successful: 'badge-successful', preparing: 'badge-preparing' };
             return map[stage] || 'badge-new';
         }
 
@@ -1767,19 +1837,6 @@
             };
             if (map[priority]) return t(map[priority]) || priority;
             return priority || '—';
-        }
-
-        function getDoorTypeDisplay(doorType) {
-            switch (doorType) {
-                case 'Standard Door':
-                    return t('doorTypeStandard');
-                case 'Premium Door':
-                    return t('doorTypePremium');
-                case 'Custom Door':
-                    return t('doorTypeCustom');
-                default:
-                    return doorType || '—';
-            }
         }
 
         function showError(message) {
@@ -2047,6 +2104,152 @@
                 successCommentErrorEl.style.display = 'block';
             }
         });
+
+        // Preparing date modal (drag to preparing + edit date)
+        const preparingDateModalEl = document.getElementById('preparingDateModal');
+        const preparingReadyDateInput = document.getElementById('preparingReadyDateInput');
+        const preparingDateErrorEl = document.getElementById('preparingDateError');
+
+        function revertPreparingDrop() {
+            if (!pendingPreparingAction || pendingPreparingAction.type !== 'drag') return;
+            const { fromEl, oldIndex, item } = pendingPreparingAction;
+            const child = fromEl.children[oldIndex];
+            if (child) {
+                fromEl.insertBefore(item, child);
+            } else {
+                fromEl.appendChild(item);
+            }
+        }
+
+        function openPreparingDateModalForDrag() {
+            if (!pendingPreparingAction || pendingPreparingAction.type !== 'drag') return;
+            document.getElementById('preparingDateModalTitle').textContent = t('preparingDateTitle');
+            preparingReadyDateInput.value = '';
+            preparingDateErrorEl.style.display = 'none';
+            preparingDateErrorEl.textContent = '';
+            preparingDateModalEl.style.display = 'flex';
+            setTimeout(() => preparingDateModalEl.classList.add('modal-open'), 10);
+        }
+
+        function openPreparingDateEdit(leadId) {
+            const lead = allActiveLeads.find(l => String(l._id) === String(leadId));
+            if (!lead || (lead.stage || 'new') !== 'preparing') return;
+            document.getElementById('preparingDateModalTitle').textContent = t('preparingDateEditTitle');
+            if (lead.readyDate) {
+                const d = new Date(lead.readyDate);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                preparingReadyDateInput.value = `${y}-${m}-${day}`;
+            } else {
+                preparingReadyDateInput.value = '';
+            }
+            preparingDateErrorEl.style.display = 'none';
+            preparingDateErrorEl.textContent = '';
+            pendingPreparingAction = { type: 'edit', leadId: String(leadId) };
+            preparingDateModalEl.style.display = 'flex';
+            setTimeout(() => preparingDateModalEl.classList.add('modal-open'), 10);
+        }
+
+        function closePreparingDateModal() {
+            preparingDateModalEl.classList.remove('modal-open');
+            setTimeout(() => {
+                preparingDateModalEl.style.display = 'none';
+                if (pendingPreparingAction && pendingPreparingAction.type === 'drag') {
+                    revertPreparingDrop();
+                }
+                pendingPreparingAction = null;
+            }, 300);
+        }
+
+        document.getElementById('closePreparingDateModal').addEventListener('click', closePreparingDateModal);
+        document.getElementById('cancelPreparingDate').addEventListener('click', closePreparingDateModal);
+        preparingDateModalEl.addEventListener('click', (e) => {
+            if (e.target.id === 'preparingDateModal') {
+                closePreparingDateModal();
+            }
+        });
+
+        document.getElementById('confirmPreparingDate').addEventListener('click', async () => {
+            const val = preparingReadyDateInput.value;
+            if (!val) {
+                preparingDateErrorEl.textContent = t('preparingDateRequired');
+                preparingDateErrorEl.style.display = 'block';
+                return;
+            }
+            if (!pendingPreparingAction) {
+                closePreparingDateModal();
+                return;
+            }
+            preparingDateErrorEl.style.display = 'none';
+
+            if (pendingPreparingAction.type === 'edit') {
+                const leadId = pendingPreparingAction.leadId;
+                try {
+                    const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/preparing-date', {
+                        method: 'PATCH',
+                        headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                        body: JSON.stringify({ readyDate: val })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        const idx = allActiveLeads.findIndex(l => String(l._id) === String(leadId));
+                        if (idx !== -1) allActiveLeads[idx] = data.lead;
+                        pendingPreparingAction = null;
+                        preparingDateModalEl.classList.remove('modal-open');
+                        preparingDateModalEl.style.display = 'none';
+                        displayKanbanLeads();
+                    } else {
+                        preparingDateErrorEl.textContent = data.error || t('errorNetwork');
+                        preparingDateErrorEl.style.display = 'block';
+                    }
+                } catch (e) {
+                    console.error(e);
+                    preparingDateErrorEl.textContent = t('errorNetwork');
+                    preparingDateErrorEl.style.display = 'block';
+                }
+                return;
+            }
+
+            if (pendingPreparingAction.type === 'drag') {
+                const leadId = pendingPreparingAction.leadId;
+                try {
+                    const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/stage', {
+                        method: 'PATCH',
+                        headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                        body: JSON.stringify({ stage: 'preparing', readyDate: val })
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                        const idx = allActiveLeads.findIndex(l => String(l._id) === String(leadId));
+                        if (idx !== -1) allActiveLeads[idx] = data.lead;
+                        pendingPreparingAction = null;
+                        preparingDateModalEl.classList.remove('modal-open');
+                        preparingDateModalEl.style.display = 'none';
+                        displayKanbanLeads();
+                    } else {
+                        preparingDateErrorEl.textContent = data.error || t('errorNetwork');
+                        preparingDateErrorEl.style.display = 'block';
+                    }
+                } catch (e) {
+                    console.error(e);
+                    preparingDateErrorEl.textContent = t('errorNetwork');
+                    preparingDateErrorEl.style.display = 'block';
+                }
+            }
+        });
+
+        const kanbanBoardEl = document.getElementById('kanbanBoard');
+        if (kanbanBoardEl) {
+            kanbanBoardEl.addEventListener('click', (e) => {
+                const btn = e.target.closest('.btn-preparing-edit');
+                if (!btn || !kanbanBoardEl.contains(btn)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const id = btn.getAttribute('data-lead-id');
+                if (id) openPreparingDateEdit(id);
+            });
+        }
 
         // ============================================
         // NOT ACTION (Archive)
