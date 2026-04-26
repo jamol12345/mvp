@@ -11,7 +11,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="top-bar">
+        <div class="top-bar top-bar--split">
             <div class="top-bar-left">
                 <div class="lang-switch" aria-label="Language">
                     <span class="lang-label" data-i18n="languageLabel">Язык</span>
@@ -34,6 +34,19 @@
                     </div>
                 </div>
             </div>
+            <div class="top-bar-right">
+                <div class="notif-bell-wrap" id="notifBellWrap" style="display: none;" aria-live="polite">
+                    <button type="button" class="notif-bell-btn" id="notifBellBtn" aria-label="Уведомления" title="Уведомления" data-i18n-aria="notifAria">
+                        <span class="notif-bell-emoji" aria-hidden="true">🔔</span>
+                        <span class="notif-bell-badge" id="notifBadge" style="display: none;">0</span>
+                    </button>
+                    <div id="notifDropdown" class="notif-dropdown" style="display: none;" role="menu" aria-label="Список уведомлений">
+                        <div class="notif-dropdown-header" data-i18n="notifTitle">Уведомления</div>
+                        <ul id="notifList" class="notif-list"></ul>
+                        <p class="notif-empty" id="notifEmpty" data-i18n="notifEmpty" style="display: none;">Нет уведомлений</p>
+                    </div>
+                </div>
+            </div>
         </div>
         <!-- Login Section (shown when not authenticated) -->
         <div id="loginSection" class="login-wrapper">
@@ -45,20 +58,19 @@
                     <p id="loginErrorText"></p>
                 </div>
 
-                <form id="loginForm">
+                <form id="loginForm" method="post" action="#" autocomplete="off" novalidate>
                     <div class="form-group">
                         <label for="adminToken" data-i18n="adminTokenLabel">Админ‑токен</label>
                         <input 
                             type="password" 
                             id="adminToken" 
-                            name="adminToken" 
-                            required 
+                            inputmode="text" 
                             placeholder="Введите админ‑токен"
                             data-i18n-placeholder="adminTokenPlaceholder"
                             autocomplete="off"
                         >
                     </div>
-                    <button type="submit" class="submit-btn" data-i18n="loginButton">Войти</button>
+                    <button type="submit" class="submit-btn" id="loginSubmitBtn" data-i18n="loginButton">Войти</button>
                 </form>
             </div>
         </div>
@@ -69,7 +81,8 @@
                 <h1 data-i18n="adminTitle">Админ‑панель — управление лидами</h1>
                 <div class="header-actions">
                     <a class='btn-link' data-i18n='viewArchive' href='done_calls.html'>Архив →</a>
-                    <button id="analyticsBtn" class="btn-link" style="display: none;" data-i18n="analyticsBtn">Аналитика</button>
+                    <button id="requestsBtn" class="btn-link" style="display: none;" data-i18n="requestsNav" type="button">Запросы</button>
+                    <button id="analyticsBtn" class="btn-link" style="display: none;" data-i18n="analyticsBtn" type="button">Аналитика</button>
                 </div>
             </div>
 
@@ -87,6 +100,13 @@
 
             <div id="newClientNotification" class="message info-message slide-in-top" style="display: none;">
                 <p id="newClientNotificationText">Появились новые клиенты. Обновите таблицу.</p>
+            </div>
+
+            <div id="managerPendingStrip" class="manager-pending-strip glass" style="display: none; margin-bottom: 12px;" aria-live="polite">
+                <div class="manager-pending-strip__head">
+                    <span class="manager-pending-strip__title" data-i18n="awaitingApprovalStrip">В согласовании (не в воронке)</span>
+                </div>
+                <div id="managerPendingChips" class="manager-pending-chips"></div>
             </div>
 
             <!-- Leads Table -->
@@ -229,6 +249,24 @@
                     </div>
                     <div class="analytics-legend" id="analyticsLegend" style=" flex: 1; min-width: 160px; font-size: 0.95em; line-height: 1.8;"></div>
                 </div>
+                </div>
+            </div>
+
+            <!-- Approvals: boss only (loaded via /api/admin/approvals) -->
+            <div id="requestsWrapper" class="requests-page glass" style="display: none; margin-top: 20px;">
+                <div class="requests-panel-outer">
+                    <div class="requests-panel-inner">
+                        <div class="requests-header-fixed">
+                            <div class="analytics-header">
+                                <a href="#" class="btn-link" id="requestsBack" data-i18n="backToActive">← Назад к активным</a>
+                            </div>
+                            <h3 class="requests-title" data-i18n="requestsTitle">Запросы</h3>
+                            <p class="requests-hint" data-i18n="requestsHint">Согласования от менеджеров</p>
+                        </div>
+                        <div class="requests-list-scroll">
+                            <div id="requestsList" class="requests-list requests-list--cards"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -376,8 +414,18 @@
         let adminToken = null;
         let userRole = null;
         let userKey = null;
+        let appRole = null; // BOSS | MANAGER from server
+        let userId = null;
         let pollIntervalId = null;
         let allActiveLeads = [];
+        let serverPendingApprovals = [];
+        const optimisticPendingByLead = new Map();
+        let notifStore = [];
+        const NOTIF_SINCE_KEY = 'crm_approval_feed_since';
+        const READ_NOTIF_IDS = 'crm_notif_read_ids';
+        let lockTickerInterval = null;
+        let notifFeedInterval = null;
+        let readNotifIdSet = new Set();
         let currentLang = 'ru';
         let lastNotificationCount = 0;
         const KANBAN_STAGES = ['new', 'in_progress', 'thinking', 'successful', 'preparing'];
@@ -398,6 +446,30 @@
                 viewArchive: 'Архив →',
                 backToActive: '← Назад к активным',
                 analyticsBtn: 'Аналитика',
+                requestsNav: 'Запросы',
+                requestsTitle: 'Запросы',
+                requestsHint: 'Согласования от менеджеров',
+                requestTypeDelete: 'Удаление / архив',
+                requestTypeClose: 'Закрытие сделки',
+                pendingApprovalMsg: 'Ожидает подтверждения',
+                requestApprove: 'Подтвердить',
+                requestReject: 'Отклонить',
+                requestsEmpty: 'Нет ожидающих запросов',
+                requestsLoadError: 'Не удалось загрузить запросы',
+                awaitingApprovalStrip: 'Согласование: скрыто из воронки до решения',
+                notifTitle: 'Уведомления',
+                notifEmpty: 'Пока пусто',
+                notifAria: 'Уведомления',
+                notifPendingRequest: 'Заявка отправлена',
+                notifBossApproved: 'Руководитель согласовал',
+                notifBossRejected: 'Руководитель отклонил',
+                notifNewBossRequests: 'Новые запросы на согласование',
+                lockWaitLabel: 'Ожидает',
+                lockSecUnit: 'сек',
+                lockCountdown: 'Ожидает {n} сек',
+                managerRequestedBy: 'Кто запросил',
+                approvalCardDelete: 'Удаление',
+                approvalCardClose: 'Закрытие сделки',
                 addClientBtn: 'Добавить',
                 logoutBtn: 'Выйти',
                 accountTitle: 'Аккаунт',
@@ -524,6 +596,7 @@
                 assignLabelAssigned: 'Назначено:',
                 assignedToYou: 'Назначено вам',
                 yourClient: 'Ваш клиент',
+                pinnedToManager: 'Закреплен за:',
                 roleManager: 'Босс‑менеджер',
                 roleCallManager: 'Колл‑менеджер',
                 errorTokenRequired: 'Введите админ‑токен.',
@@ -553,6 +626,30 @@
                 viewArchive: 'Arxiv →',
                 backToActive: '← Aktivlarga qaytish',
                 analyticsBtn: 'Analitika',
+                requestsNav: 'So‘rovlar',
+                requestsTitle: 'So‘rovlar',
+                requestsHint: 'Menejerlardan kelgan tasdiqlar',
+                requestTypeDelete: "O'chirish / arxiv",
+                requestTypeClose: 'Bitimni yopish',
+                pendingApprovalMsg: 'Tasdiq kutilmoqda',
+                requestApprove: 'Tasdiqlash',
+                requestReject: 'Rad etish',
+                requestsEmpty: 'Kutilayotgan so‘rovlar yo‘q',
+                requestsLoadError: 'So‘rovlarni yuklab bo‘lmadi',
+                awaitingApprovalStrip: 'Tasdiq: voronkadan yashirilgan',
+                notifTitle: 'Bildirishnomalar',
+                notifEmpty: 'Hozircha yo‘q',
+                notifAria: 'Bildirishnomalar',
+                notifPendingRequest: 'Ariza yuborildi',
+                notifBossApproved: 'Raxbar tasdiqladi',
+                notifBossRejected: 'Raxbar rad etdi',
+                notifNewBossRequests: 'Yangi tasdiq so‘rovlari',
+                lockWaitLabel: 'Kutilmoqda',
+                lockSecUnit: 'sek',
+                lockCountdown: '{n} sek kutilmoqda',
+                managerRequestedBy: 'So‘rovnoma',
+                approvalCardDelete: "O'chirish",
+                approvalCardClose: 'Bitimni yopish',
                 addClientBtn: 'Qo‘shish',
                 logoutBtn: 'Chiqish',
                 accountTitle: 'Hisob',
@@ -679,6 +776,7 @@
                 assignLabelAssigned: 'Tayinlangan:',
                 assignedToYou: 'Sizga tayinlangan',
                 yourClient: 'Sizning mijoyingiz',
+                pinnedToManager: 'Biriktirilgan:',
                 roleManager: 'Bosh menejer',
                 roleCallManager: 'Qo‘ng‘iroq menejeri',
                 errorTokenRequired: 'Administrator tokenini kiriting.',
@@ -751,10 +849,309 @@
             return adminToken ? { 'Authorization': 'Bearer ' + adminToken } : {};
         }
 
+        function loadNotifReadIds() {
+            try {
+                const s = localStorage.getItem(READ_NOTIF_IDS);
+                readNotifIdSet = s ? new Set(JSON.parse(s)) : new Set();
+            } catch (e) {
+                readNotifIdSet = new Set();
+            }
+        }
+
+        function saveNotifReadIds() {
+            try {
+                localStorage.setItem(READ_NOTIF_IDS, JSON.stringify([...readNotifIdSet].slice(-200)));
+            } catch (e) { /* ignore */ }
+        }
+
+        function notifUnseenCount() {
+            return notifStore.filter(n => n.id && !readNotifIdSet.has(String(n.id))).length;
+        }
+
+        function renderNotifBadge() {
+            const b = document.getElementById('notifBadge');
+            if (!b) return;
+            let n = 0;
+            if (isUIRoleBoss()) {
+                n = (typeof window._bossPendingNotifCount === 'number' ? window._bossPendingNotifCount : 0) + notifUnseenCount();
+            } else {
+                n = notifUnseenCount();
+            }
+            if (n > 0) {
+                b.textContent = n > 99 ? '99+' : String(n);
+                b.style.display = 'inline-block';
+            } else {
+                b.style.display = 'none';
+            }
+        }
+
+        async function openNotifDropdown() {
+            const d = document.getElementById('notifDropdown');
+            const l = document.getElementById('notifList');
+            const em = document.getElementById('notifEmpty');
+            if (!d || !l) return;
+            d.style.display = 'block';
+            if (!isUIRoleBoss()) {
+                notifStore.forEach(function(n) { if (n && n.id) readNotifIdSet.add(String(n.id)); });
+                saveNotifReadIds();
+                renderNotifBadge();
+            } else {
+                try {
+                    const res = await fetch(getApiBase() + '/api/admin/approvals', { headers: getAuthHeader() });
+                    const data = res.ok ? await res.json() : { approvals: [] };
+                    const arr = (data && data.approvals) ? data.approvals : [];
+                    if (em) em.style.display = arr.length ? 'none' : 'block';
+                    if (!arr.length) {
+                        l.innerHTML = '';
+                    } else {
+                        l.innerHTML = arr.map(function(p) {
+                            const lead = p.lead || {};
+                            const nm = lead.fullName && String(lead.fullName).trim() ? lead.fullName : (lead.phoneNumber || '—');
+                            const typ = p.type === 'DELETE' ? t('requestTypeDelete') : t('requestTypeClose');
+                            const tA = p.createdAt ? formatTimeAgo(p.createdAt) : '—';
+                            return '<li class="notif-item notif-item--wait"><p class="notif-item-msg">' + escapeHtml(nm) + ' · ' + escapeHtml(typ) + '</p><time class="notif-item-time">' + escapeHtml(tA) + '</time></li>';
+                        }).join('');
+                    }
+                } catch (e) {
+                    if (em) em.style.display = 'block';
+                }
+                window._bossPendingNotifCount = 0;
+                renderNotifBadge();
+                return;
+            }
+            if (!notifStore.length) {
+                if (em) { em.style.display = 'block'; l.innerHTML = ''; } else { l.innerHTML = ''; }
+            } else {
+                if (em) em.style.display = 'none';
+            }
+            l.innerHTML = notifStore.slice(0, 30).map(function(n) {
+                const cls = n.badgeType === 'approved' ? 'notif-item--ok' : (n.badgeType === 'rejected' ? 'notif-item--bad' : (n.badgeType === 'pending' ? 'notif-item--wait' : ''));
+                return '<li class="notif-item ' + cls + '"><p class="notif-item-msg">' + escapeHtml(n.message) + '</p><time class="notif-item-time">' + escapeHtml(n.timeText || '') + '</time></li>';
+            }).join('');
+        }
+
+        function startLockTicker() {
+            if (lockTickerInterval) {
+                clearInterval(lockTickerInterval);
+            }
+            lockTickerInterval = setInterval(function() {
+                if (!adminToken) return;
+                let needRedraw = false;
+                (allActiveLeads || []).forEach(function(lead) {
+                    if (lead.lockedUntil) {
+                        if (new Date(lead.lockedUntil).getTime() <= Date.now()) {
+                            lead.lockedUntil = null;
+                            needRedraw = true;
+                        }
+                    }
+                });
+                document.querySelectorAll('.lead-card-timer-wrap').forEach(function(w) {
+                    const end = parseInt(w.getAttribute('data-lock-end'), 10) || 0;
+                    const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+                    const el = w.querySelector('.js-lock-sec');
+                    if (el) {
+                        el.textContent = String(s);
+                    }
+                });
+                if (needRedraw) {
+                    displayKanbanLeads();
+                }
+            }, 1000);
+        }
+
+        function mergeManagerPendingStrips() {
+            const ch = document.getElementById('managerPendingChips');
+            const strip = document.getElementById('managerPendingStrip');
+            if (!ch || !strip) return;
+            if (isUIRoleBoss() || !userKey) {
+                strip.style.display = 'none';
+                return;
+            }
+            const seen = new Set();
+            const items = [];
+            (serverPendingApprovals || []).forEach(function(p) {
+                const lid = p.leadId && (p.leadId._id != null ? String(p.leadId) : (p.leadId.toString != null ? String(p.leadId) : String(p.leadId)));
+                if (!seen.has(lid)) {
+                    seen.add(lid);
+                    items.push(p);
+                }
+            });
+            optimisticPendingByLead.forEach(function(v) {
+                const id = v.leadId;
+                if (id && !seen.has(String(id))) {
+                    seen.add(String(id));
+                    items.push(v);
+                }
+            });
+            if (items.length === 0) {
+                strip.style.display = 'none';
+                return;
+            }
+            strip.style.display = 'block';
+            ch.innerHTML = items.map(function(p) {
+                const l = p.lead || {};
+                const name = l.fullName || (l.phoneNumber || t('thPhone')) || '—';
+                const typ = p.type === 'DELETE' ? t('requestTypeDelete') : t('requestTypeClose');
+                return '<div class="manager-pending-chip"><span class="manager-pending-chip__type">' + escapeHtml(typ) + '</span> · <span class="manager-pending-chip__name">' + escapeHtml(String(name)) + '</span></div>';
+            }).join('');
+        }
+
+        function registerApprovalPending(lead, data, leadIdOverride) {
+            if (!data || !data.pending) return;
+            const id = (leadIdOverride != null) ? String(leadIdOverride) : ((lead && lead._id) ? String(lead._id) : null);
+            const aType = data._approvalType || (data.approval && data.approval._type) || 'CLOSE';
+            const aId = data.approval && (data.approval.id || (data.approval._id && (data.approval._id.toString ? data.approval._id.toString() : data.approval._id)));
+            if (id) {
+                allActiveLeads = allActiveLeads.filter(function(l) { return String(l._id) !== id; });
+                const leadForStrip = (lead && lead._id) ? lead : { _id: id, fullName: '', phoneNumber: '' };
+                optimisticPendingByLead.set(id, { leadId: id, type: aType, lead: leadForStrip, createdAt: new Date().toISOString(), _approvalId: aId });
+            }
+            const nId = 'local-p-' + (Date.now());
+            notifStore.unshift({ id: nId, type: 'PENDING', message: t('notifPendingRequest') + (aType === 'DELETE' ? ' · ' + t('requestTypeDelete') : ' · ' + t('requestTypeClose')), timeText: formatTimeAgo(new Date().toISOString()), badgeType: 'pending' });
+            renderNotifBadge();
+            mergeManagerPendingStrips();
+            displayKanbanLeads();
+        }
+
+        async function fetchManagerApprovalFeed(mergeOnly) {
+            if (isUIRoleBoss() || !userKey || !adminToken) return;
+            let since = localStorage.getItem(NOTIF_SINCE_KEY) || new Date(0).toISOString();
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/approval-feed?since=' + encodeURIComponent(since), { headers: getAuthHeader() });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.serverTime) {
+                    localStorage.setItem(NOTIF_SINCE_KEY, data.serverTime);
+                }
+                const ev = data.events || [];
+                ev.forEach(function(a) {
+                    if (!a) return;
+                    const aid = a._id ? String(a._id) : null;
+                    const msg = a.status === 'REJECTED'
+                        ? t('notifBossRejected') + (a.type === 'DELETE' ? ' (' + t('requestTypeDelete') + ')' : ' (' + t('requestTypeClose') + ')')
+                        : t('notifBossApproved') + (a.type === 'DELETE' ? ' (' + t('requestTypeDelete') + ')' : ' (' + t('requestTypeClose') + ')');
+                    notifStore.unshift({
+                        id: aid || 'ev-' + Date.now(),
+                        type: a.status,
+                        message: msg,
+                        timeText: a.resolvedAt ? formatTimeAgo(a.resolvedAt) : '—',
+                        badgeType: a.status === 'REJECTED' ? 'rejected' : 'approved'
+                    });
+                    if (a.leadId) {
+                        optimisticPendingByLead.delete(String(a.leadId));
+                    }
+                });
+                if (ev.length) {
+                    renderNotifBadge();
+                }
+            } catch (e) { /* optional */ }
+            if (!mergeOnly) {
+                mergeManagerPendingStrips();
+            }
+        }
+
+        async function loadBossNotifCount() {
+            if (!isUIRoleBoss() || !adminToken) {
+                window._bossPendingNotifCount = 0;
+                return;
+            }
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/approvals', { headers: getAuthHeader() });
+                if (!res.ok) return;
+                const data = await res.json();
+                window._bossPendingNotifCount = (data.approvals && data.approvals.length) ? data.approvals.length : 0;
+                renderNotifBadge();
+            } catch (e) { /* */ }
+        }
+
+        async function applyServerPendingToLeads(raw) {
+            serverPendingApprovals = [];
+            if (isUIRoleBoss() || !userKey || !adminToken) {
+                return Array.isArray(raw) ? raw : [];
+            }
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/approvals/mine', { headers: getAuthHeader() });
+                if (!res.ok) return (Array.isArray(raw) ? raw : []);
+                const d = await res.json();
+                serverPendingApprovals = d.pending || [];
+                const hide = new Set();
+                (serverPendingApprovals || []).forEach(function(p) {
+                    if (p.leadId) hide.add(String(p.leadId));
+                });
+                (Array.isArray(raw) ? raw : []).forEach(function(l) {
+                    if (hide.has(String(l._id))) {
+                        return;
+                    }
+                });
+                const out = (Array.isArray(raw) ? raw : []).filter(function(l) { return !hide.has(String(l._id)); });
+                (serverPendingApprovals || []).forEach(function(p) {
+                    if (p.leadId) optimisticPendingByLead.delete(String(p.leadId));
+                });
+                return out;
+            } catch (e) {
+                return (Array.isArray(raw) ? raw : []);
+            }
+        }
+
         function getManagerLabel(key) {
             if (!key) return '';
             const labels = { anvar: 'managerAnvar', akbar: 'managerAkbar', davron: 'managerDavron' };
             return t(labels[key] || '');
+        }
+
+        function formatRequesterName(requestedBy) {
+            if (requestedBy == null || requestedBy === '') return '—';
+            const s = String(requestedBy);
+            const lbl = getManagerLabel(s);
+            return (lbl && String(lbl).trim() !== '') ? lbl : s;
+        }
+
+        function isUIRoleBoss() {
+            return appRole === 'BOSS' || userRole === 'boss' || userRole === 'manager';
+        }
+
+        function isLeadTimeLocked(lead) {
+            if (!lead || !lead.lockedUntil) return false;
+            const t = new Date(lead.lockedUntil);
+            if (isNaN(t.getTime())) return false;
+            return t.getTime() > Date.now();
+        }
+
+        function getLockSecondsLeft(lead) {
+            if (!lead || !lead.lockedUntil) return 0;
+            const t = new Date(lead.lockedUntil);
+            if (isNaN(t.getTime())) return 0;
+            return Math.max(0, Math.ceil((t.getTime() - Date.now()) / 1000));
+        }
+
+        function formatTimeAgo(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '—';
+            const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+            if (sec < 5) return currentLang === 'uz' ? 'hozir' : 'только что';
+            if (sec < 60) return String(sec) + (currentLang === 'uz' ? ' sek' : ' с');
+            const m = Math.floor(sec / 60);
+            if (m < 60) return String(m) + (currentLang === 'uz' ? ' daq' : ' мин');
+            const h = Math.floor(m / 60);
+            if (h < 48) return String(h) + (currentLang === 'uz' ? ' s' : ' ч');
+            return d.toLocaleString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU', { day: '2-digit', month: '2-digit' });
+        }
+
+        function canDragLead(lead) {
+            if (isLeadTimeLocked(lead)) return false;
+            if (isUIRoleBoss()) return true;
+            if (!userKey) return false;
+            if (!lead.assignedTo) return true;
+            return String(lead.assignedTo) === String(userKey);
+        }
+
+        /** Call managers: disallowed to use Готово/Архив (and block UI) on foreign or unclaimed leads. */
+        function isLeadCardActionsLocked(lead) {
+            if (isUIRoleBoss()) return false;
+            if (!userKey) return true;
+            if (!lead.assignedTo) return true;
+            return String(lead.assignedTo) !== String(userKey);
         }
 
         function setRoleUI(role) {
@@ -762,17 +1159,23 @@
             const label = document.getElementById('userRoleLabel');
             const addBtn = document.getElementById('addClientBtn');
             const analyticsBtn = document.getElementById('analyticsBtn');
+            const requestsBtn = document.getElementById('requestsBtn');
             const userMenu = document.getElementById('userMenuWrapper');
-            const isBoss = role === 'manager' || role === 'boss';
+            const isBoss = isUIRoleBoss();
             if (addBtn) {
-                addBtn.style.display = role === 'boss' ? 'inline-block' : 'none';
+                const canAdd = (appRole === 'BOSS' || appRole === 'MANAGER' || role === 'boss' || role === 'call' || role === 'manager');
+                addBtn.style.display = canAdd ? 'inline-block' : 'none';
             }
             if (isBoss) {
                 label.textContent = t('roleManager');
-                analyticsBtn.style.display = 'inline-block';
             } else {
                 label.textContent = t('roleCallManager');
+            }
+            if (analyticsBtn) {
                 analyticsBtn.style.display = 'inline-block';
+            }
+            if (requestsBtn) {
+                requestsBtn.style.display = isBoss ? 'inline-block' : 'none';
             }
             if (userMenu) {
                 userMenu.style.display = 'flex';
@@ -790,10 +1193,30 @@
         });
         initLanguage();
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        function takeAdminTokenFromQueryOnce() {
+            try {
+                const u = new URL(window.location.href);
+                if (!u.searchParams.has('adminToken')) {
+                    return;
+                }
+                const tRaw = u.searchParams.get('adminToken');
+                u.searchParams.delete('adminToken');
+                const after = u.pathname + (u.search || '') + (u.hash || '');
+                window.history.replaceState({}, document.title, after);
+                if (tRaw == null) return;
+                const trimmed = String(tRaw).trim();
+                if (trimmed) {
+                    const el = document.getElementById('adminToken');
+                    if (el) el.value = trimmed;
+                }
+            } catch (err) {
+                console.error('takeAdminTokenFromQueryOnce', err);
+            }
+        }
 
-            const token = document.getElementById('adminToken').value.trim();
+        async function performAdminLogin() {
+            const inputEl = document.getElementById('adminToken');
+            const token = (inputEl && inputEl.value) ? String(inputEl.value).trim() : '';
             document.getElementById('loginError').style.display = 'none';
 
             if (!token) {
@@ -814,9 +1237,13 @@
                     adminToken = data.token;
                     userRole = (data.role != null && data.role !== '') ? String(data.role).toLowerCase() : null;
                     userKey = (data.key != null && data.key !== '') ? String(data.key) : null;
+                    appRole = (data.appRole != null && data.appRole !== '') ? String(data.appRole) : (userRole === 'boss' || userRole === 'manager' ? 'BOSS' : 'MANAGER');
+                    userId = (data.userId != null && data.userId !== '') ? String(data.userId) : (isUIRoleBoss() ? 'boss' : (userKey || null));
                     sessionStorage.setItem('authToken', data.token);
                     sessionStorage.setItem('authRole', userRole || '');
                     sessionStorage.setItem('authKey', userKey || '');
+                    sessionStorage.setItem('authAppRole', appRole || '');
+                    sessionStorage.setItem('authUserId', userId || '');
                     setRoleUI(userRole);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
@@ -833,6 +1260,12 @@
                 console.error('Login error:', error);
                 showLoginError(t('errorNetwork'));
             }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void performAdminLogin();
         });
 
         function showLoginError(message) {
@@ -854,10 +1287,22 @@
             adminToken = null;
             userRole = null;
             userKey = null;
+            appRole = null;
+            userId = null;
             sessionStorage.removeItem('authToken');
             sessionStorage.removeItem('authRole');
             sessionStorage.removeItem('authKey');
+            sessionStorage.removeItem('authAppRole');
+            sessionStorage.removeItem('authUserId');
             stopSilentRefresh();
+            if (lockTickerInterval) {
+                clearInterval(lockTickerInterval);
+                lockTickerInterval = null;
+            }
+            if (notifFeedInterval) {
+                clearInterval(notifFeedInterval);
+                notifFeedInterval = null;
+            }
             if (pollIntervalId) {
                 clearInterval(pollIntervalId);
                 pollIntervalId = null;
@@ -875,7 +1320,29 @@
 
         document.addEventListener('click', () => {
             document.getElementById('userDropdown').style.display = 'none';
+            const notifD = document.getElementById('notifDropdown');
+            if (notifD) notifD.style.display = 'none';
         });
+
+        (function initNotifBellUI() {
+            const bell = document.getElementById('notifBellBtn');
+            const wrap = document.getElementById('notifBellWrap');
+            if (bell) {
+                bell.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const d = document.getElementById('notifDropdown');
+                    if (!d) return;
+                    if (d.style.display === 'block') {
+                        d.style.display = 'none';
+                    } else {
+                        await openNotifDropdown();
+                    }
+                });
+            }
+            if (wrap) {
+                wrap.addEventListener('click', (e) => e.stopPropagation());
+            }
+        })();
 
         function tryRestoreSession() {
             const token = sessionStorage.getItem('authToken');
@@ -885,6 +1352,10 @@
             userRole = (storedRole != null && storedRole !== '') ? String(storedRole).toLowerCase() : null;
             const storedKey = sessionStorage.getItem('authKey');
             userKey = (storedKey != null && storedKey !== '') ? String(storedKey) : null;
+            const storedApp = sessionStorage.getItem('authAppRole');
+            appRole = (storedApp != null && storedApp !== '') ? String(storedApp) : (userRole === 'boss' || userRole === 'manager' ? 'BOSS' : 'MANAGER');
+            const storedUid = sessionStorage.getItem('authUserId');
+            userId = (storedUid != null && storedUid !== '') ? String(storedUid) : (isUIRoleBoss() ? 'boss' : (userKey || null));
             setRoleUI(userRole);
             document.getElementById('loginSection').style.display = 'none';
             document.getElementById('adminPanel').style.display = 'block';
@@ -1029,6 +1500,12 @@
 
         async function loadLeads() {
             if (!adminToken) return;
+            const requestsWrapper = document.getElementById('requestsWrapper');
+            if (requestsWrapper) requestsWrapper.style.display = 'none';
+            const analyticsW = document.getElementById('analyticsWrapper');
+            if (analyticsW) analyticsW.style.display = 'none';
+            const activeControls = document.getElementById('activeControlsWrapper');
+            if (activeControls) activeControls.style.display = 'block';
 
             document.getElementById('loadingMessage').style.display = 'block';
             document.getElementById('errorMessage').style.display = 'none';
@@ -1046,7 +1523,15 @@
                 document.getElementById('loadingMessage').style.display = 'none';
 
                 if (response.ok) {
-                    allActiveLeads = data.leads || [];
+                    const raw = data.leads || [];
+                    loadNotifReadIds();
+                    allActiveLeads = await applyServerPendingToLeads(raw);
+                    mergeManagerPendingStrips();
+                    if (isUIRoleBoss()) {
+                        loadBossNotifCount();
+                    } else {
+                        await fetchManagerApprovalFeed(true);
+                    }
                     if (allActiveLeads.length > 0) {
                         updateLastSeenAtFromLeads(allActiveLeads);
                         displayKanbanLeads();
@@ -1055,16 +1540,37 @@
                         document.getElementById('noLeadsMessage').style.display = 'block';
                         document.getElementById('leadsTableWrapper').style.display = 'none';
                     }
+                    startLockTicker();
+                    const nw = document.getElementById('notifBellWrap');
+                    if (nw) {
+                        nw.style.display = 'flex';
+                    }
+                    if (notifFeedInterval) {
+                        clearInterval(notifFeedInterval);
+                    }
+                    notifFeedInterval = setInterval(function() {
+                        if (!adminToken) return;
+                        if (isUIRoleBoss()) {
+                            loadBossNotifCount();
+                        } else {
+                            fetchManagerApprovalFeed(true);
+                        }
+                    }, 45000);
+                    renderNotifBadge();
                 } else {
                     if (response.status === 401) {
                         showError(t('errorSessionExpired'));
                         sessionStorage.removeItem('authToken');
                         sessionStorage.removeItem('authRole');
                         sessionStorage.removeItem('authKey');
+                        sessionStorage.removeItem('authAppRole');
+                        sessionStorage.removeItem('authUserId');
                         setTimeout(() => {
                             adminToken = null;
                             userRole = null;
                             userKey = null;
+                            appRole = null;
+                            userId = null;
                             document.getElementById('loginSection').style.display = 'block';
                             document.getElementById('adminPanel').style.display = 'none';
                             const userMenu = document.getElementById('userMenuWrapper');
@@ -1189,7 +1695,7 @@
         }
 
         async function loadManagerAnalytics() {
-            const isBoss = userRole === 'manager' || userRole === 'boss';
+            const isBoss = isUIRoleBoss();
             const tableBody = document.getElementById('managersTableBody');
             const personalDeals = document.getElementById('personalSuccessfulDeals');
             const personalRevenue = document.getElementById('personalRevenue');
@@ -1351,8 +1857,12 @@
                     sessionStorage.removeItem('authToken');
                     sessionStorage.removeItem('authRole');
                     sessionStorage.removeItem('authKey');
+                    sessionStorage.removeItem('authAppRole');
+                    sessionStorage.removeItem('authUserId');
                     userRole = null;
                     userKey = null;
+                    appRole = null;
+                    userId = null;
                     showError(t('errorSessionExpired'));
                 } else {
                     showError(t('errorLoadLeads'));
@@ -1367,7 +1877,9 @@
             const analyticsWrapper = document.getElementById('analyticsWrapper');
             const leadsWrapper = document.getElementById('leadsTableWrapper');
             const noLeads = document.getElementById('noLeadsMessage');
-            const isBoss = userRole === 'manager' || userRole === 'boss';
+            const requestsWrapper = document.getElementById('requestsWrapper');
+            if (requestsWrapper) requestsWrapper.style.display = 'none';
+            const isBoss = isUIRoleBoss();
             if (analyticsWrapper.style.display === 'none') {
                 leadsWrapper.style.display = 'none';
                 noLeads.style.display = 'none';
@@ -1392,6 +1904,122 @@
                 await loadLeads();
             }
         });
+
+        async function loadApprovals() {
+            const el = document.getElementById('requestsList');
+            if (!el || !adminToken) return;
+            el.innerHTML = '<p class="requests-loading">' + escapeHtml(t('loadingLeads')) + '</p>';
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/approvals', { headers: getAuthHeader() });
+                const data = await res.json();
+                if (!res.ok) {
+                    el.innerHTML = '<p class="message error">' + escapeHtml(t('requestsLoadError')) + '</p>';
+                    return;
+                }
+                const items = data.approvals || [];
+                if (items.length === 0) {
+                    el.innerHTML = '<p class="requests-empty">' + escapeHtml(t('requestsEmpty')) + '</p>';
+                    return;
+                }
+                const typeLabel = (a) => (a.type === 'DELETE' ? t('approvalCardDelete') : t('approvalCardClose'));
+                el.innerHTML = items.map(a => {
+                    const isDel = a.type === 'DELETE';
+                    const cardMod = isDel ? ' approval-card--delete' : ' approval-card--close';
+                    const l = a.lead;
+                    const name = l ? ((l.fullName && String(l.fullName).trim()) ? l.fullName : (l.phoneNumber || t('thPhone'))) : '—';
+                    const phone = l && l.phoneNumber ? l.phoneNumber : '—';
+                    const idStr = (a._id && (a._id.toString ? a._id.toString() : a._id)) || '';
+                    const by = formatRequesterName(a.requestedBy);
+                    const ago = a.createdAt ? formatTimeAgo(a.createdAt) : '—';
+                    return '<div class="approval-card glass' + cardMod + '" data-approval-id="' + escapeHtml(idStr) + '">'
+                        + '<div class="approval-card__head">'
+                        + '<div class="approval-card__name">' + escapeHtml(String(name)) + '</div>'
+                        + '<div class="approval-card__type-badge">' + escapeHtml(typeLabel(a)) + '</div></div>'
+                        + '<div class="approval-card__phone-row"><span class="approval-card__k">' + escapeHtml(t('thPhone')) + '</span> '
+                        + '<span class="approval-card__phone">' + escapeHtml(String(phone)) + '</span></div>'
+                        + '<div class="approval-card__by">' + escapeHtml(t('managerRequestedBy')) + ': ' + escapeHtml(String(by)) + ' · ' + escapeHtml(ago) + '</div>'
+                        + '<div class="approval-card__actions">'
+                        + '<button type="button" class="approval-card__btn approval-card__btn--ok approval-approve" data-id="' + escapeHtml(idStr) + '">'
+                        + '<span class="approval-card__btn-ico" aria-hidden="true">✔</span> ' + escapeHtml(t('requestApprove')) + '</button>'
+                        + '<button type="button" class="approval-card__btn approval-card__btn--no approval-reject" data-id="' + escapeHtml(idStr) + '">'
+                        + '<span class="approval-card__btn-ico" aria-hidden="true">✖</span> ' + escapeHtml(t('requestReject')) + '</button></div></div>';
+                }).join('');
+            } catch (e) {
+                console.error(e);
+                el.innerHTML = '<p class="message error">' + escapeHtml(t('requestsLoadError')) + '</p>';
+            }
+        }
+
+        async function resolveApproval(approvalId, decision) {
+            if (!approvalId) return;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/approvals/' + encodeURIComponent(approvalId) + '/resolve', {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ decision: decision === 'approve' ? 'approve' : 'reject' })
+                });
+                if (res.ok) {
+                    try {
+                        const lr = await fetch(getApiBase() + '/api/admin/leads', { headers: getAuthHeader() });
+                        if (lr.ok) {
+                            const d = await lr.json();
+                            allActiveLeads = d.leads || [];
+                        }
+                    } catch (e) { /* ignore */ }
+                    await loadBossNotifCount();
+                    await loadApprovals();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    alert(err.error || t('errorNetwork'));
+                }
+            } catch (e) {
+                alert(t('errorNetwork'));
+            }
+        }
+
+        (function initRequestsUI() {
+            const requestsBtn = document.getElementById('requestsBtn');
+            if (requestsBtn) {
+                requestsBtn.addEventListener('click', async () => {
+                    const rw = document.getElementById('requestsWrapper');
+                    const leadsWrapper = document.getElementById('leadsTableWrapper');
+                    const noL = document.getElementById('noLeadsMessage');
+                    const aw = document.getElementById('analyticsWrapper');
+                    if (!rw) return;
+                    if (rw.style.display === 'none') {
+                        if (aw) aw.style.display = 'none';
+                        if (leadsWrapper) leadsWrapper.style.display = 'none';
+                        if (noL) noL.style.display = 'none';
+                        rw.style.display = 'block';
+                        await loadApprovals();
+                    } else {
+                        rw.style.display = 'none';
+                        loadLeads();
+                    }
+                });
+            }
+            const requestsBack = document.getElementById('requestsBack');
+            if (requestsBack) {
+                requestsBack.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const rw = document.getElementById('requestsWrapper');
+                    if (rw) rw.style.display = 'none';
+                    loadLeads();
+                });
+            }
+            const requestsList = document.getElementById('requestsList');
+            if (requestsList) {
+                requestsList.addEventListener('click', (e) => {
+                    const aBtn = e.target && e.target.closest && e.target.closest('.approval-approve');
+                    const rBtn = e.target && e.target.closest && e.target.closest('.approval-reject');
+                    if (aBtn) {
+                        resolveApproval(aBtn.getAttribute('data-id'), 'approve');
+                    } else if (rBtn) {
+                        resolveApproval(rBtn.getAttribute('data-id'), 'reject');
+                    }
+                });
+            }
+        })();
 
         function getPriorityChipClass(priority) {
             const map = {
@@ -1418,6 +2046,13 @@
         }
 
         function buildLeadCardHTML(lead, index) {
+            const actLocked = isLeadCardActionsLocked(lead);
+            const timeLock = isLeadTimeLocked(lead);
+            const lockSec0 = getLockSecondsLeft(lead);
+            const lockBlock = timeLock
+                ? ('<div class="lead-card-timer-wrap" data-lock-end="' + new Date(lead.lockedUntil).getTime() + '"><span class="lead-card-timer-pill" role="status"><span aria-hidden="true">🔒</span> '
+                + escapeHtml(t('lockWaitLabel')) + ' <span class="js-lock-sec">' + String(lockSec0) + '</span> ' + escapeHtml(t('lockSecUnit')) + '</span></div>')
+                : '';
             const fullName = lead.fullName || (lead.name + ' ' + lead.surname).trim() || '—';
             const stage = lead.stage || 'new';
             const createdCompact = formatLeadCardDateTime(lead.createdAt);
@@ -1427,6 +2062,8 @@
                 : '';
             const preparingBlock = stage === 'preparing' ? (function() {
                 const idAttr = escapeHtml(String(lead._id));
+                const peDisabled = actLocked ? ' disabled aria-disabled="true"' : '';
+                const peClass = actLocked ? ' btn-preparing-edit btn-preparing-edit--disabled' : 'btn-preparing-edit';
                 const ready = lead.readyDate != null && String(lead.readyDate).trim() !== '' ? new Date(lead.readyDate) : null;
                 const hasValidReady = ready && !isNaN(ready.getTime());
                 const dateStr = hasValidReady ? ready.toLocaleDateString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU') : '';
@@ -1442,7 +2079,7 @@
                 return `
                 <div class="lead-card-preparing-top">
                     <span class="preparing-badge">${escapeHtml(t('preparingBadge'))}</span>
-                    <button type="button" class="btn-preparing-edit" data-lead-id="${idAttr}" title="${escapeHtml(t('editReadyDateAria'))}" aria-label="${escapeHtml(t('editReadyDateAria'))}">
+                    <button type="button" class="${peClass}" data-lead-id="${idAttr}" title="${escapeHtml(t('editReadyDateAria'))}" aria-label="${escapeHtml(t('editReadyDateAria'))}"${peDisabled}>
                         <svg class="preparing-edit-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     </button>
                 </div>
@@ -1452,8 +2089,7 @@
                 </div>`;
             })() : '';
             const assignBlock = (function() {
-                const isBoss = userRole === 'manager' || userRole === 'boss';
-                if (isBoss) {
+                if (isUIRoleBoss()) {
                     const keys = ['anvar', 'akbar', 'davron'];
                     const isAssigned = lead.assignedTo && keys.includes(lead.assignedTo);
                     const options = keys.map(k => `<option value="${escapeHtml(k)}" ${lead.assignedTo === k ? 'selected' : ''}>${escapeHtml(getManagerLabel(k))}</option>`).join('');
@@ -1462,6 +2098,17 @@
                 }
                 if (userKey && lead.assignedTo === userKey) {
                     return `<div class="lead-card-assign lead-card-assign--compact"><span class="badge badge-assigned">${t('yourClient')}</span></div>`;
+                }
+                return '';
+            })();
+            const pinnedRow = (function() {
+                if (!lead.assignedTo) return '';
+                const key = String(lead.assignedTo);
+                if (isUIRoleBoss()) {
+                    return `<div class="lead-card-pinned">${escapeHtml(t('pinnedToManager'))} ${escapeHtml(getManagerLabel(key) || key)}</div>`;
+                }
+                if (userKey && String(userKey) !== key) {
+                    return `<div class="lead-card-pinned lead-card-pinned--other">${escapeHtml(t('pinnedToManager'))} ${escapeHtml(getManagerLabel(key) || key)}</div>`;
                 }
                 return '';
             })();
@@ -1475,17 +2122,18 @@
             })();
             const doneIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
             const archIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1zM10 12h4"/></svg>';
-            return `${preparingBlock}
+            return `${lockBlock}${preparingBlock}
                 <div class="lead-card-body">
                     <div class="lead-card-name">${escapeHtml(fullName)}</div>
                     <div class="lead-card-phone">${escapeHtml(lead.phoneNumber || '')}</div>
+                    ${pinnedRow}
                     ${prioritiesChipsHTML ? `<div class="lead-card-priorities"><div class="priority-chips priority-chips--kanban">${prioritiesChipsHTML}</div></div>` : ''}
                     ${assignBlock}
                     ${createdCompact ? `<div class="lead-card-date">${escapeHtml(createdCompact)}</div>` : ''}
                     ${stalledHtml}
                     <div class="lead-card-actions">
-                        <button type="button" class="btn-done btn-card" onclick="handleDone('${lead._id}')">${doneIcon}<span>${t('doneBtn')}</span></button>
-                        <button type="button" class="btn-not btn-card" onclick="handleNot('${lead._id}')">${archIcon}<span>${t('archiveBtn')}</span></button>
+                        <button type="button" class="btn-done btn-card" ${actLocked ? 'disabled' : ''} onclick="handleDone('${lead._id}')">${doneIcon}<span>${t('doneBtn')}</span></button>
+                        <button type="button" class="btn-not btn-card" ${actLocked ? 'disabled' : ''} onclick="handleNot('${lead._id}')">${archIcon}<span>${t('archiveBtn')}</span></button>
                     </div>
                 </div>
             `;
@@ -1503,7 +2151,10 @@
                 else if (dl === 0) prepStateClass = ' urgent';
                 else if (dl === 1) prepStateClass = ' warning';
             }
-            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}${prepStateClass}`;
+            const noDrag = !canDragLead(lead);
+            const actL = isLeadCardActionsLocked(lead);
+            const tl = isLeadTimeLocked(lead);
+            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}${prepStateClass}${noDrag ? ' lead-card--no-drag' : ''}${actL ? ' lead-card--actions-locked' : ''}${tl ? ' lead-card--time-locked' : ''}`;
             card.setAttribute('data-lead-id', lead._id);
             card.style.animationDelay = `${index * 0.05}s`;
             card.innerHTML = buildLeadCardHTML(lead, index);
@@ -1631,6 +2282,7 @@
                 const sortable = Sortable.create(el, {
                     group: { name: 'kanban', pull: true, put: true },
                     animation: 180,
+                    filter: '.lead-card--no-drag',
                     dragClass: 'lead-card--drag',
                     ghostClass: 'lead-card--ghost',
                     chosenClass: 'lead-card--chosen',
@@ -1667,6 +2319,7 @@
                         }
 
                         try {
+                            const prevLead = allActiveLeads.find(l => String(l._id) === String(leadId)) || null;
                             const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/stage', {
                                 method: 'PATCH',
                                 headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
@@ -1674,14 +2327,20 @@
                             });
                             const data = await res.json();
                             if (res.ok) {
-                                if (data.lead && (data.lead.status === 'done' || newStage === 'successful')) {
+                                if (data.pending) {
+                                    registerApprovalPending(prevLead, Object.assign({}, data, { _approvalType: 'CLOSE' }));
+                                } else if (data.lead && (data.lead.status === 'done' || newStage === 'successful')) {
                                     allActiveLeads = allActiveLeads.filter(l => l._id !== leadId);
+                                    displayKanbanLeads();
                                 } else {
                                     const idx = allActiveLeads.findIndex(l => l._id === leadId);
                                     if (idx !== -1) allActiveLeads[idx] = data.lead;
+                                    displayKanbanLeads();
                                 }
-                                displayKanbanLeads();
                             } else {
+                                if (res.status === 403 || res.status === 400 || res.status === 409) {
+                                    alert((data && data.error) ? data.error : t('errorLoadLeads'));
+                                }
                                 displayKanbanLeads();
                             }
                         } catch (err) {
@@ -1703,12 +2362,22 @@
 
         async function silentRefreshLeads() {
             if (!adminToken) return;
+            const rw = document.getElementById('requestsWrapper');
+            if (rw && rw.style.display !== 'none') return;
             const analyticsVisible = document.getElementById('analyticsWrapper').style.display !== 'none';
             try {
                 const response = await fetch(getApiBase() + '/api/admin/leads', { method: 'GET', headers: getAuthHeader() });
                 const data = await response.json();
                 if (!response.ok) return;
-                allActiveLeads = data.leads || [];
+                const raw = data.leads || [];
+                allActiveLeads = await applyServerPendingToLeads(raw);
+                mergeManagerPendingStrips();
+                if (isUIRoleBoss()) {
+                    loadBossNotifCount();
+                } else {
+                    await fetchManagerApprovalFeed(true);
+                }
+                renderNotifBadge();
                 if (analyticsVisible) return;
                 displayKanbanLeads();
             } catch (e) { /* silent */ }
@@ -1943,6 +2612,12 @@
                 const data = await response.json();
 
                 if (response.ok) {
+                    if (data.pending) {
+                        const prevL = allActiveLeads.find(l => String(l._id) === String(leadId));
+                        registerApprovalPending(prevL, Object.assign({}, data, { _approvalType: 'CLOSE' }));
+                        closeModal();
+                        return;
+                    }
                     closeModal();
                     showToast(data.lead && data.lead.label ? data.lead.label : label);
                     loadLeads();
@@ -1951,8 +2626,12 @@
                         sessionStorage.removeItem('authToken');
                         sessionStorage.removeItem('authRole');
                         sessionStorage.removeItem('authKey');
+                        sessionStorage.removeItem('authAppRole');
+                        sessionStorage.removeItem('authUserId');
                         userRole = null;
                         userKey = null;
+                        appRole = null;
+                        userId = null;
                         showError(t('errorSessionExpired'));
                         setTimeout(() => {
                             adminToken = null;
@@ -2067,6 +2746,7 @@
                 return;
             }
             const { leadId } = pendingSuccessDrop;
+            const stLead = allActiveLeads.find(l => String(l._id) === String(leadId)) || null;
             successCommentErrorEl.style.display = 'none';
             try {
                 const res = await fetch(getApiBase() + '/api/admin/leads/' + leadId + '/stage', {
@@ -2076,6 +2756,12 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
+                    if (data.pending) {
+                        registerApprovalPending(stLead, Object.assign({}, data, { _approvalType: 'CLOSE' }));
+                        revertSuccessDrop();
+                        closeSuccessCommentModal();
+                        return;
+                    }
                     const { leadId, item } = pendingSuccessDrop;
                     allActiveLeads = allActiveLeads.filter(l => l._id !== leadId);
                     closeSuccessCommentModal();
@@ -2243,7 +2929,7 @@
         if (kanbanBoardEl) {
             kanbanBoardEl.addEventListener('click', (e) => {
                 const btn = e.target.closest('.btn-preparing-edit');
-                if (!btn || !kanbanBoardEl.contains(btn)) return;
+                if (!btn || !kanbanBoardEl.contains(btn) || btn.disabled) return;
                 e.preventDefault();
                 e.stopPropagation();
                 const id = btn.getAttribute('data-lead-id');
@@ -2269,6 +2955,11 @@
                 const data = await response.json();
 
                 if (response.ok) {
+                    if (data.pending) {
+                        const prevL = allActiveLeads.find((l) => String(l._id) === String(leadId));
+                        registerApprovalPending(prevL, Object.assign({}, data, { _approvalType: 'DELETE' }), leadId);
+                        return;
+                    }
                     // Reload leads
                     loadLeads();
                 } else {
@@ -2276,7 +2967,11 @@
                         sessionStorage.removeItem('authToken');
                         sessionStorage.removeItem('authRole');
                         sessionStorage.removeItem('authKey');
+                        sessionStorage.removeItem('authAppRole');
+                        sessionStorage.removeItem('authUserId');
                         userRole = null;
+                        appRole = null;
+                        userId = null;
                         userKey = null;
                         showError(t('errorSessionExpired'));
                         setTimeout(() => {
@@ -2298,6 +2993,7 @@
             }
         }
 
+        takeAdminTokenFromQueryOnce();
         tryRestoreSession();
     </script>
 </body>

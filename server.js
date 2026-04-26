@@ -57,14 +57,11 @@ app.get('/api/test-cors', (req, res) => {
   res.json({ ok: true });
 });
 
-// Public doors catalog (no auth)
+// Public doors catalog (no auth) — same data as /api/doors on Vercel (see api/doors.js)
 const doors = require('./data/doors');
 app.get('/api/doors', (req, res) => {
-  res.json({
-    success: true,
-    count: doors.length,
-    data: doors
-  });
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  res.json(doors);
 });
 
 // Friendly route for done calls (matches /done_calls navigation)
@@ -209,6 +206,14 @@ const leadSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  createdBy: {
+    type: String,
+    default: null
+  },
+  lockedUntil: {
+    type: Date,
+    default: null
   }
 });
 
@@ -227,6 +232,41 @@ leadSchema.pre('save', function(next) {
 // To check data manually: Open MongoDB Compass, connect to your cluster,
 // navigate to the database (from connection string), find 'leads' collection
 const Lead = mongoose.model('Lead', leadSchema);
+
+const APPROVAL_TYPE = { DELETE: 'DELETE', CLOSE: 'CLOSE' };
+const APPROVAL_STATUS = { PENDING: 'PENDING', APPROVED: 'APPROVED', REJECTED: 'REJECTED' };
+
+const approvalSchema = new mongoose.Schema({
+  type: {
+    type: String,
+    enum: [APPROVAL_TYPE.DELETE, APPROVAL_TYPE.CLOSE],
+    required: true
+  },
+  leadId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Lead',
+    required: true,
+    index: true
+  },
+  requestedBy: { type: String, required: true, index: true },
+  status: {
+    type: String,
+    enum: [APPROVAL_STATUS.PENDING, APPROVAL_STATUS.APPROVED, APPROVAL_STATUS.REJECTED],
+    default: APPROVAL_STATUS.PENDING,
+    index: true
+  },
+  createdAt: { type: Date, default: Date.now },
+  resolvedAt: { type: Date, default: null, index: true },
+  deleteMode: { type: String, enum: ['archive', 'hard'], default: 'archive' },
+  closeDealAmount: { type: Number, default: null },
+  closeComment: { type: String, default: '' },
+  isStageClose: { type: Boolean, default: false },
+  doneLabel: { type: String, default: null }
+});
+
+approvalSchema.index({ leadId: 1, status: 1, type: 1 });
+
+const Approval = mongoose.model('Approval', approvalSchema);
 
 // ============================================
 // PRIORITIES HELPERS
@@ -295,7 +335,74 @@ console.log('CALL_ANVAR_TOKEN exists:', !!process.env.CALL_ANVAR_TOKEN);
 console.log('CALL_AKBAR_TOKEN exists:', !!process.env.CALL_AKBAR_TOKEN);
 console.log('CALL_DAVRON_TOKEN exists:', !!process.env.CALL_DAVRON_TOKEN);
 
-// Middleware: verify JWT and attach user (role, key?) to request
+// --- RBAC: BOSS (boss token) / MANAGER (call managers) ---
+const APP_ROLE = { BOSS: 'BOSS', MANAGER: 'MANAGER' };
+const PENDING_MSG_RU = 'Ожидает подтверждения';
+const WEBSITE_CLAIM_LOCK_MS = 5000;
+const ERR_WAIT_CLAIM_LOCK_RU = 'Подождите 5 секунд';
+const ERR_LEAD_TAKEN_RU = 'Лид уже забрал другой менеджер';
+const ERR_MUST_CLAIM_RU = 'Сначала возьмите лид в работу (перенесите в «В работе»)';
+
+function isUnclaimed(lead) {
+  return !lead || lead.assignedTo == null || String(lead.assignedTo).trim() === '';
+}
+
+function isLeadClaimedByOther(lead, user) {
+  if (isUnclaimed(lead) || isAppBossUser(user)) return false;
+  if (!isAppManagerUser(user) || !user.key) return false;
+  return String(lead.assignedTo) !== String(user.key);
+}
+
+function isAppBossUser(user) {
+  if (!user) return false;
+  if (user.appRole === APP_ROLE.BOSS) return true;
+  if (user.role === 'boss') return true;
+  if (user.role === 'manager') return true; // legacy JWT
+  return false;
+}
+
+function isAppManagerUser(user) {
+  if (!user) return false;
+  if (user.appRole === APP_ROLE.MANAGER) return true;
+  if (user.role === 'call' || user.role === 'call_manager') return true;
+  return false;
+}
+
+function getUserIdFromUser(user) {
+  if (!user) return null;
+  if (user.userId) return String(user.userId);
+  if (user.role === 'boss' || user.role === 'manager') return 'boss';
+  if (user.key) return String(user.key);
+  return null;
+}
+
+/** Manager may change pipeline on this lead: boss always; call — only own claimed leads (not unclaimed, not other’s). */
+function canMovePipeline(user, lead) {
+  if (!lead || lead.status !== 'new') return false;
+  if (isAppBossUser(user)) return true;
+  if (!isAppManagerUser(user) || !user.key) return false;
+  if (isUnclaimed(lead)) return false;
+  return String(lead.assignedTo) === String(user.key);
+}
+
+/** For closing/archiving/approval: manager may act only on own lead. Boss: always. */
+function canManagerActOnOwnLeadOrBoss(user, lead) {
+  if (isAppBossUser(user)) return true;
+  if (!isAppManagerUser(user) || !user.key) return false;
+  if (isUnclaimed(lead)) return false;
+  return String(lead.assignedTo) === String(user.key);
+}
+
+function canManagerRequestDelete(lead, user) {
+  const uid = getUserIdFromUser(user);
+  if (!uid || !lead) return false;
+  if (lead.createdBy == null || lead.createdBy === '') {
+    return false; // only boss can hard-delete or legacy; managers must not by rule
+  }
+  return String(lead.createdBy) === String(uid);
+}
+
+// Middleware: verify JWT and attach user (role, key, appRole, userId) to request
 const authenticateAdmin = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -310,12 +417,21 @@ const authenticateAdmin = (req, res, next) => {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
     if (role === 'boss' || role === 'manager') {
-      req.user = { role: 'boss' };
+      const appRole = decoded.appRole === APP_ROLE.BOSS || decoded.appRole === APP_ROLE.MANAGER
+        ? decoded.appRole
+        : APP_ROLE.BOSS;
+      const userId = decoded.userId != null && String(decoded.userId) !== '' ? String(decoded.userId) : 'boss';
+      req.user = { role: 'boss', appRole, userId };
       return next();
     }
     // role === 'call' or 'call_manager'
     const key = decoded.key || (role === 'call_manager' ? 'call' : decoded.key);
-    req.user = { role: 'call', key: key || null };
+    const k = key || null;
+    const appRole = decoded.appRole === APP_ROLE.MANAGER || decoded.appRole === APP_ROLE.BOSS
+      ? decoded.appRole
+      : APP_ROLE.MANAGER;
+    const userId = decoded.userId != null && String(decoded.userId) !== '' ? String(decoded.userId) : (k || 'call');
+    req.user = { role: 'call', key: k, appRole, userId };
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
@@ -324,13 +440,13 @@ const authenticateAdmin = (req, res, next) => {
 
 // Middleware: require boss role (403 if call manager)
 const requireBoss = (req, res, next) => {
-  if (req.user && req.user.role === 'boss') {
+  if (req.user && isAppBossUser(req.user)) {
     return next();
   }
   return res.status(403).json({ error: 'Forbidden: Boss access required' });
 };
 
-// Legacy alias for routes that already use requireManager
+// Legacy: analytics and similar — boss (and some routes still use the name "manager")
 const requireManager = requireBoss;
 
 // ============================================
@@ -413,6 +529,9 @@ app.post('/api/leads', async (req, res) => {
         language: languageValue,
         isPreparing: false,
         readyDate: null,
+        createdBy: 'system',
+        assignedTo: null,
+        lockedUntil: new Date(Date.now() + WEBSITE_CLAIM_LOCK_MS),
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -437,6 +556,9 @@ app.post('/api/leads', async (req, res) => {
         language: languageValue,
         isPreparing: false,
         readyDate: null,
+        createdBy: 'system',
+        assignedTo: null,
+        lockedUntil: new Date(Date.now() + WEBSITE_CLAIM_LOCK_MS),
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -470,13 +592,17 @@ app.post('/api/admin/login', (req, res) => {
   if (!user) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
-  const payload = user.role === 'boss' ? { role: 'boss' } : { role: 'call', key: user.key };
+  const payload = user.role === 'boss'
+    ? { role: 'boss', appRole: APP_ROLE.BOSS, userId: 'boss' }
+    : { role: 'call', key: user.key, appRole: APP_ROLE.MANAGER, userId: user.key };
   const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256' });
   const response = {
     success: true,
     message: 'Login successful',
     token: jwtToken,
     role: user.role,
+    appRole: user.role === 'boss' ? APP_ROLE.BOSS : APP_ROLE.MANAGER,
+    userId: user.role === 'boss' ? 'boss' : user.key,
     name: user.name
   };
   if (user.role === 'call') {
@@ -485,10 +611,10 @@ app.post('/api/admin/login', (req, res) => {
   res.json(response);
 });
 
-// POST /api/admin/leads - Add client manually (Manager only)
+// POST /api/admin/leads - Add client manually (Boss and managers)
 // New payload: { fullName?, phone|phoneNumber, priorities?, source } — phone + source required.
 // Legacy: full door + measurements + length/width + exactly 2 priorities (unchanged).
-app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res) => {
+app.post('/api/admin/leads', authenticateAdmin, async (req, res) => {
   try {
     const body = req.body || {};
     const phoneRaw = body.phone != null ? body.phone : body.phoneNumber;
@@ -576,6 +702,19 @@ app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res)
       });
     }
 
+    const creatorId = getUserIdFromUser(req.user);
+    if (isAppManagerUser(req.user) && req.user.key) {
+      const k = String(req.user.key);
+      lead.createdBy = k;
+      lead.assignedTo = k;
+      lead.lockedUntil = null;
+    } else if (isAppBossUser(req.user) && creatorId) {
+      lead.createdBy = creatorId;
+      lead.assignedTo = null;
+      lead.lockedUntil = null;
+    } else if (creatorId) {
+      lead.createdBy = creatorId;
+    }
     await lead.save();
     console.log(`✅ [MONGODB] Lead added by manager: ${lead.fullName || lead.phoneNumber}`);
     res.status(201).json({ success: true, message: 'Client added', lead });
@@ -585,16 +724,13 @@ app.post('/api/admin/leads', authenticateAdmin, requireManager, async (req, res)
   }
 });
 
-// GET /api/admin/leads - Get leads with status "new" (Boss: all; Call: only assignedTo === key)
+// GET /api/admin/leads — all active (new) leads for every authenticated user
 app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
   try {
     const query = { status: 'new' };
-    if (req.user.role === 'call' && req.user.key) {
-      query.assignedTo = req.user.key;
-    }
     const leads = await Lead.find(query)
       .sort({ createdAt: -1 })
-      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities label source stage assignedTo isPreparing readyDate createdAt updatedAt _id');
+      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities label source stage assignedTo isPreparing readyDate createdBy lockedUntil createdAt updatedAt _id');
 
     res.json({
       success: true,
@@ -636,7 +772,83 @@ app.patch('/api/admin/leads/:id/assign', authenticateAdmin, requireBoss, async (
   }
 });
 
-// PATCH /api/admin/leads/:id/stage - Update lead stage (Protected; both roles can move cards)
+function closedByFromRequestUser(user) {
+  if (isAppManagerUser(user) && user.key) return user.key;
+  return 'boss';
+}
+
+/**
+ * Atomic claim: only when lead is unassigned, lock passed, target stage in_progress.
+ * One findOneAndUpdate with query conditions — no race.
+ */
+async function tryAtomicallyClaimInProgress(leadId, user) {
+  if (!isAppManagerUser(user) || !user.key) {
+    return { ok: false, status: 403, error: 'Forbidden' };
+  }
+  const now = new Date();
+  const key = String(user.key);
+  const filter = {
+    _id: leadId,
+    status: 'new',
+    assignedTo: null,
+    $or: [
+      { lockedUntil: null },
+      { lockedUntil: { $exists: false } },
+      { lockedUntil: { $lte: now } }
+    ]
+  };
+  const updated = await Lead.findOneAndUpdate(
+    filter,
+    {
+      $set: {
+        assignedTo: key,
+        stage: 'in_progress',
+        updatedAt: now,
+        lockedUntil: null
+      }
+    },
+    { new: true }
+  );
+  if (updated) {
+    return { ok: true, lead: updated };
+  }
+  const current = await Lead.findById(leadId);
+  if (!current) {
+    return { ok: false, status: 404, error: 'Lead not found' };
+  }
+  if (current.assignedTo && String(current.assignedTo) !== key) {
+    return { ok: false, status: 409, error: ERR_LEAD_TAKEN_RU };
+  }
+  if (current.lockedUntil && current.lockedUntil > now) {
+    return { ok: false, status: 400, error: ERR_WAIT_CLAIM_LOCK_RU };
+  }
+  return { ok: false, status: 409, error: ERR_LEAD_TAKEN_RU };
+}
+
+async function applyStageSuccessful(lead, dealAmount, comment, closedByValue) {
+  if (lead.stage === 'preparing') {
+    lead.isPreparing = false;
+    lead.readyDate = null;
+  }
+  lead.stage = 'successful';
+  lead.status = 'done';
+  lead.closedAt = new Date();
+  lead.closedBy = closedByValue;
+  lead.label = 'Successful';
+  const amount = dealAmount != null ? Number(dealAmount) : NaN;
+  if (typeof amount === 'number' && !isNaN(amount) && amount > 0) {
+    lead.dealAmount = amount;
+  }
+  if (comment != null && String(comment).trim() !== '') {
+    lead.comment = String(comment).trim();
+    lead.commentUpdatedAt = new Date();
+    lead.lastEditedBy = closedByValue;
+  }
+  lead.updatedAt = new Date();
+  await lead.save();
+}
+
+// PATCH /api/admin/leads/:id/stage - Update lead stage (claim in_progress = atomic; manager "successful" → approval)
 app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -668,6 +880,63 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Only active leads can be moved' });
     }
 
+    if (isAppManagerUser(req.user) && isLeadClaimedByOther(lead, req.user)) {
+      return res.status(403).json({ error: 'Недостаточно прав для изменения воронки по этому лиду' });
+    }
+
+    if (isAppManagerUser(req.user) && isUnclaimed(lead)) {
+      if (stageValue !== 'in_progress') {
+        return res.status(400).json({ error: ERR_MUST_CLAIM_RU });
+      }
+      const claim = await tryAtomicallyClaimInProgress(lead._id, req.user);
+      if (claim.ok && claim.lead) {
+        return res.json({
+          success: true,
+          message: 'Stage updated',
+          lead: claim.lead
+        });
+      }
+      return res.status(claim.status || 409).json({ error: claim.error || ERR_LEAD_TAKEN_RU });
+    }
+
+    if (!canMovePipeline(req.user, lead)) {
+      return res.status(403).json({ error: 'Недостаточно прав для изменения воронки по этому лиду' });
+    }
+
+    const closedByValue = closedByFromRequestUser(req.user);
+    const wantsSuccessClose = stageValue === 'successful' && isAppManagerUser(req.user);
+    if (wantsSuccessClose) {
+      const amount = dealAmount != null ? Number(dealAmount) : NaN;
+      const existing = await Approval.findOne({
+        leadId: lead._id,
+        type: APPROVAL_TYPE.CLOSE,
+        status: APPROVAL_STATUS.PENDING
+      });
+      if (existing) {
+        return res.json({
+          success: true,
+          pending: true,
+          message: PENDING_MSG_RU
+        });
+      }
+      const approval = new Approval({
+        type: APPROVAL_TYPE.CLOSE,
+        leadId: lead._id,
+        requestedBy: getUserIdFromUser(req.user),
+        status: APPROVAL_STATUS.PENDING,
+        closeDealAmount: amount,
+        closeComment: comment != null && String(comment).trim() !== '' ? String(comment).trim() : '',
+        isStageClose: true
+      });
+      await approval.save();
+      return res.json({
+        success: true,
+        pending: true,
+        message: PENDING_MSG_RU,
+        approval: { id: String(approval._id) }
+      });
+    }
+
     if (lead.stage === 'preparing' && stageValue !== 'preparing') {
       lead.isPreparing = false;
       lead.readyDate = null;
@@ -675,7 +944,6 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
 
     lead.stage = stageValue;
     lead.updatedAt = new Date();
-    const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
 
     if (stageValue === 'preparing') {
       const rd = parseReadyDateFromBody(readyDate);
@@ -684,27 +952,17 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
     }
 
     if (stageValue === 'successful') {
-      lead.status = 'done';
-      lead.closedAt = new Date();
-      lead.closedBy = closedByValue;
-      lead.label = 'Successful';
       const amount = dealAmount != null ? Number(dealAmount) : NaN;
-      if (typeof amount === 'number' && !isNaN(amount) && amount > 0) {
-        lead.dealAmount = amount;
-      }
-      if (comment != null && String(comment).trim() !== '') {
-        lead.comment = String(comment).trim();
-        lead.commentUpdatedAt = new Date();
-        lead.lastEditedBy = closedByValue;
-      }
+      await applyStageSuccessful(lead, amount, comment, closedByValue);
+    } else {
+      await lead.save();
     }
 
-    await lead.save();
-
+    const fresh = await Lead.findById(id);
     res.json({
       success: true,
       message: 'Stage updated',
-      lead
+      lead: fresh || lead
     });
   } catch (error) {
     console.error('❌ [ERROR] Error updating lead stage:', error);
@@ -727,6 +985,12 @@ app.patch('/api/admin/leads/:id/preparing-date', authenticateAdmin, async (req, 
     }
     if (lead.stage !== 'preparing') {
       return res.status(400).json({ error: 'Lead is not in preparing stage' });
+    }
+    if (isAppManagerUser(req.user) && isLeadClaimedByOther(lead, req.user)) {
+      return res.status(403).json({ error: 'Недостаточно прав для изменения воронки по этому лиду' });
+    }
+    if (!canMovePipeline(req.user, lead)) {
+      return res.status(403).json({ error: 'Недостаточно прав для изменения воронки по этому лиду' });
     }
 
     const rd = parseReadyDateFromBody(readyDate);
@@ -765,8 +1029,50 @@ app.post('/api/admin/leads/:id/done', authenticateAdmin, async (req, res) => {
     if (!lead) {
       return res.status(404).json({ error: 'Lead not found' });
     }
+    if (lead.status !== 'new') {
+      return res.status(400).json({ error: 'Only active leads can be closed' });
+    }
+    if (isAppManagerUser(req.user) && isLeadClaimedByOther(lead, req.user)) {
+      return res.status(403).json({ error: 'Недостаточно прав для закрытия по этому лиду' });
+    }
+    if (!canManagerActOnOwnLeadOrBoss(req.user, lead)) {
+      return res.status(403).json({ error: 'Недостаточно прав для закрытия по этому лиду' });
+    }
 
-    const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
+    const managerCloseApproval = isAppManagerUser(req.user) && trimmedLabel === 'Successful';
+    if (managerCloseApproval) {
+      const existing = await Approval.findOne({
+        leadId: lead._id,
+        type: APPROVAL_TYPE.CLOSE,
+        status: APPROVAL_STATUS.PENDING
+      });
+      if (existing) {
+        return res.json({
+          success: true,
+          pending: true,
+          message: PENDING_MSG_RU
+        });
+      }
+      const approval = new Approval({
+        type: APPROVAL_TYPE.CLOSE,
+        leadId: lead._id,
+        requestedBy: getUserIdFromUser(req.user),
+        status: APPROVAL_STATUS.PENDING,
+        closeDealAmount: null,
+        closeComment: comment != null && String(comment).trim() !== '' ? String(comment).trim() : '',
+        isStageClose: false,
+        doneLabel: 'Successful'
+      });
+      await approval.save();
+      return res.json({
+        success: true,
+        pending: true,
+        message: PENDING_MSG_RU,
+        approval: { id: String(approval._id) }
+      });
+    }
+
+    const closedByValue = closedByFromRequestUser(req.user);
     // Update lead status and comment
     lead.status = 'done';
     lead.closedBy = closedByValue;
@@ -783,10 +1089,10 @@ app.post('/api/admin/leads/:id/done', authenticateAdmin, async (req, res) => {
     await lead.save();
     console.log(`✅ [MONGODB] Lead ${id} marked as done and saved to database`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Lead marked as done',
-      lead 
+      lead
     });
   } catch (error) {
     console.error('❌ [ERROR] Error updating lead:', error);
@@ -804,8 +1110,46 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
     if (!lead) {
       return res.status(404).json({ error: 'Lead not found' });
     }
+    if (lead.status !== 'new') {
+      return res.status(400).json({ error: 'Only active leads can be archived' });
+    }
+    if (isAppManagerUser(req.user) && isLeadClaimedByOther(lead, req.user)) {
+      return res.status(403).json({ error: 'Недостаточно прав для архивации по этому лиду' });
+    }
+    if (!canManagerActOnOwnLeadOrBoss(req.user, lead)) {
+      return res.status(403).json({ error: 'Недостаточно прав для архивации по этому лиду' });
+    }
 
-    const closedByValue = req.user.role === 'call' ? req.user.key : 'boss';
+    if (isAppManagerUser(req.user)) {
+      const existing = await Approval.findOne({
+        leadId: lead._id,
+        type: APPROVAL_TYPE.DELETE,
+        status: APPROVAL_STATUS.PENDING
+      });
+      if (existing) {
+        return res.json({
+          success: true,
+          pending: true,
+          message: PENDING_MSG_RU
+        });
+      }
+      const approval = new Approval({
+        type: APPROVAL_TYPE.DELETE,
+        leadId: lead._id,
+        requestedBy: getUserIdFromUser(req.user),
+        status: APPROVAL_STATUS.PENDING,
+        deleteMode: 'archive'
+      });
+      await approval.save();
+      return res.json({
+        success: true,
+        pending: true,
+        message: PENDING_MSG_RU,
+        approval: { id: String(approval._id) }
+      });
+    }
+
+    const closedByValue = closedByFromRequestUser(req.user);
     // Update lead status to archived
     lead.status = 'archived';
     lead.closedBy = closedByValue;
@@ -817,13 +1161,282 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
     await lead.save();
     console.log(`✅ [MONGODB] Lead ${id} archived and saved to database`);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Lead archived',
-      lead 
+      lead
     });
   } catch (error) {
     console.error('❌ [ERROR] Error archiving lead:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+async function applyDoneLabel(lead, trimmedLabel, comment, dealAmount, closedByValue) {
+  lead.status = 'done';
+  lead.closedBy = closedByValue;
+  lead.closedAt = new Date();
+  lead.label = trimmedLabel;
+  lead.updatedAt = new Date();
+  if (comment && String(comment).trim() !== '') {
+    const c = String(comment).trim();
+    lead.comment = c;
+    lead.commentUpdatedAt = new Date();
+    lead.lastEditedBy = closedByValue;
+  }
+  if (trimmedLabel === 'Successful' && dealAmount != null) {
+    const a = Number(dealAmount);
+    if (typeof a === 'number' && !isNaN(a) && a > 0) {
+      lead.dealAmount = a;
+    }
+  }
+  await lead.save();
+}
+
+// DELETE /api/admin/leads/:id — boss: immediate; manager: approval (own leads only) or 403
+app.delete('/api/admin/leads/:id', authenticateAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const lead = await Lead.findById(id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    if (isAppBossUser(req.user)) {
+      if (lead.status === 'archived' || lead.status === 'done') {
+        return res.status(400).json({ error: 'Lead is not active' });
+      }
+      await lead.deleteOne();
+      return res.json({ success: true, message: 'Lead deleted' });
+    }
+
+    if (!isAppManagerUser(req.user)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (lead.status !== 'new') {
+      return res.status(400).json({ error: 'Only active leads can be deleted' });
+    }
+    if (isLeadClaimedByOther(lead, req.user)) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+    if (!canManagerRequestDelete(lead, req.user)) {
+      return res.status(403).json({ error: 'Можно удалить только лид, созданный вами' });
+    }
+    if (!canManagerActOnOwnLeadOrBoss(req.user, lead)) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+
+    const existing = await Approval.findOne({
+      leadId: lead._id,
+      type: APPROVAL_TYPE.DELETE,
+      status: APPROVAL_STATUS.PENDING
+    });
+    if (existing) {
+      return res.json({
+        success: true,
+        pending: true,
+        message: PENDING_MSG_RU
+      });
+    }
+    const approval = new Approval({
+      type: APPROVAL_TYPE.DELETE,
+      leadId: lead._id,
+      requestedBy: getUserIdFromUser(req.user),
+      status: APPROVAL_STATUS.PENDING,
+      deleteMode: 'hard'
+    });
+    await approval.save();
+    return res.json({
+      success: true,
+      pending: true,
+      message: PENDING_MSG_RU,
+      approval: { id: String(approval._id) }
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error deleting lead:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/approvals — pending requests (boss only)
+app.get('/api/admin/approvals', authenticateAdmin, requireBoss, async (req, res) => {
+  try {
+    const approvals = await Approval.find({ status: APPROVAL_STATUS.PENDING })
+      .sort({ createdAt: -1 })
+      .lean();
+    const leadIds = [...new Set(approvals.map(a => a.leadId).filter(Boolean))];
+    const leads = leadIds.length
+      ? await Lead.find({ _id: { $in: leadIds } })
+      .select('name surname fullName phoneNumber stage status label dealAmount assignedTo _id')
+      : [];
+    const leadMap = new Map(leads.map(l => [String(l._id), l]));
+    const enriched = approvals.map(a => ({
+      ...a,
+      lead: leadMap.get(String(a.leadId)) || null
+    }));
+    res.json({ success: true, approvals: enriched });
+  } catch (e) {
+    console.error('❌ [ERROR] List approvals:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/approvals/mine — PENDING approvals requested by current manager (hide those leads from pipeline)
+app.get('/api/admin/approvals/mine', authenticateAdmin, async (req, res) => {
+  try {
+    if (isAppBossUser(req.user)) {
+      return res.json({ success: true, pending: [] });
+    }
+    const uid = getUserIdFromUser(req.user);
+    if (!uid) {
+      return res.json({ success: true, pending: [] });
+    }
+    const list = await Approval.find({ requestedBy: uid, status: APPROVAL_STATUS.PENDING })
+      .sort({ createdAt: -1 })
+      .lean();
+    const leadIds = [...new Set(list.map(a => a.leadId).filter(Boolean))];
+    const leads = leadIds.length
+      ? await Lead.find({ _id: { $in: leadIds } })
+        .select('name surname fullName phoneNumber _id')
+      : [];
+    const leadMap = new Map(leads.map(l => [String(l._id), l]));
+    const pending = list.map(a => ({
+      ...a,
+      lead: leadMap.get(String(a.leadId)) || null
+    }));
+    res.json({ success: true, pending });
+  } catch (e) {
+    console.error('❌ [ERROR] approvals/mine', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/approval-feed?since=ISO — resolved APPROVE/REJECT for manager (notifications)
+app.get('/api/admin/approval-feed', authenticateAdmin, async (req, res) => {
+  try {
+    if (isAppBossUser(req.user)) {
+      return res.json({ success: true, events: [], serverTime: new Date().toISOString() });
+    }
+    const uid = getUserIdFromUser(req.user);
+    if (!uid) {
+      return res.json({ success: true, events: [], serverTime: new Date().toISOString() });
+    }
+    let since = new Date(0);
+    if (req.query.since) {
+      const d = new Date(String(req.query.since));
+      if (!isNaN(d.getTime())) since = d;
+    }
+    const events = await Approval.find({
+      requestedBy: uid,
+      status: { $in: [APPROVAL_STATUS.APPROVED, APPROVAL_STATUS.REJECTED] },
+      resolvedAt: { $ne: null, $gt: since }
+    })
+      .sort({ resolvedAt: -1 })
+      .limit(30)
+      .lean();
+    res.json({ success: true, events, serverTime: new Date().toISOString() });
+  } catch (e) {
+    console.error('❌ [ERROR] approval-feed', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/approvals/:id/resolve { decision: 'approve' | 'reject' } — boss only
+app.post('/api/admin/approvals/:id/resolve', authenticateAdmin, requireBoss, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const decision = req.body && req.body.decision != null ? String(req.body.decision).trim() : '';
+    if (decision !== 'approve' && decision !== 'reject') {
+      return res.status(400).json({ error: 'decision must be approve or reject' });
+    }
+    const approval = await Approval.findById(id);
+    if (!approval) {
+      return res.status(404).json({ error: 'Approval not found' });
+    }
+    if (approval.status !== APPROVAL_STATUS.PENDING) {
+      return res.status(400).json({ error: 'Запрос уже обработан' });
+    }
+    if (decision === 'reject') {
+      approval.status = APPROVAL_STATUS.REJECTED;
+      approval.resolvedAt = new Date();
+      await approval.save();
+      return res.json({ success: true, approval, message: 'Rejected' });
+    }
+    if (approval.type === APPROVAL_TYPE.DELETE) {
+      const lead = await Lead.findById(approval.leadId);
+      if (lead) {
+        if (approval.deleteMode === 'hard') {
+          await lead.deleteOne();
+        } else {
+          lead.status = 'archived';
+          lead.label = 'Rejected';
+          lead.closedBy = approval.requestedBy;
+          lead.closedAt = new Date();
+          lead.updatedAt = new Date();
+          await lead.save();
+        }
+      }
+      approval.status = APPROVAL_STATUS.APPROVED;
+      approval.resolvedAt = new Date();
+      await approval.save();
+      return res.json({ success: true, approval, message: 'Approved' });
+    }
+    if (approval.type === APPROVAL_TYPE.CLOSE) {
+      const lead = await Lead.findById(approval.leadId);
+      if (!lead) {
+        approval.status = APPROVAL_STATUS.APPROVED;
+        approval.resolvedAt = new Date();
+        await approval.save();
+        return res.json({ success: true, approval, message: 'Lead missing; request closed' });
+      }
+      if (approval.isStageClose) {
+        const by = approval.requestedBy;
+        if (lead.status !== 'new') {
+          approval.status = APPROVAL_STATUS.REJECTED;
+          approval.resolvedAt = new Date();
+          await approval.save();
+          return res.status(400).json({ error: 'Лид уже обработан' });
+        }
+        const amt = approval.closeDealAmount != null ? Number(approval.closeDealAmount) : NaN;
+        if (typeof amt !== 'number' || isNaN(amt) || amt <= 0) {
+          approval.status = APPROVAL_STATUS.REJECTED;
+          approval.resolvedAt = new Date();
+          await approval.save();
+          return res.status(400).json({ error: 'Некорректная сумма в заявке' });
+        }
+        await applyStageSuccessful(lead, amt, approval.closeComment, by);
+      } else {
+        if (lead.status !== 'new') {
+          approval.status = APPROVAL_STATUS.REJECTED;
+          approval.resolvedAt = new Date();
+          await approval.save();
+          return res.status(400).json({ error: 'Лид уже обработан' });
+        }
+        const dl = approval.doneLabel && String(approval.doneLabel).trim() !== ''
+          ? String(approval.doneLabel).trim()
+          : 'Successful';
+        if (!LABEL_OPTIONS.includes(dl) || dl === 'New Client') {
+          approval.status = APPROVAL_STATUS.REJECTED;
+          approval.resolvedAt = new Date();
+          await approval.save();
+          return res.status(400).json({ error: 'Invalid label' });
+        }
+        await applyDoneLabel(
+          lead,
+          dl,
+          approval.closeComment,
+          approval.closeDealAmount,
+          approval.requestedBy
+        );
+      }
+      approval.status = APPROVAL_STATUS.APPROVED;
+      approval.resolvedAt = new Date();
+      await approval.save();
+      return res.json({ success: true, approval, message: 'Approved' });
+    }
+    return res.status(500).json({ error: 'Unknown approval type' });
+  } catch (e) {
+    console.error('❌ [ERROR] resolve approval', e);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

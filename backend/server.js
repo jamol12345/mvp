@@ -736,13 +736,10 @@ if (require.main === module) {
   });
 }
 
-const doors = require("./data/doors");
+const doors = require('./data/doors');
 
-app.get("/api/doors", (req, res) => {
-  res.json({
-    success: true,
-    count: doors.length,
-    data: doors
-  });
+app.get('/api/doors', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+  res.json(doors);
 });
 module.exports = app;
