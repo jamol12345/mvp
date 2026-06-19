@@ -170,9 +170,30 @@
 
             <!-- Analytics -->
             <div id="analyticsWrapper" class="glass" style="display: none; margin-top: 20px;">
-                <div class="analytics-header" style="margin-bottom: 16px;">
+                <div class="analytics-header" style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
                     <a href="admin.html" class="btn-link" data-i18n="backToActive">← Назад к активным</a>
+                    <span id="analyticsLiveIndicator" class="analytics-live" title="Данные обновляются автоматически">
+                        <span class="analytics-live-dot"></span>
+                        <span id="analyticsLiveText" data-i18n="liveUpdating">LIVE</span>
+                    </span>
                 </div>
+
+                <!-- Funnel: pipeline conversion (boss only) -->
+                <div id="funnelSection" class="funnel-section glass" style="display: none;">
+                    <div class="funnel-head">
+                        <h3 class="funnel-title" data-i18n="funnelTitle">Воронка продаж</h3>
+                        <div class="funnel-periods" id="funnelPeriods" role="tablist">
+                            <button type="button" class="funnel-period-btn" data-period="today" data-i18n="periodToday">Сегодня</button>
+                            <button type="button" class="funnel-period-btn" data-period="week" data-i18n="periodWeek">7 дней</button>
+                            <button type="button" class="funnel-period-btn" data-period="month" data-i18n="periodMonth">30 дней</button>
+                            <button type="button" class="funnel-period-btn is-active" data-period="all" data-i18n="periodAll">Всё время</button>
+                        </div>
+                    </div>
+                    <div id="funnelBars" class="funnel-bars"></div>
+                    <div id="funnelLeak" class="funnel-leak" style="display: none;"></div>
+                    <div class="funnel-summary" id="funnelSummary"></div>
+                </div>
+
                 <div id="managersTableSection" class="managers-analytics-section glass" style="display: none;">
                     <h3 class="managers-analytics-title" data-i18n="managersAnalyticsTitle">По менеджерам</h3>
                     <div class="managers-table-wrap">
@@ -515,6 +536,12 @@
                 thCount: 'Количество',
                 financialAnalyticsTitle: 'Финансовые показатели',
                 managersAnalyticsTitle: 'По менеджерам',
+                funnelTitle: 'Воронка продаж',
+                liveUpdating: 'LIVE',
+                periodToday: 'Сегодня',
+                periodWeek: '7 дней',
+                periodMonth: '30 дней',
+                periodAll: 'Всё время',
                 personalStatsTitle: 'Ваша статистика',
                 thManager: 'Менеджер',
                 totalRevenueLabel: 'Общая выручка',
@@ -695,6 +722,12 @@
                 thCount: 'Soni',
                 financialAnalyticsTitle: 'Moliyaviy ko\'rsatkichlar',
                 managersAnalyticsTitle: 'Menejerlar bo\'yicha',
+                funnelTitle: 'Savdo voronkasi',
+                liveUpdating: 'LIVE',
+                periodToday: 'Bugun',
+                periodWeek: '7 kun',
+                periodMonth: '30 kun',
+                periodAll: 'Butun davr',
                 personalStatsTitle: 'Sizning statistikangiz',
                 thManager: 'Menejer',
                 totalRevenueLabel: 'Umumiy daromad',
@@ -1295,6 +1328,7 @@
             sessionStorage.removeItem('authAppRole');
             sessionStorage.removeItem('authUserId');
             stopSilentRefresh();
+            stopAnalyticsLive();
             if (lockTickerInterval) {
                 clearInterval(lockTickerInterval);
                 lockTickerInterval = null;
@@ -1778,6 +1812,109 @@
             }
         }
 
+        function fmtMoney(v) {
+            return (typeof v === 'number' && !isNaN(v))
+                ? v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                : '—';
+        }
+
+        let funnelPeriod = 'all';
+        (function wireFunnelPeriods() {
+            const box = document.getElementById('funnelPeriods');
+            if (!box) return;
+            box.addEventListener('click', function (e) {
+                const btn = e.target.closest('.funnel-period-btn');
+                if (!btn) return;
+                const period = btn.getAttribute('data-period');
+                if (!period || period === funnelPeriod) return;
+                funnelPeriod = period;
+                box.querySelectorAll('.funnel-period-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+                loadFunnelAnalytics();
+            });
+        })();
+
+        async function loadFunnelAnalytics() {
+            const section = document.getElementById('funnelSection');
+            const barsEl = document.getElementById('funnelBars');
+            const leakEl = document.getElementById('funnelLeak');
+            const summaryEl = document.getElementById('funnelSummary');
+            if (!section || !barsEl) return;
+            // Boss-only block; hide for call managers.
+            if (!isUIRoleBoss()) { section.style.display = 'none'; return; }
+            try {
+                const response = await fetch(getApiBase() + '/api/admin/analytics/funnel?period=' + encodeURIComponent(funnelPeriod), { method: 'GET', headers: getAuthHeader() });
+                const data = await response.json();
+                if (!response.ok || !data.success) { section.style.display = 'none'; return; }
+                section.style.display = 'block';
+
+                if (!data.totalLeads) {
+                    barsEl.innerHTML = '<div class="funnel-empty">Нет лидов за выбранный период</div>';
+                    if (leakEl) leakEl.style.display = 'none';
+                    if (summaryEl) summaryEl.innerHTML = '';
+                    return;
+                }
+
+                const stages = data.stages || [];
+                const maxReached = stages.reduce((m, s) => Math.max(m, s.reached || 0), 0) || 1;
+                const leakKey = data.biggestLeak ? data.biggestLeak.toStage : null;
+
+                barsEl.innerHTML = stages.map(s => {
+                    const pct = Math.max((s.reached / maxReached) * 100, s.reached > 0 ? 4 : 0);
+                    const isLeak = s.key === leakKey;
+                    const convClass = s.conversionFromPrev < 100 ? ' is-drop' : '';
+                    const convText = s.conversionFromPrev != null ? s.conversionFromPrev.toFixed(0) + '%' : '—';
+                    const stalled = s.stalled > 0
+                        ? `<span class="funnel-stalled" title="Застряли > ${data.staleDays} дн.">⏳ ${s.stalled}</span>`
+                        : '';
+                    return `
+                        <div class="funnel-row${isLeak ? ' has-leak' : ''}">
+                            <div class="funnel-row-label">
+                                <span>${escapeHtml(s.label)}</span>
+                                <span class="funnel-row-current">сейчас: ${s.current}</span>
+                            </div>
+                            <div class="funnel-bar-track">
+                                <div class="funnel-bar-fill" style="width:${pct}%">
+                                    <span class="funnel-bar-count">${s.reached}</span>
+                                </div>
+                            </div>
+                            <div class="funnel-row-conv${convClass}">${convText}${stalled}</div>
+                        </div>`;
+                }).join('');
+
+                if (leakEl) {
+                    if (data.biggestLeak) {
+                        const l = data.biggestLeak;
+                        leakEl.style.display = 'block';
+                        leakEl.innerHTML = `⚠️ Наибольшая потеря: <b>${escapeHtml(l.fromLabel)} → ${escapeHtml(l.toLabel)}</b> — теряется ${l.drop} (${l.dropPct.toFixed(0)}%)`;
+                    } else {
+                        leakEl.style.display = 'none';
+                    }
+                }
+
+                if (summaryEl) {
+                    summaryEl.innerHTML = `
+                        <div class="funnel-summary-item">
+                            <span class="funnel-summary-label">Всего лидов</span>
+                            <span class="funnel-summary-value">${data.totalLeads}</span>
+                        </div>
+                        <div class="funnel-summary-item">
+                            <span class="funnel-summary-label">Конверсия в продажу</span>
+                            <span class="funnel-summary-value">${(data.overallConversion ?? 0).toFixed(1)}%</span>
+                        </div>
+                        <div class="funnel-summary-item">
+                            <span class="funnel-summary-label">Выиграно сделок</span>
+                            <span class="funnel-summary-value">${data.won ? data.won.count : 0}</span>
+                        </div>
+                        <div class="funnel-summary-item">
+                            <span class="funnel-summary-label">В пайплайне</span>
+                            <span class="funnel-summary-value">${fmtMoney(data.pipelineValue || 0)}</span>
+                        </div>`;
+                }
+            } catch (e) {
+                section.style.display = 'none';
+            }
+        }
+
         async function loadPriorityAnalytics() {
             if (!adminToken) return;
             document.getElementById('errorMessage').style.display = 'none';
@@ -1873,6 +2010,51 @@
             }
         }
 
+        // ----- Live analytics refresh (runs only while the analytics panel is open) -----
+        const ANALYTICS_LIVE_INTERVAL_MS = 15000;
+        let analyticsLiveIntervalId = null;
+        let analyticsLastRefreshAt = null;
+        let analyticsAgoIntervalId = null;
+
+        async function refreshAnalytics() {
+            const indicator = document.getElementById('analyticsLiveIndicator');
+            if (indicator) indicator.classList.add('is-refreshing');
+            const isBoss = isUIRoleBoss();
+            try {
+                if (isBoss) {
+                    await Promise.all([
+                        loadFunnelAnalytics(),
+                        loadManagerAnalytics(),
+                        loadPriorityAnalytics()
+                    ]);
+                } else {
+                    await loadManagerAnalytics();
+                }
+                analyticsLastRefreshAt = Date.now();
+                updateAnalyticsAgo();
+            } finally {
+                if (indicator) indicator.classList.remove('is-refreshing');
+            }
+        }
+
+        function updateAnalyticsAgo() {
+            const el = document.getElementById('analyticsLiveText');
+            if (!el || !analyticsLastRefreshAt) return;
+            const secs = Math.round((Date.now() - analyticsLastRefreshAt) / 1000);
+            el.textContent = secs < 5 ? 'LIVE' : ('обновлено ' + secs + ' сек назад');
+        }
+
+        function startAnalyticsLive() {
+            stopAnalyticsLive();
+            analyticsLiveIntervalId = setInterval(refreshAnalytics, ANALYTICS_LIVE_INTERVAL_MS);
+            analyticsAgoIntervalId = setInterval(updateAnalyticsAgo, 1000);
+        }
+
+        function stopAnalyticsLive() {
+            if (analyticsLiveIntervalId) { clearInterval(analyticsLiveIntervalId); analyticsLiveIntervalId = null; }
+            if (analyticsAgoIntervalId) { clearInterval(analyticsAgoIntervalId); analyticsAgoIntervalId = null; }
+        }
+
         document.getElementById('analyticsBtn').addEventListener('click', async () => {
             const analyticsWrapper = document.getElementById('analyticsWrapper');
             const leadsWrapper = document.getElementById('leadsTableWrapper');
@@ -1887,19 +2069,21 @@
                 const managersSection = document.getElementById('managersTableSection');
                 const personalSection = document.getElementById('personalStatsSection');
                 const prioritySection = document.getElementById('prioritySection');
+                const funnelSection = document.getElementById('funnelSection');
                 if (isBoss) {
                     if (managersSection) managersSection.style.display = 'block';
                     if (personalSection) personalSection.style.display = 'none';
                     if (prioritySection) prioritySection.style.display = 'block';
-                    await loadManagerAnalytics();
-                    await loadPriorityAnalytics();
                 } else {
                     if (managersSection) managersSection.style.display = 'none';
                     if (personalSection) personalSection.style.display = 'block';
                     if (prioritySection) prioritySection.style.display = 'none';
-                    await loadManagerAnalytics();
+                    if (funnelSection) funnelSection.style.display = 'none';
                 }
+                await refreshAnalytics();
+                startAnalyticsLive();
             } else {
+                stopAnalyticsLive();
                 analyticsWrapper.style.display = 'none';
                 await loadLeads();
             }

@@ -1785,6 +1785,146 @@ app.get('/api/admin/analytics/managers', authenticateAdmin, async (req, res) => 
   }
 });
 
+// GET /api/admin/analytics/funnel - Pipeline funnel: cumulative reach per stage,
+// stage-to-stage conversion, biggest leak, stalled leads, pipeline value (Boss only).
+// Query: ?period=today|week|month|all (default all) — filters the lead cohort by createdAt.
+const FUNNEL_STALE_DAYS = 3;
+const FUNNEL_PERIODS = ['today', 'week', 'month', 'all'];
+// Uzbekistan has no DST; fixed UTC+5 so "today" matches the client's calendar day.
+const UZ_OFFSET_MS = 5 * 60 * 60 * 1000;
+const funnelPeriodStart = (period) => {
+  const now = Date.now();
+  if (period === 'today') {
+    const uz = new Date(now + UZ_OFFSET_MS);
+    const uzMidnight = Date.UTC(uz.getUTCFullYear(), uz.getUTCMonth(), uz.getUTCDate());
+    return new Date(uzMidnight - UZ_OFFSET_MS);
+  }
+  if (period === 'week') return new Date(now - 7 * 24 * 60 * 60 * 1000);
+  if (period === 'month') return new Date(now - 30 * 24 * 60 * 60 * 1000);
+  return null; // 'all'
+};
+app.get('/api/admin/analytics/funnel', authenticateAdmin, requireManager, async (req, res) => {
+  try {
+    // Stage order defines the funnel; legacy/unknown stages collapse to 'new'.
+    const order = STAGE_OPTIONS; // ['new','in_progress','thinking','successful','preparing']
+    const rankOf = (stage) => {
+      const i = order.indexOf(stage);
+      return i === -1 ? 0 : i;
+    };
+    const labels = {
+      new: 'Новые',
+      in_progress: 'В работе',
+      thinking: 'Думают',
+      successful: 'Успешные',
+      preparing: 'Подготовка'
+    };
+
+    // Period cohort filter (by createdAt), reused across every aggregation below.
+    const period = FUNNEL_PERIODS.includes(req.query.period) ? req.query.period : 'all';
+    const start = funnelPeriodStart(period);
+    const createdFilter = start ? { createdAt: { $gte: start } } : {};
+
+    // Count non-archived leads grouped by (status, stage). Small datasets -> cheap.
+    const grouped = await Lead.aggregate([
+      { $match: { status: { $in: ['new', 'done'] }, ...createdFilter } },
+      { $group: { _id: { status: '$status', stage: '$stage' }, count: { $sum: 1 } } }
+    ]);
+
+    // current[stageRank] = active (status:new) leads sitting AT that stage right now.
+    // finalRankCount[rank] = leads (active OR done) whose furthest-known stage == rank.
+    const finalRankCount = order.map(() => 0);
+    const currentByRank = order.map(() => 0);
+    let totalLeads = 0;
+    grouped.forEach(({ _id, count }) => {
+      const r = rankOf(_id.stage);
+      finalRankCount[r] += count;
+      totalLeads += count;
+      if (_id.status === 'new') currentByRank[r] += count;
+    });
+
+    // reached[r] = how many leads got AT LEAST to stage r (cumulative from the top rank down).
+    const reached = order.map(() => 0);
+    for (let r = order.length - 1; r >= 0; r--) {
+      reached[r] = finalRankCount[r] + (r + 1 < order.length ? reached[r + 1] : 0);
+    }
+
+    // Stalled active leads per current stage (no update in FUNNEL_STALE_DAYS).
+    const staleCutoff = new Date(Date.now() - FUNNEL_STALE_DAYS * 24 * 60 * 60 * 1000);
+    const stalledRaw = await Lead.aggregate([
+      { $match: { status: 'new', updatedAt: { $lt: staleCutoff }, ...createdFilter } },
+      { $group: { _id: '$stage', count: { $sum: 1 } } }
+    ]);
+    const stalledByRank = order.map(() => 0);
+    stalledRaw.forEach(({ _id, count }) => { stalledByRank[rankOf(_id)] += count; });
+
+    const stages = order.map((key, r) => {
+      const prevReached = r === 0 ? reached[0] : reached[r - 1];
+      const conversionFromPrev = r === 0
+        ? 100
+        : (prevReached > 0 ? (reached[r] / prevReached) * 100 : 0);
+      return {
+        key,
+        label: labels[key] || key,
+        current: currentByRank[r],
+        reached: reached[r],
+        conversionFromPrev: Math.round(conversionFromPrev * 10) / 10,
+        stalled: stalledByRank[r]
+      };
+    });
+
+    // Biggest leak = consecutive transition with the largest absolute drop in reach.
+    let biggestLeak = null;
+    for (let r = 1; r < order.length; r++) {
+      const drop = reached[r - 1] - reached[r];
+      const dropPct = reached[r - 1] > 0 ? (drop / reached[r - 1]) * 100 : 0;
+      if (drop > 0 && (!biggestLeak || drop > biggestLeak.drop)) {
+        biggestLeak = {
+          fromStage: order[r - 1],
+          fromLabel: labels[order[r - 1]],
+          toStage: order[r],
+          toLabel: labels[order[r]],
+          drop,
+          dropPct: Math.round(dropPct * 10) / 10
+        };
+      }
+    }
+
+    // Won deals + pipeline value (open deals already carrying a dealAmount).
+    const [wonAgg, pipelineAgg] = await Promise.all([
+      Lead.aggregate([
+        { $match: { status: 'done', stage: 'successful', dealAmount: { $gt: 0 }, ...createdFilter } },
+        { $group: { _id: null, count: { $sum: 1 }, revenue: { $sum: '$dealAmount' } } }
+      ]),
+      Lead.aggregate([
+        { $match: { status: 'new', stage: { $in: ['successful', 'preparing'] }, dealAmount: { $gt: 0 }, ...createdFilter } },
+        { $group: { _id: null, value: { $sum: '$dealAmount' } } }
+      ])
+    ]);
+    const won = wonAgg[0] || { count: 0, revenue: 0 };
+    const pipelineValue = pipelineAgg[0] ? pipelineAgg[0].value : 0;
+
+    // Overall conversion: won / everyone who entered the funnel.
+    const overallConversion = totalLeads > 0
+      ? Math.round((won.count / totalLeads) * 1000) / 10
+      : 0;
+
+    res.json({
+      success: true,
+      period,
+      totalLeads,
+      staleDays: FUNNEL_STALE_DAYS,
+      stages,
+      biggestLeak,
+      won: { count: won.count, revenue: won.revenue },
+      pipelineValue,
+      overallConversion
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error fetching funnel analytics:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Lightweight polling endpoint: detect new "new" status clients since given timestamp detect new "new" status clients since given timestamp
 // Query params:
 //   since: ISO timestamp string representing last seen createdAt
