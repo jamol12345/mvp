@@ -52,11 +52,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Temporary: test CORS headers in production (remove after verifying)
-app.get('/api/test-cors', (req, res) => {
-  res.json({ ok: true });
-});
-
 // Public doors catalog (no auth) — same data as /api/doors on Vercel (see api/doors.js)
 const doors = require('./data/doors');
 app.get('/api/doors', (req, res) => {
@@ -327,13 +322,11 @@ const CALL_MANAGER_KEYS = ['anvar', 'akbar', 'davron'];
 const MANAGER_ANALYTICS_KEYS = ['boss', 'anvar', 'akbar', 'davron'];
 const MANAGER_DISPLAY_NAMES = { boss: 'Boss', anvar: 'Анвар', akbar: 'Акбар', davron: 'Даврон' };
 
-// Log required env on load (for Vercel: Settings → Environment Variables must set these, then redeploy)
-console.log('BOSS_TOKEN exists:', !!process.env.BOSS_TOKEN);
-console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
-console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI);
-console.log('CALL_ANVAR_TOKEN exists:', !!process.env.CALL_ANVAR_TOKEN);
-console.log('CALL_AKBAR_TOKEN exists:', !!process.env.CALL_AKBAR_TOKEN);
-console.log('CALL_DAVRON_TOKEN exists:', !!process.env.CALL_DAVRON_TOKEN);
+// Fail fast if any login token is missing (Vercel: set these in Settings → Environment Variables)
+const missingTokens = USERS.filter(u => !u.token).map(u => u.name);
+if (missingTokens.length) {
+  console.warn('⚠️  Missing login token(s) for:', missingTokens.join(', '));
+}
 
 // --- RBAC: BOSS (boss token) / MANAGER (call managers) ---
 const APP_ROLE = { BOSS: 'BOSS', MANAGER: 'MANAGER' };
@@ -461,18 +454,59 @@ function parseReadyDateFromBody(value) {
   return d;
 }
 
+// Validate a phone number: keep an optional leading '+' and digits only; require 9–15 digits.
+// Returns the cleaned string, or null if it does not look like a real phone number.
+function validatePhoneNumber(raw) {
+  const trimmed = String(raw == null ? '' : raw).trim();
+  if (!trimmed) return null;
+  const cleaned = trimmed.replace(/[\s\-()]/g, '');
+  if (!/^\+?\d{9,15}$/.test(cleaned)) return null;
+  return cleaned;
+}
+
+// Best-effort in-memory rate limiter (per client IP). On serverless this only
+// catches bursts that hit the same warm instance; the duplicate-phone check
+// below is the durable guard. Together they stop simple flood/double-submit spam.
+const PUBLIC_RATE_WINDOW_MS = 60 * 1000;
+const PUBLIC_RATE_MAX = 8; // max public lead submissions per IP per minute
+const publicRateHits = new Map();
+function publicLeadRateLimited(ip) {
+  const now = Date.now();
+  const key = String(ip || 'unknown');
+  const hits = (publicRateHits.get(key) || []).filter(t => now - t < PUBLIC_RATE_WINDOW_MS);
+  hits.push(now);
+  publicRateHits.set(key, hits);
+  if (publicRateHits.size > 5000) publicRateHits.clear(); // bound memory
+  return hits.length > PUBLIC_RATE_MAX;
+}
+
 // POST /api/leads - Public endpoint to submit lead form
 // New contract: { fullName?, phone|phoneNumber, priorities } — phone required; fullName optional.
 // Legacy contract: full door/measurements + length/width + exactly 2 priorities (unchanged).
 app.post('/api/leads', async (req, res) => {
   try {
+    const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress;
+    if (publicLeadRateLimited(clientIp)) {
+      return res.status(429).json({ error: 'Too many requests, please try again later' });
+    }
+
     const body = req.body || {};
     const phoneRaw = (body.phone != null ? body.phone : body.phoneNumber);
-    const phoneNumber = phoneRaw != null ? String(phoneRaw).trim() : '';
+    const phoneNumber = validatePhoneNumber(phoneRaw);
     if (!phoneNumber) {
       return res.status(400).json({
-        error: 'phone is required'
+        error: 'A valid phone number is required'
       });
+    }
+
+    // Durable anti-spam: reject the same phone submitted again within 60s
+    const recentDuplicate = await Lead.findOne({
+      phoneNumber,
+      status: 'new',
+      createdAt: { $gt: new Date(Date.now() - 60 * 1000) }
+    }).select('_id').lean();
+    if (recentDuplicate) {
+      return res.status(429).json({ error: 'This number was just submitted, please wait a moment' });
     }
 
     const languageValue = sanitizeLanguage(body.language);
@@ -595,7 +629,7 @@ app.post('/api/admin/login', (req, res) => {
   const payload = user.role === 'boss'
     ? { role: 'boss', appRole: APP_ROLE.BOSS, userId: 'boss' }
     : { role: 'call', key: user.key, appRole: APP_ROLE.MANAGER, userId: user.key };
-  const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256' });
+  const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
   const response = {
     success: true,
     message: 'Login successful',
@@ -618,9 +652,9 @@ app.post('/api/admin/leads', authenticateAdmin, async (req, res) => {
   try {
     const body = req.body || {};
     const phoneRaw = body.phone != null ? body.phone : body.phoneNumber;
-    const phoneNumber = phoneRaw != null ? String(phoneRaw).trim() : '';
+    const phoneNumber = validatePhoneNumber(phoneRaw);
     if (!phoneNumber) {
-      return res.status(400).json({ error: 'phone is required' });
+      return res.status(400).json({ error: 'A valid phone number is required' });
     }
 
     const legacyLen = body.length != null ? Number(body.length) : NaN;

@@ -1,6 +1,6 @@
 /**
  * One-time / maintenance: convert public/doors/*.png → public/images/{model}.webp
- * and regenerate data/doors.js + backend/data/doors.js
+ * and regenerate data/doors.js
  *
  * Run: node scripts/build-doors-catalog.cjs
  */
@@ -12,8 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const DOORS_SRC = path.join(ROOT, 'public', 'doors');
 const IMAGES_OUT = path.join(ROOT, 'public', 'images');
 const OUT_FILES = [
-  path.join(ROOT, 'data', 'doors.js'),
-  path.join(ROOT, 'backend', 'data', 'doors.js')
+  path.join(ROOT, 'data', 'doors.js')
 ];
 
 const TYPES = ['Неоклассика', 'Современная', 'Классика', 'Лофт', 'Скандинавская', 'Минимализм'];
