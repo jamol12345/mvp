@@ -214,6 +214,8 @@ const leadSchema = new mongoose.Schema({
 
 // Index createdAt for efficient polling by timestamp
 leadSchema.index({ createdAt: 1 });
+// Index updatedAt for the live-sync version endpoint (sorts active leads by updatedAt)
+leadSchema.index({ status: 1, updatedAt: -1 });
 
 // Update updatedAt before saving
 leadSchema.pre('save', function(next) {
@@ -1965,6 +1967,28 @@ app.get('/api/admin/leads/poll', authenticateAdmin, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [ERROR] Error in leads poll endpoint:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/leads/version — cheap state signature for near-real-time sync.
+// Changes when: active-lead count changes (new/closed/deleted), any active lead is
+// updated (assignment, stage move, edit), or the pending-approval count changes.
+// The client polls this every few seconds and only reloads data when it differs.
+app.get('/api/admin/leads/version', authenticateAdmin, async (req, res) => {
+  try {
+    const [count, latest, pendingApprovals] = await Promise.all([
+      Lead.countDocuments({ status: 'new' }),
+      Lead.findOne({ status: 'new' }).sort({ updatedAt: -1 }).select('updatedAt').lean(),
+      Approval.countDocuments({ status: APPROVAL_STATUS.PENDING })
+    ]);
+    const latestMs = latest && latest.updatedAt ? new Date(latest.updatedAt).getTime() : 0;
+    res.json({
+      success: true,
+      version: count + ':' + latestMs + ':' + pendingApprovals
+    });
+  } catch (error) {
+    console.error('❌ [ERROR] Error in leads version endpoint:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

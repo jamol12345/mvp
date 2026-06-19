@@ -810,6 +810,16 @@ textarea {
     100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
 }
 
+/* Brief cue when the board auto-updates itself via live sync */
+.btn-live-pulse {
+    animation: btnLivePulse 0.9s ease-out;
+}
+
+@keyframes btnLivePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.55); }
+    100% { box-shadow: 0 0 0 12px rgba(102, 126, 234, 0); }
+}
+
 /* ============================================
    SALES FUNNEL
    ============================================ */
@@ -2743,8 +2753,30 @@ input[type="number"] {
     padding-bottom: 8px;
 }
 
-.requests-title {
+.requests-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     margin: 8px 0 4px;
+}
+
+.requests-title {
+    margin: 0;
+}
+
+.requests-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
 }
 
 .requests-hint {
@@ -2753,62 +2785,144 @@ input[type="number"] {
     opacity: 0.85;
 }
 
-.approval-card {
+.requests-skeleton {
+    height: 120px;
     border-radius: 16px;
-    padding: 16px 18px;
+    background: linear-gradient(100deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 70%);
+    background-size: 200% 100%;
+    animation: reqShimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes reqShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.requests-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 48px 20px;
+    text-align: center;
+}
+
+.requests-empty__ico {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 1.6rem;
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.requests-empty__text {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.approval-card {
+    position: relative;
+    border-radius: 16px;
+    padding: 16px 18px 16px 22px;
     text-align: left;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
     transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    animation: reqCardIn 0.4s ease-out backwards;
+}
+
+@keyframes reqCardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.approval-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
 }
 
 .approval-card:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.3);
     transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.18);
 }
 
-.approval-card--delete {
-    border-color: rgba(244, 63, 94, 0.45);
-    background: linear-gradient(145deg, rgba(30, 20, 30, 0.95), rgba(20, 15, 25, 0.92));
+.approval-card--delete::before { background: linear-gradient(180deg, #f43f5e, #be123c); }
+.approval-card--close::before  { background: linear-gradient(180deg, #22c55e, #16a34a); }
+
+.approval-card--delete .approval-card__icon {
+    background: rgba(244, 63, 94, 0.14);
+    border: 1px solid rgba(244, 63, 94, 0.3);
+}
+.approval-card--close .approval-card__icon {
+    background: rgba(34, 197, 94, 0.14);
+    border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .approval-card--delete .approval-card__type-badge {
-    background: rgba(244, 63, 94, 0.25);
+    background: rgba(244, 63, 94, 0.2);
     color: #fda4af;
     border: 1px solid rgba(244, 63, 94, 0.4);
 }
-
-.approval-card--close {
-    border-color: rgba(34, 197, 94, 0.45);
-    background: linear-gradient(145deg, rgba(15, 30, 25, 0.95), rgba(12, 25, 22, 0.92));
-}
-
 .approval-card--close .approval-card__type-badge {
-    background: rgba(34, 197, 94, 0.2);
+    background: rgba(34, 197, 94, 0.18);
     color: #86efac;
     border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
-.approval-card__head {
+.approval-card__top {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 10px;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
-.approval-card__name {
-    font-size: 1.05rem;
-    font-weight: 700;
-    line-height: 1.3;
-    color: rgba(255, 255, 255, 0.98);
-    flex: 1 1 60%;
+.approval-card__icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1.15rem;
+}
+
+.approval-card__titles {
+    flex: 1;
     min-width: 0;
 }
 
+.approval-card__name {
+    font-size: 1.02rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: rgba(255, 255, 255, 0.98);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.approval-card__phone {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 2px;
+}
+
 .approval-card__type-badge {
-    font-size: 0.72rem;
+    flex-shrink: 0;
+    font-size: 0.68rem;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -2817,25 +2931,56 @@ input[type="number"] {
     white-space: nowrap;
 }
 
-.approval-card__phone-row {
-    font-size: 0.92rem;
-    margin-bottom: 8px;
-    color: rgba(255, 255, 255, 0.9);
+.approval-card__details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.18);
 }
 
-.approval-card__k {
-    font-size: 0.8rem;
+.approval-detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.88rem;
+}
+
+.approval-detail__k {
+    color: rgba(255, 255, 255, 0.6);
     font-weight: 600;
-    opacity: 0.7;
-    margin-right: 4px;
+}
+
+.approval-detail__v {
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 700;
+}
+
+.approval-detail__v--money { color: #86efac; }
+
+.approval-detail--comment {
+    display: block;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.4;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    padding-top: 8px;
+}
+
+.approval-card__foot {
+    margin-bottom: 14px;
 }
 
 .approval-card__by {
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.55);
     line-height: 1.4;
-    margin-bottom: 14px;
 }
+
+.approval-card__by b { color: rgba(255, 255, 255, 0.82); font-weight: 700; }
 
 .approval-card__actions {
     display: flex;
@@ -2850,13 +2995,13 @@ input[type="number"] {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 10px 14px;
+    padding: 11px 14px;
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: 700;
     border: none;
-    border-radius: 10px;
+    border-radius: 11px;
     cursor: pointer;
-    transition: filter 0.2s, transform 0.15s;
+    transition: filter 0.2s, transform 0.15s, box-shadow 0.2s;
 }
 
 .approval-card__btn:hover {
@@ -2864,16 +3009,18 @@ input[type="number"] {
     transform: translateY(-1px);
 }
 
+.approval-card__btn:active { transform: translateY(0); }
+
 .approval-card__btn--ok {
     color: #fff;
     background: linear-gradient(135deg, #16a34a, #22c55e);
-    box-shadow: 0 4px 16px rgba(22, 163, 74, 0.35);
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.32);
 }
 
 .approval-card__btn--no {
     color: #fff;
     background: linear-gradient(135deg, #be123c, #e11d48);
-    box-shadow: 0 4px 16px rgba(190, 18, 60, 0.35);
+    box-shadow: 0 4px 14px rgba(190, 18, 60, 0.32);
 }
 
 .approval-card__btn-ico {

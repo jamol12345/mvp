@@ -281,7 +281,10 @@
                             <div class="analytics-header">
                                 <a href="#" class="btn-link" id="requestsBack" data-i18n="backToActive">← Назад к активным</a>
                             </div>
-                            <h3 class="requests-title" data-i18n="requestsTitle">Запросы</h3>
+                            <div class="requests-title-row">
+                                <h3 class="requests-title" data-i18n="requestsTitle">Запросы</h3>
+                                <span class="requests-count-badge" id="requestsCount" style="display: none;">0</span>
+                            </div>
                             <p class="requests-hint" data-i18n="requestsHint">Согласования от менеджеров</p>
                         </div>
                         <div class="requests-list-scroll">
@@ -470,6 +473,10 @@
                 requestsNav: 'Запросы',
                 requestsTitle: 'Запросы',
                 requestsHint: 'Согласования от менеджеров',
+                requestsDealAmount: 'Сумма сделки',
+                requestsDeleteMode: 'Тип удаления',
+                deleteArchive: 'В архив',
+                deleteHard: 'Удалить навсегда',
                 requestTypeDelete: 'Удаление / архив',
                 requestTypeClose: 'Закрытие сделки',
                 pendingApprovalMsg: 'Ожидает подтверждения',
@@ -656,6 +663,10 @@
                 requestsNav: 'So‘rovlar',
                 requestsTitle: 'So‘rovlar',
                 requestsHint: 'Menejerlardan kelgan tasdiqlar',
+                requestsDealAmount: 'Bitim summasi',
+                requestsDeleteMode: 'O‘chirish turi',
+                deleteArchive: 'Arxivga',
+                deleteHard: 'Butunlay o‘chirish',
                 requestTypeDelete: "O'chirish / arxiv",
                 requestTypeClose: 'Bitimni yopish',
                 pendingApprovalMsg: 'Tasdiq kutilmoqda',
@@ -1284,7 +1295,7 @@
                     applyTranslations();
                     initLastSeenAt();
                     startPolling();
-                    startSilentRefresh();
+                    startLiveSync();
                     loadLeads();
                 } else {
                     showLoginError(t('errorInvalidToken'));
@@ -1327,7 +1338,7 @@
             sessionStorage.removeItem('authKey');
             sessionStorage.removeItem('authAppRole');
             sessionStorage.removeItem('authUserId');
-            stopSilentRefresh();
+            stopLiveSync();
             stopAnalyticsLive();
             if (lockTickerInterval) {
                 clearInterval(lockTickerInterval);
@@ -1396,7 +1407,7 @@
             applyTranslations();
             initLastSeenAt();
             startPolling();
-            startSilentRefresh();
+            startLiveSync();
             loadLeads();
         }
 
@@ -2089,39 +2100,78 @@
             }
         });
 
+        function setRequestsCount(n) {
+            const badge = document.getElementById('requestsCount');
+            if (!badge) return;
+            if (n > 0) {
+                badge.textContent = String(n);
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        function renderApprovalDetails(a) {
+            const isDel = a.type === 'DELETE';
+            const rows = [];
+            if (!isDel) {
+                if (a.closeDealAmount != null && Number(a.closeDealAmount) > 0) {
+                    rows.push('<div class="approval-detail"><span class="approval-detail__k">' + escapeHtml(t('requestsDealAmount'))
+                        + '</span><span class="approval-detail__v approval-detail__v--money">' + escapeHtml(fmtMoney(Number(a.closeDealAmount))) + '</span></div>');
+                }
+                if (a.closeComment && String(a.closeComment).trim()) {
+                    rows.push('<div class="approval-detail approval-detail--comment">“' + escapeHtml(String(a.closeComment).trim()) + '”</div>');
+                }
+            } else {
+                const modeLabel = a.deleteMode === 'hard' ? t('deleteHard') : t('deleteArchive');
+                rows.push('<div class="approval-detail"><span class="approval-detail__k">' + escapeHtml(t('requestsDeleteMode'))
+                    + '</span><span class="approval-detail__v">' + escapeHtml(modeLabel) + '</span></div>');
+            }
+            return rows.length ? '<div class="approval-card__details">' + rows.join('') + '</div>' : '';
+        }
+
         async function loadApprovals() {
             const el = document.getElementById('requestsList');
             if (!el || !adminToken) return;
-            el.innerHTML = '<p class="requests-loading">' + escapeHtml(t('loadingLeads')) + '</p>';
+            if (!el.children.length || el.querySelector('.requests-empty, .message')) {
+                el.innerHTML = '<div class="requests-skeleton"></div><div class="requests-skeleton"></div><div class="requests-skeleton"></div>';
+            }
             try {
                 const res = await fetch(getApiBase() + '/api/admin/approvals', { headers: getAuthHeader() });
                 const data = await res.json();
                 if (!res.ok) {
                     el.innerHTML = '<p class="message error">' + escapeHtml(t('requestsLoadError')) + '</p>';
+                    setRequestsCount(0);
                     return;
                 }
                 const items = data.approvals || [];
+                setRequestsCount(items.length);
                 if (items.length === 0) {
-                    el.innerHTML = '<p class="requests-empty">' + escapeHtml(t('requestsEmpty')) + '</p>';
+                    el.innerHTML = '<div class="requests-empty"><div class="requests-empty__ico" aria-hidden="true">✓</div>'
+                        + '<div class="requests-empty__text">' + escapeHtml(t('requestsEmpty')) + '</div></div>';
                     return;
                 }
                 const typeLabel = (a) => (a.type === 'DELETE' ? t('approvalCardDelete') : t('approvalCardClose'));
-                el.innerHTML = items.map(a => {
+                el.innerHTML = items.map((a, i) => {
                     const isDel = a.type === 'DELETE';
                     const cardMod = isDel ? ' approval-card--delete' : ' approval-card--close';
+                    const icon = isDel ? '🗑️' : '✅';
                     const l = a.lead;
                     const name = l ? ((l.fullName && String(l.fullName).trim()) ? l.fullName : (l.phoneNumber || t('thPhone'))) : '—';
                     const phone = l && l.phoneNumber ? l.phoneNumber : '—';
                     const idStr = (a._id && (a._id.toString ? a._id.toString() : a._id)) || '';
                     const by = formatRequesterName(a.requestedBy);
                     const ago = a.createdAt ? formatTimeAgo(a.createdAt) : '—';
-                    return '<div class="approval-card glass' + cardMod + '" data-approval-id="' + escapeHtml(idStr) + '">'
-                        + '<div class="approval-card__head">'
+                    return '<div class="approval-card glass' + cardMod + '" style="animation-delay:' + (i * 0.05) + 's" data-approval-id="' + escapeHtml(idStr) + '">'
+                        + '<div class="approval-card__top">'
+                        + '<div class="approval-card__icon" aria-hidden="true">' + icon + '</div>'
+                        + '<div class="approval-card__titles">'
                         + '<div class="approval-card__name">' + escapeHtml(String(name)) + '</div>'
+                        + '<div class="approval-card__phone">' + escapeHtml(String(phone)) + '</div></div>'
                         + '<div class="approval-card__type-badge">' + escapeHtml(typeLabel(a)) + '</div></div>'
-                        + '<div class="approval-card__phone-row"><span class="approval-card__k">' + escapeHtml(t('thPhone')) + '</span> '
-                        + '<span class="approval-card__phone">' + escapeHtml(String(phone)) + '</span></div>'
-                        + '<div class="approval-card__by">' + escapeHtml(t('managerRequestedBy')) + ': ' + escapeHtml(String(by)) + ' · ' + escapeHtml(ago) + '</div>'
+                        + renderApprovalDetails(a)
+                        + '<div class="approval-card__foot">'
+                        + '<span class="approval-card__by">' + escapeHtml(t('managerRequestedBy')) + ': <b>' + escapeHtml(String(by)) + '</b> · ' + escapeHtml(ago) + '</span></div>'
                         + '<div class="approval-card__actions">'
                         + '<button type="button" class="approval-card__btn approval-card__btn--ok approval-approve" data-id="' + escapeHtml(idStr) + '">'
                         + '<span class="approval-card__btn-ico" aria-hidden="true">✔</span> ' + escapeHtml(t('requestApprove')) + '</button>'
@@ -2471,6 +2521,7 @@
                     ghostClass: 'lead-card--ghost',
                     chosenClass: 'lead-card--chosen',
                     onStart() {
+                        isKanbanDragging = true;
                         clearKanbanColumnDragOver();
                         if (boardEl) boardEl.classList.add('kanban-board--dragging');
                     },
@@ -2481,6 +2532,7 @@
                         return true;
                     },
                     onEnd: async (evt) => {
+                        isKanbanDragging = false;
                         clearKanbanColumnDragOver();
                         if (boardEl) boardEl.classList.remove('kanban-board--dragging');
                         const leadId = evt.item.getAttribute('data-lead-id');
@@ -2541,42 +2593,89 @@
             displayKanbanLeads();
         }
 
-        const SILENT_REFRESH_INTERVAL_MS = 30000;
-        let silentRefreshIntervalId = null;
+        // ===== Live sync: near-real-time updates via cheap version polling =====
+        const LIVE_SYNC_INTERVAL_MS = 4000;
+        let liveSyncIntervalId = null;
+        let lastLiveVersion = null;
+        let isKanbanDragging = false;
 
-        async function silentRefreshLeads() {
+        function isAnyModalOpen() {
+            return Array.from(document.querySelectorAll('.modal'))
+                .some(m => m.style.display && m.style.display !== 'none');
+        }
+
+        // Cheap fingerprint of the active-lead set: detects add/remove/edit without deep diff.
+        function leadsSignature(arr) {
+            if (!Array.isArray(arr)) return '';
+            return arr.map(l => String(l._id) + ':' + (l.updatedAt || '') + ':' + (l.stage || '') + ':' + (l.assignedTo || ''))
+                .sort().join('|');
+        }
+
+        // Brief visual "it just updated itself" cue on the refresh button.
+        function pulseLiveSignal() {
+            const btn = document.getElementById('refreshBtn');
+            if (!btn) return;
+            btn.classList.add('btn-live-pulse');
+            clearTimeout(btn._livePulseTimer);
+            btn._livePulseTimer = setTimeout(() => btn.classList.remove('btn-live-pulse'), 900);
+        }
+
+        // Pull fresh data and refresh whichever view is open. Re-renders the board only
+        // when the lead set actually changed and the user isn't mid-drag / in a modal.
+        async function liveRefresh() {
             if (!adminToken) return;
+            const aw = document.getElementById('analyticsWrapper');
             const rw = document.getElementById('requestsWrapper');
-            if (rw && rw.style.display !== 'none') return;
-            const analyticsVisible = document.getElementById('analyticsWrapper').style.display !== 'none';
+            const analyticsOpen = aw && aw.style.display !== 'none';
+            const requestsOpen = rw && rw.style.display !== 'none';
             try {
                 const response = await fetch(getApiBase() + '/api/admin/leads', { method: 'GET', headers: getAuthHeader() });
                 const data = await response.json();
-                if (!response.ok) return;
-                const raw = data.leads || [];
-                allActiveLeads = await applyServerPendingToLeads(raw);
-                mergeManagerPendingStrips();
-                if (isUIRoleBoss()) {
-                    loadBossNotifCount();
-                } else {
-                    await fetchManagerApprovalFeed(true);
+                if (response.ok) {
+                    const beforeSig = leadsSignature(allActiveLeads);
+                    allActiveLeads = await applyServerPendingToLeads(data.leads || []);
+                    mergeManagerPendingStrips();
+                    if (isUIRoleBoss()) {
+                        loadBossNotifCount();
+                    } else {
+                        await fetchManagerApprovalFeed(true);
+                    }
+                    renderNotifBadge();
+                    const changed = leadsSignature(allActiveLeads) !== beforeSig;
+                    if (changed && !analyticsOpen && !requestsOpen && !isKanbanDragging && !isAnyModalOpen()) {
+                        displayKanbanLeads();
+                    }
                 }
-                renderNotifBadge();
-                if (analyticsVisible) return;
-                displayKanbanLeads();
+            } catch (e) { /* silent */ }
+            if (analyticsOpen) await refreshAnalytics();
+            if (requestsOpen) await loadApprovals();
+        }
+
+        async function liveSyncTick() {
+            if (!adminToken || document.hidden) return;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/leads/version', { method: 'GET', headers: getAuthHeader() });
+                const data = await res.json();
+                if (!res.ok || !data.success) return;
+                if (lastLiveVersion === null) { lastLiveVersion = data.version; return; }
+                if (data.version === lastLiveVersion) return;
+                // Defer (keep the diff) while dragging or a modal is open; retry next tick.
+                if (isKanbanDragging || isAnyModalOpen()) return;
+                lastLiveVersion = data.version;
+                await liveRefresh();
+                pulseLiveSignal();
             } catch (e) { /* silent */ }
         }
 
-        function startSilentRefresh() {
-            if (silentRefreshIntervalId) clearInterval(silentRefreshIntervalId);
-            silentRefreshIntervalId = setInterval(silentRefreshLeads, SILENT_REFRESH_INTERVAL_MS);
+        function startLiveSync() {
+            if (liveSyncIntervalId) clearInterval(liveSyncIntervalId);
+            lastLiveVersion = null;
+            liveSyncIntervalId = setInterval(liveSyncTick, LIVE_SYNC_INTERVAL_MS);
         }
 
-        function stopSilentRefresh() {
-            if (silentRefreshIntervalId) {
-                clearInterval(silentRefreshIntervalId);
-                silentRefreshIntervalId = null;
-            }
+        function stopLiveSync() {
+            if (liveSyncIntervalId) { clearInterval(liveSyncIntervalId); liveSyncIntervalId = null; }
+            lastLiveVersion = null;
         }
 
         function getFilteredActiveLeads() {
