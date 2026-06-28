@@ -743,17 +743,6 @@ const doors = [
     description: null,
     image: "/images/1061.webp",
   },
-  {
-    id: 62,
-    model: "1062",
-    type: "Неоклассика",
-    style: "Минимализм",
-    color: "Глиновый цвет",
-    size: "2.40 x 0.90",
-    fill: "80%",
-    description: null,
-    image: "/images/1062.webp",
-  },
 ]
 
 module.exports = doors;

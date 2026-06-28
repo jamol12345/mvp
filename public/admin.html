@@ -82,6 +82,7 @@
                 <div class="header-actions">
                     <a class='btn-link' data-i18n='viewArchive' href='done_calls.html'>Архив →</a>
                     <button id="requestsBtn" class="btn-link" style="display: none;" data-i18n="requestsNav" type="button">Запросы</button>
+                    <button id="tasksPageBtn" class="btn-link tasks-page-btn" style="display: none;" type="button"><span data-i18n="tasksNav">Задачи</span><span class="tasks-nav-badge" id="tasksNavBadge" style="display: none;">0</span></button>
                     <button id="analyticsBtn" class="btn-link" style="display: none;" data-i18n="analyticsBtn" type="button">Аналитика</button>
                 </div>
             </div>
@@ -293,6 +294,18 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Tasks page (follow-up / reminders) -->
+            <div id="tasksWrapper" class="glass tasks-page" style="display: none; margin-top: 20px;">
+                <div class="analytics-header">
+                    <a href="#" class="btn-link" id="tasksBack" data-i18n="backToActive">← Назад к активным</a>
+                </div>
+                <div class="tasks-page-head">
+                    <h3 class="tasks-page-title" data-i18n="tasksTitle">Задачи</h3>
+                    <div class="tasks-filter" id="tasksManagerFilter" style="display: none;"></div>
+                </div>
+                <div id="tasksPageBody" class="tasks-panel-body"></div>
+            </div>
         </div>
     </div>
 
@@ -434,6 +447,79 @@
         </div>
     </div>
 
+    <!-- Lead activity timeline (amoCRM-style log + customer history) -->
+    <div id="leadTimelineModal" class="modal" style="display: none;">
+        <div class="modal-content glass modal-content--timeline">
+            <div class="modal-header">
+                <h2 id="leadTimelineTitle" data-i18n="timelineTitle">Журнал клиента</h2>
+                <button type="button" class="modal-close" id="closeLeadTimelineModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="timelineHistorySection" class="timeline-history" style="display: none;"></div>
+                <div id="timelineFeed" class="timeline-feed"></div>
+                <div class="timeline-composer">
+                    <textarea id="timelineCommentInput" class="glass-input timeline-composer-input" rows="2" maxlength="2000" data-i18n-placeholder="timelinePlaceholder" placeholder="Написать комментарий…"></textarea>
+                    <button type="button" class="btn-submit timeline-send" id="timelineSendBtn" data-i18n="timelineSend">Добавить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-lead tasks modal (list + create) -->
+    <div id="leadTasksModal" class="modal" style="display: none;">
+        <div class="modal-content glass modal-content--timeline">
+            <div class="modal-header">
+                <h2 id="leadTasksTitle" data-i18n="tasksTitle">Задачи</h2>
+                <button type="button" class="modal-close" id="closeLeadTasksModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="leadTasksList" class="tasks-list"></div>
+                <div class="task-composer">
+                    <div class="task-composer-row">
+                        <select id="taskTypeInput" class="glass-input task-field">
+                            <option value="call" data-i18n="taskTypeCall">Звонок</option>
+                            <option value="meeting" data-i18n="taskTypeMeeting">Встреча</option>
+                            <option value="measurement" data-i18n="taskTypeMeasurement">Замер</option>
+                            <option value="followup" data-i18n="taskTypeFollowup">Напоминание</option>
+                            <option value="other" data-i18n="taskTypeOther">Другое</option>
+                        </select>
+                        <select id="taskAssigneeInput" class="glass-input task-field" style="display:none;"></select>
+                    </div>
+                    <div class="task-when-presets" id="taskWhenPresets">
+                        <button type="button" class="task-when-chip active" data-preset="1h" data-i18n="taskWhenIn1h">Через час</button>
+                        <button type="button" class="task-when-chip" data-preset="today" data-i18n="taskWhenToday">Сегодня 18:00</button>
+                        <button type="button" class="task-when-chip" data-preset="tomorrow" data-i18n="taskWhenTomorrow">Завтра 10:00</button>
+                        <button type="button" class="task-when-chip" data-preset="3d" data-i18n="taskWhen3d">Через 3 дня</button>
+                        <button type="button" class="task-when-chip" data-preset="custom" data-i18n="taskWhenCustom">Своё время</button>
+                    </div>
+                    <input type="datetime-local" id="taskCustomDue" class="glass-input task-field" style="display:none;">
+                    <input type="text" id="taskTitleInput" class="glass-input task-field" maxlength="500" data-i18n-placeholder="taskTitlePlaceholder" placeholder="Например: уточнить размеры дверного проёма">
+                    <button type="button" class="btn-submit" id="taskCreateBtn" data-i18n="taskCreateBtn">Создать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Complete task modal (optional result note) -->
+    <div id="taskCompleteModal" class="modal" style="display: none;">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2 data-i18n="taskCompleteTitle">Завершить задачу</h2>
+                <button type="button" class="modal-close" id="closeTaskCompleteModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="taskCompleteId">
+                <div class="form-group">
+                    <textarea id="taskResultInput" class="glass-input" rows="3" maxlength="1000" data-i18n-placeholder="taskResultPlaceholder" placeholder="Результат (необязательно)…"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelTaskComplete" data-i18n="cancelBtn">Отмена</button>
+                    <button type="button" class="btn-submit" id="confirmTaskComplete" data-i18n="taskCompleteConfirm">Завершить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let adminToken = null;
         let userRole = null;
@@ -513,6 +599,45 @@
                 stageBadgeThinking: 'Думает',
                 stageBadgeSuccessful: 'Успешно',
                 stageBadgePreparing: 'Готовится',
+                tasksNav: 'Задачи',
+                tasksTitle: 'Задачи',
+                tasksMine: 'Мои',
+                tasksAll: 'Все',
+                tasksOverdue: 'Просрочено',
+                tasksToday: 'Сегодня',
+                tasksUpcoming: 'Дальше',
+                tasksEmpty: 'Задач нет',
+                taskAddTitle: 'Новая задача',
+                taskAddBtn: 'Добавить задачу',
+                taskAddShort: 'Задача',
+                taskTypeLabel: 'Тип',
+                taskTypeCall: 'Звонок',
+                taskTypeMeeting: 'Встреча',
+                taskTypeMeasurement: 'Замер',
+                taskTypeFollowup: 'Напоминание',
+                taskTypeOther: 'Другое',
+                taskWhenLabel: 'Когда',
+                taskWhenIn1h: 'Через час',
+                taskWhenToday: 'Сегодня 18:00',
+                taskWhenTomorrow: 'Завтра 10:00',
+                taskWhen3d: 'Через 3 дня',
+                taskWhenCustom: 'Своё время',
+                taskTitleLabel: 'Описание (необязательно)',
+                taskTitlePlaceholder: 'Например: уточнить размеры дверного проёма',
+                taskAssigneeLabel: 'Ответственный',
+                taskCreateBtn: 'Создать',
+                taskDoneBtn: 'Выполнено',
+                taskCompleteTitle: 'Завершить задачу',
+                taskResultPlaceholder: 'Результат (необязательно): дозвонился, договорились на замер…',
+                taskCompleteConfirm: 'Завершить',
+                taskOpenLead: 'Открыть лид',
+                taskNoneShort: 'Нет задач',
+                taskCreated: 'Задача создана',
+                taskCompleted: 'Задача выполнена',
+                taskDueOverdue: 'Просрочена',
+                taskDueToday: 'Сегодня',
+                taskDueTomorrow: 'Завтра',
+                notifTaskAssigned: 'Вам поставили задачу',
                 preparingDateTitle: 'Дата готовности объекта',
                 preparingDateEditTitle: 'Изменить дату готовности',
                 preparingReadyLabel: 'Ожидаемая дата готовности объекта',
@@ -549,6 +674,29 @@
                 periodWeek: '7 дней',
                 periodMonth: '30 дней',
                 periodAll: 'Всё время',
+                returningCustomer: 'Повторный клиент',
+                returningCustomerHint: 'Этот клиент уже обращался — открыть историю',
+                timelineBtn: 'Журнал',
+                timelineTitle: 'Журнал клиента',
+                timelinePlaceholder: 'Написать комментарий…',
+                timelineSend: 'Добавить',
+                timelineEmpty: 'Пока нет записей',
+                timelineAdded: 'Комментарий добавлен',
+                actCreated: 'Лид создан',
+                actComment: 'Комментарий',
+                actAssigned: 'Назначен',
+                actUnassigned: 'Снято назначение',
+                actClaimed: 'Взят в работу',
+                actStage: 'Этап изменён',
+                actClosedWon: 'Сделка закрыта успешно',
+                actClosedLost: 'Лид отклонён',
+                actArchived: 'В архиве',
+                actDeleted: 'Удалён',
+                histTitle: 'Прошлые обращения этого клиента',
+                histWon: 'Успешно',
+                histLost: 'Отклонён',
+                histOpen: 'В работе',
+                histClosedBy: 'Закрыл',
                 personalStatsTitle: 'Ваша статистика',
                 thManager: 'Менеджер',
                 totalRevenueLabel: 'Общая выручка',
@@ -703,6 +851,45 @@
                 stageBadgeThinking: 'O‘ylanyapti',
                 stageBadgeSuccessful: 'Muvaffaqiyatli',
                 stageBadgePreparing: 'Tayyorlanmoqda',
+                tasksNav: 'Vazifalar',
+                tasksTitle: 'Vazifalar',
+                tasksMine: 'Mening',
+                tasksAll: 'Hammasi',
+                tasksOverdue: 'Muddati o‘tgan',
+                tasksToday: 'Bugun',
+                tasksUpcoming: 'Keyin',
+                tasksEmpty: 'Vazifalar yo‘q',
+                taskAddTitle: 'Yangi vazifa',
+                taskAddBtn: 'Vazifa qo‘shish',
+                taskAddShort: 'Vazifa',
+                taskTypeLabel: 'Turi',
+                taskTypeCall: 'Qo‘ng‘iroq',
+                taskTypeMeeting: 'Uchrashuv',
+                taskTypeMeasurement: 'O‘lchov',
+                taskTypeFollowup: 'Eslatma',
+                taskTypeOther: 'Boshqa',
+                taskWhenLabel: 'Qachon',
+                taskWhenIn1h: 'Bir soatdan keyin',
+                taskWhenToday: 'Bugun 18:00',
+                taskWhenTomorrow: 'Ertaga 10:00',
+                taskWhen3d: '3 kundan keyin',
+                taskWhenCustom: 'O‘z vaqtim',
+                taskTitleLabel: 'Tavsif (ixtiyoriy)',
+                taskTitlePlaceholder: 'Masalan: eshik o‘lchamlarini aniqlashtirish',
+                taskAssigneeLabel: 'Mas’ul',
+                taskCreateBtn: 'Yaratish',
+                taskDoneBtn: 'Bajarildi',
+                taskCompleteTitle: 'Vazifani yakunlash',
+                taskResultPlaceholder: 'Natija (ixtiyoriy): bog‘landim, o‘lchovga kelishildi…',
+                taskCompleteConfirm: 'Yakunlash',
+                taskOpenLead: 'Lidni ochish',
+                taskNoneShort: 'Vazifa yo‘q',
+                taskCreated: 'Vazifa yaratildi',
+                taskCompleted: 'Vazifa bajarildi',
+                taskDueOverdue: 'Muddati o‘tgan',
+                taskDueToday: 'Bugun',
+                taskDueTomorrow: 'Ertaga',
+                notifTaskAssigned: 'Sizga vazifa berildi',
                 preparingDateTitle: 'Ob’ekt tayyor bo‘lish sanasi',
                 preparingDateEditTitle: 'Tayyorlik sanasini o‘zgartirish',
                 preparingReadyLabel: 'Kutilayotgan tayyorlik sanasi',
@@ -739,6 +926,29 @@
                 periodWeek: '7 kun',
                 periodMonth: '30 kun',
                 periodAll: 'Butun davr',
+                returningCustomer: 'Qaytgan mijoz',
+                returningCustomerHint: 'Bu mijoz avval ham murojaat qilgan — tarixni ochish',
+                timelineBtn: 'Jurnal',
+                timelineTitle: 'Mijoz jurnali',
+                timelinePlaceholder: 'Izoh yozing…',
+                timelineSend: 'Qo‘shish',
+                timelineEmpty: 'Hozircha yozuvlar yo‘q',
+                timelineAdded: 'Izoh qo‘shildi',
+                actCreated: 'Lid yaratildi',
+                actComment: 'Izoh',
+                actAssigned: 'Tayinlandi',
+                actUnassigned: 'Tayinlash olib tashlandi',
+                actClaimed: 'Ishga olindi',
+                actStage: 'Bosqich o‘zgardi',
+                actClosedWon: 'Bitim muvaffaqiyatli yopildi',
+                actClosedLost: 'Lid rad etildi',
+                actArchived: 'Arxivda',
+                actDeleted: 'O‘chirildi',
+                histTitle: 'Ushbu mijozning oldingi murojaatlari',
+                histWon: 'Muvaffaqiyatli',
+                histLost: 'Rad etilgan',
+                histOpen: 'Ishda',
+                histClosedBy: 'Yopdi',
                 personalStatsTitle: 'Sizning statistikangiz',
                 thManager: 'Menejer',
                 totalRevenueLabel: 'Umumiy daromad',
@@ -1221,6 +1431,10 @@
             if (requestsBtn) {
                 requestsBtn.style.display = isBoss ? 'inline-block' : 'none';
             }
+            const tasksPageBtn = document.getElementById('tasksPageBtn');
+            if (tasksPageBtn) {
+                tasksPageBtn.style.display = 'inline-block';
+            }
             if (userMenu) {
                 userMenu.style.display = 'flex';
             }
@@ -1590,6 +1804,12 @@
                     if (nw) {
                         nw.style.display = 'flex';
                     }
+                    const tnb = document.getElementById('tasksPageBtn');
+                    if (tnb) tnb.style.display = 'inline-block';
+                    refreshTasksBadge();
+                    fetchAssignedTaskNotifs();
+                    if (tasksBadgeInterval) clearInterval(tasksBadgeInterval);
+                    tasksBadgeInterval = setInterval(function() { if (adminToken) { refreshTasksBadge(); fetchAssignedTaskNotifs(); } }, 60000);
                     if (notifFeedInterval) {
                         clearInterval(notifFeedInterval);
                     }
@@ -1869,26 +2089,47 @@
                 const maxReached = stages.reduce((m, s) => Math.max(m, s.reached || 0), 0) || 1;
                 const leakKey = data.biggestLeak ? data.biggestLeak.toStage : null;
 
-                barsEl.innerHTML = stages.map(s => {
-                    const pct = Math.max((s.reached / maxReached) * 100, s.reached > 0 ? 4 : 0);
+                // amoCRM-style funnel: centered trapezoid bands that narrow stage by stage.
+                // Per-stage color spectrum; width is proportional to cumulative reach (min floor
+                // so even small stages stay readable). `reached` is monotonic, so the shape
+                // always narrows downward like a real funnel.
+                const FUNNEL_PALETTE = [
+                    ['#6366f1', '#818cf8'],
+                    ['#0ea5e9', '#38bdf8'],
+                    ['#f59e0b', '#fbbf24'],
+                    ['#10b981', '#34d399'],
+                    ['#a855f7', '#c084fc']
+                ];
+                const MIN_W = 38; // floor width (%) so narrow stages keep their label legible
+                const widthOf = (reached) => MIN_W + (100 - MIN_W) * (reached / maxReached);
+
+                barsEl.innerHTML = stages.map((s, i) => {
+                    const topW = widthOf(s.reached);
+                    const nextReached = i + 1 < stages.length ? stages[i + 1].reached : null;
+                    const bottomW = nextReached != null ? widthOf(nextReached) : Math.max(topW - 8, MIN_W);
+                    const tl = (100 - topW) / 2, tr = (100 + topW) / 2;
+                    const bl = (100 - bottomW) / 2, br = (100 + bottomW) / 2;
+                    const clip = `polygon(${tl}% 0, ${tr}% 0, ${br}% 100%, ${bl}% 100%)`;
+                    const [c1, c2] = FUNNEL_PALETTE[i % FUNNEL_PALETTE.length];
                     const isLeak = s.key === leakKey;
                     const convClass = s.conversionFromPrev < 100 ? ' is-drop' : '';
                     const convText = s.conversionFromPrev != null ? s.conversionFromPrev.toFixed(0) + '%' : '—';
+                    const convRow = i === 0 ? '' : `
+                        <div class="amo-funnel-conv-row">
+                            <span class="amo-funnel-conv${convClass}">↓ ${convText}</span>
+                        </div>`;
                     const stalled = s.stalled > 0
-                        ? `<span class="funnel-stalled" title="Застряли > ${data.staleDays} дн.">⏳ ${s.stalled}</span>`
+                        ? `<span class="amo-funnel-stalled" title="Застряли > ${data.staleDays} дн.">⏳ ${s.stalled}</span>`
                         : '';
-                    return `
-                        <div class="funnel-row${isLeak ? ' has-leak' : ''}">
-                            <div class="funnel-row-label">
-                                <span>${escapeHtml(s.label)}</span>
-                                <span class="funnel-row-current">сейчас: ${s.current}</span>
-                            </div>
-                            <div class="funnel-bar-track">
-                                <div class="funnel-bar-fill" style="width:${pct}%">
-                                    <span class="funnel-bar-count">${s.reached}</span>
+                    return `${convRow}
+                        <div class="amo-funnel-stage${isLeak ? ' is-leak' : ''}">
+                            <div class="amo-funnel-band" style="--c1:${c1};--c2:${c2};clip-path:${clip};-webkit-clip-path:${clip}">
+                                <div class="amo-funnel-band-inner">
+                                    <span class="amo-funnel-stage-name">${escapeHtml(s.label)}</span>
+                                    <span class="amo-funnel-stage-count">${s.reached}<small>в работе ${s.current}</small></span>
                                 </div>
                             </div>
-                            <div class="funnel-row-conv${convClass}">${convText}${stalled}</div>
+                            ${stalled}
                         </div>`;
                 }).join('');
 
@@ -2072,6 +2313,8 @@
             const noLeads = document.getElementById('noLeadsMessage');
             const requestsWrapper = document.getElementById('requestsWrapper');
             if (requestsWrapper) requestsWrapper.style.display = 'none';
+            const tasksWrapperEl = document.getElementById('tasksWrapper');
+            if (tasksWrapperEl) tasksWrapperEl.style.display = 'none';
             const isBoss = isUIRoleBoss();
             if (analyticsWrapper.style.display === 'none') {
                 leadsWrapper.style.display = 'none';
@@ -2219,6 +2462,8 @@
                     const leadsWrapper = document.getElementById('leadsTableWrapper');
                     const noL = document.getElementById('noLeadsMessage');
                     const aw = document.getElementById('analyticsWrapper');
+                    const tw = document.getElementById('tasksWrapper');
+                    if (tw) tw.style.display = 'none';
                     if (!rw) return;
                     if (rw.style.display === 'none') {
                         if (aw) aw.style.display = 'none';
@@ -2277,6 +2522,19 @@
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        }
+
+        // аватар-инициалы (монохром-графит, как в новой стилистике)
+        function leadInitials(name) {
+            const p = String(name || '').trim().split(/\s+/);
+            return (((p[0] && p[0][0]) || '') + ((p[1] && p[1][0]) || '')).toUpperCase() || '—';
+        }
+        function leadAvatarTone(name) {
+            const tones = ['rgba(94,106,210,.16)', 'rgba(110,121,236,.20)', 'rgba(123,133,230,.14)', 'rgba(134,140,158,.18)', 'rgba(138,127,227,.18)', 'rgba(94,106,210,.24)'];
+            const s = String(name || '');
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            return 'background:' + tones[h % tones.length] + ';';
         }
 
         function buildLeadCardHTML(lead, index) {
@@ -2356,16 +2614,40 @@
             })();
             const doneIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
             const archIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1zM10 12h4"/></svg>';
+            const logIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>';
+            const sid = escapeHtml(String(lead._id));
+            const returningBadge = lead.isReturning
+                ? `<button type="button" class="lead-card-returning" data-lead-id="${sid}" title="${escapeHtml(t('returningCustomerHint'))}">↩ ${escapeHtml(t('returningCustomer'))}${lead.priorDealsCount ? ' · ' + lead.priorDealsCount : ''}</button>`
+                : '';
+            const newBadgeHtml = stage === 'new' ? '<span class="lead-card-new-badge">new</span>' : '';
+            const taskBlock = (function() {
+                const nt = lead.nextTask;
+                if (nt && nt.dueAt) {
+                    const due = formatTaskDueShort(nt.dueAt);
+                    const more = lead.openTaskCount > 1 ? `<span class="lct-more">+${lead.openTaskCount - 1}</span>` : '';
+                    return `<button type="button" class="lead-card-task ${due.cls}" data-task-open="${sid}">${taskTypeIcon(nt.type)}<span class="lct-txt">${escapeHtml(taskTypeLabelShort(nt.type))} · ${escapeHtml(due.text)}</span>${more}</button>`;
+                }
+                return `<button type="button" class="lead-card-task lead-card-task--add" data-task-open="${sid}">＋ ${escapeHtml(t('taskAddShort'))}</button>`;
+            })();
             return `${lockBlock}${preparingBlock}
                 <div class="lead-card-body">
-                    <div class="lead-card-name">${escapeHtml(fullName)}</div>
-                    <div class="lead-card-phone">${escapeHtml(lead.phoneNumber || '')}</div>
+                    ${newBadgeHtml}
+                    <div class="lead-card-top">
+                        <div class="lead-card-avatar" style="${leadAvatarTone(fullName)}">${escapeHtml(leadInitials(fullName))}</div>
+                        <div class="lead-card-idblock">
+                            <div class="lead-card-name">${escapeHtml(fullName)}</div>
+                            <div class="lead-card-phone">${escapeHtml(lead.phoneNumber || '')}</div>
+                        </div>
+                    </div>
+                    ${taskBlock}
+                    ${returningBadge}
                     ${pinnedRow}
                     ${prioritiesChipsHTML ? `<div class="lead-card-priorities"><div class="priority-chips priority-chips--kanban">${prioritiesChipsHTML}</div></div>` : ''}
                     ${assignBlock}
                     ${createdCompact ? `<div class="lead-card-date">${escapeHtml(createdCompact)}</div>` : ''}
                     ${stalledHtml}
                     <div class="lead-card-actions">
+                        <button type="button" class="btn-log btn-card" onclick="openLeadTimeline('${sid}')">${logIcon}<span>${t('timelineBtn')}</span></button>
                         <button type="button" class="btn-done btn-card" ${actLocked ? 'disabled' : ''} onclick="handleDone('${lead._id}')">${doneIcon}<span>${t('doneBtn')}</span></button>
                         <button type="button" class="btn-not btn-card" ${actLocked ? 'disabled' : ''} onclick="handleNot('${lead._id}')">${archIcon}<span>${t('archiveBtn')}</span></button>
                     </div>
@@ -2604,6 +2886,13 @@
                 .some(m => m.style.display && m.style.display !== 'none');
         }
 
+        // Modals that should pause live sync (data-entry flows). The read-only timeline
+        // modal is excluded so it keeps auto-refreshing while open.
+        function isBlockingModalOpen() {
+            return Array.from(document.querySelectorAll('.modal'))
+                .some(m => m.id !== 'leadTimelineModal' && m.style.display && m.style.display !== 'none');
+        }
+
         // Cheap fingerprint of the active-lead set: detects add/remove/edit without deep diff.
         function leadsSignature(arr) {
             if (!Array.isArray(arr)) return '';
@@ -2649,6 +2938,7 @@
             } catch (e) { /* silent */ }
             if (analyticsOpen) await refreshAnalytics();
             if (requestsOpen) await loadApprovals();
+            if (currentTimelineLeadId) await loadTimelineData(currentTimelineLeadId);
         }
 
         async function liveSyncTick() {
@@ -2659,8 +2949,8 @@
                 if (!res.ok || !data.success) return;
                 if (lastLiveVersion === null) { lastLiveVersion = data.version; return; }
                 if (data.version === lastLiveVersion) return;
-                // Defer (keep the diff) while dragging or a modal is open; retry next tick.
-                if (isKanbanDragging || isAnyModalOpen()) return;
+                // Defer (keep the diff) while dragging or a data-entry modal is open; retry next tick.
+                if (isKanbanDragging || isBlockingModalOpen()) return;
                 lastLiveVersion = data.version;
                 await liveRefresh();
                 pulseLiveSignal();
@@ -2677,6 +2967,604 @@
             if (liveSyncIntervalId) { clearInterval(liveSyncIntervalId); liveSyncIntervalId = null; }
             lastLiveVersion = null;
         }
+
+        // ===== Lead activity timeline (amoCRM-style log + customer history) =====
+        let currentTimelineLeadId = null;
+
+        const ACTIVITY_META = {
+            created:       { ico: '🟢', key: 'actCreated' },
+            comment:       { ico: '💬', key: 'actComment' },
+            assigned:      { ico: '👤', key: 'actAssigned' },
+            claimed:       { ico: '✋', key: 'actClaimed' },
+            stage_changed: { ico: '➡️', key: 'actStage' },
+            closed_won:    { ico: '✅', key: 'actClosedWon' },
+            closed_lost:   { ico: '🚫', key: 'actClosedLost' },
+            archived:      { ico: '📦', key: 'actArchived' },
+            deleted:       { ico: '🗑️', key: 'actDeleted' }
+        };
+
+        function stageName(stage) {
+            if (!stage) return '';
+            return t(getStageDisplayKey(stage));
+        }
+
+        function activityTitle(a) {
+            const meta = a.meta || {};
+            switch (a.type) {
+                case 'stage_changed':
+                    return t('actStage') + ': ' + escapeHtml(stageName(meta.fromStage)) + ' → ' + escapeHtml(stageName(meta.toStage));
+                case 'assigned':
+                    return meta.to ? (t('actAssigned') + ': ' + escapeHtml(meta.toName || getManagerLabel(meta.to) || meta.to)) : t('actUnassigned');
+                case 'claimed':
+                    return t('actClaimed');
+                case 'closed_won':
+                    return t('actClosedWon') + (meta.dealAmount ? ' · ' + fmtMoney(Number(meta.dealAmount)) : '');
+                case 'closed_lost':
+                    return t('actClosedLost');
+                case 'created':
+                    return t('actCreated');
+                case 'comment':
+                    return t('actComment');
+                default:
+                    return (ACTIVITY_META[a.type] && t(ACTIVITY_META[a.type].key)) || a.type;
+            }
+        }
+
+        // Only comments and final outcomes matter to the client — funnel/stage noise is hidden.
+        const TIMELINE_VISIBLE_TYPES = ['comment', 'closed_won', 'closed_lost', 'archived'];
+
+        function renderTimelineFeed(activities) {
+            const feed = document.getElementById('timelineFeed');
+            if (!feed) return;
+            const visible = (activities || []).filter(a => TIMELINE_VISIBLE_TYPES.includes(a.type));
+            if (!visible.length) {
+                feed.innerHTML = '<div class="timeline-empty">' + escapeHtml(t('timelineEmpty')) + '</div>';
+                return;
+            }
+            // newest first for display
+            const items = visible.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            feed.innerHTML = items.map(a => {
+                const m = ACTIVITY_META[a.type] || { ico: '•' };
+                const who = a.authorName || a.author || '—';
+                const when = a.createdAt ? formatTimeAgo(a.createdAt) : '';
+                const body = a.text && String(a.text).trim()
+                    ? '<div class="timeline-item__text">' + escapeHtml(String(a.text).trim()) + '</div>'
+                    : '';
+                return '<div class="timeline-item timeline-item--' + escapeHtml(a.type) + '">'
+                    + '<div class="timeline-item__ico" aria-hidden="true">' + m.ico + '</div>'
+                    + '<div class="timeline-item__main">'
+                    + '<div class="timeline-item__title">' + activityTitle(a) + '</div>'
+                    + body
+                    + '<div class="timeline-item__meta">' + escapeHtml(who) + ' · ' + escapeHtml(when) + '</div>'
+                    + '</div></div>';
+            }).join('');
+        }
+
+        function renderTimelineHistory(leads) {
+            const sec = document.getElementById('timelineHistorySection');
+            if (!sec) return;
+            if (!leads || !leads.length) { sec.style.display = 'none'; sec.innerHTML = ''; return; }
+            sec.style.display = 'block';
+            const cards = leads.map(l => {
+                const won = l.status === 'done' && l.stage === 'successful';
+                const statusCls = won ? 'won' : (l.status === 'archived' ? 'lost' : 'open');
+                const statusTxt = won ? t('histWon') : (l.status === 'archived' ? t('histLost') : t('histOpen'));
+                const date = l.closedAt || l.createdAt;
+                const dateStr = date ? new Date(date).toLocaleDateString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU') : '';
+                const amount = won && l.dealAmount ? '<span class="hist-amount">' + escapeHtml(fmtMoney(Number(l.dealAmount))) + '</span>' : '';
+                const by = l.closedByName ? (t('histClosedBy') + ': ' + escapeHtml(l.closedByName)) : '';
+                const lastComment = l.comment && String(l.comment).trim()
+                    ? '<div class="hist-comment">“' + escapeHtml(String(l.comment).trim()) + '”</div>' : '';
+                return '<div class="hist-card hist-card--' + statusCls + '">'
+                    + '<div class="hist-card__top"><span class="hist-status hist-status--' + statusCls + '">' + escapeHtml(statusTxt) + '</span>'
+                    + amount + '<span class="hist-date">' + escapeHtml(dateStr) + '</span></div>'
+                    + (by ? '<div class="hist-by">' + by + '</div>' : '')
+                    + lastComment
+                    + '</div>';
+            }).join('');
+            sec.innerHTML = '<div class="timeline-history__title">' + escapeHtml(t('histTitle')) + '</div>' + cards;
+        }
+
+        async function loadTimelineData(leadId) {
+            const lead = allActiveLeads.find(l => String(l._id) === String(leadId));
+            try {
+                const reqs = [fetch(getApiBase() + '/api/admin/leads/' + encodeURIComponent(leadId) + '/activity', { headers: getAuthHeader() })];
+                if (lead && lead.isReturning && lead.phoneNumber) {
+                    reqs.push(fetch(getApiBase() + '/api/admin/customers/history?phone=' + encodeURIComponent(lead.phoneNumber) + '&excludeLeadId=' + encodeURIComponent(leadId), { headers: getAuthHeader() }));
+                }
+                const ress = await Promise.all(reqs);
+                const actData = await ress[0].json();
+                renderTimelineFeed(actData.activities || []);
+                if (ress[1]) {
+                    const histData = await ress[1].json();
+                    renderTimelineHistory(histData.leads || []);
+                } else {
+                    renderTimelineHistory([]);
+                }
+            } catch (e) {
+                renderTimelineFeed([]);
+            }
+        }
+
+        async function openLeadTimeline(leadId) {
+            currentTimelineLeadId = leadId;
+            const lead = allActiveLeads.find(l => String(l._id) === String(leadId));
+            const titleEl = document.getElementById('leadTimelineTitle');
+            if (titleEl) {
+                const nm = lead ? (lead.fullName || (lead.name + ' ' + lead.surname).trim() || lead.phoneNumber) : '';
+                titleEl.textContent = t('timelineTitle') + (nm ? ' — ' + nm : '');
+            }
+            const feed = document.getElementById('timelineFeed');
+            if (feed) feed.innerHTML = '<div class="timeline-empty">' + escapeHtml(t('loadingLeads')) + '</div>';
+            renderTimelineHistory([]);
+            const modal = document.getElementById('leadTimelineModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('modal-open'), 10);
+            }
+            const input = document.getElementById('timelineCommentInput');
+            if (input) input.value = '';
+            await loadTimelineData(leadId);
+        }
+
+        function closeLeadTimeline() {
+            currentTimelineLeadId = null;
+            const modal = document.getElementById('leadTimelineModal');
+            if (!modal) return;
+            modal.classList.remove('modal-open');
+            setTimeout(() => { modal.style.display = 'none'; }, 250);
+        }
+
+        async function sendTimelineComment() {
+            const input = document.getElementById('timelineCommentInput');
+            const btn = document.getElementById('timelineSendBtn');
+            if (!input || !currentTimelineLeadId) return;
+            const text = input.value.trim();
+            if (!text) return;
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/leads/' + encodeURIComponent(currentTimelineLeadId) + '/activity', {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { showError(data.error || t('errorNetwork')); return; }
+                input.value = '';
+                await loadTimelineData(currentTimelineLeadId);
+                showToast(t('timelineAdded'));
+            } catch (e) {
+                showError(t('errorNetwork'));
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        (function wireTimelineModal() {
+            const closeBtn = document.getElementById('closeLeadTimelineModal');
+            if (closeBtn) closeBtn.addEventListener('click', closeLeadTimeline);
+            const modal = document.getElementById('leadTimelineModal');
+            if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeLeadTimeline(); });
+            const sendBtn = document.getElementById('timelineSendBtn');
+            if (sendBtn) sendBtn.addEventListener('click', sendTimelineComment);
+            const input = document.getElementById('timelineCommentInput');
+            if (input) input.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); sendTimelineComment(); }
+            });
+            // Returning-customer badge on a card also opens the timeline
+            document.addEventListener('click', (e) => {
+                const rb = e.target.closest && e.target.closest('.lead-card-returning');
+                if (rb) { e.stopPropagation(); openLeadTimeline(rb.getAttribute('data-lead-id')); }
+            });
+        })();
+
+        // ============================================
+        // TASKS (follow-up / reminders) — frontend
+        // ============================================
+        let currentTasksLeadId = null;
+        let currentTaskWhenPreset = '1h';
+        let currentTasksManagerFilter = ''; // '' = все (для босса), либо ключ менеджера
+        let tasksBadgeInterval = null;
+        const TASK_TYPE_ICON = { call: '📞', meeting: '🤝', measurement: '📐', followup: '⏰', other: '•' };
+
+        function taskTypeIcon(type) {
+            return '<span class="lct-ico" aria-hidden="true">' + (TASK_TYPE_ICON[type] || '•') + '</span>';
+        }
+        function taskTypeLabelShort(type) {
+            const map = { call: 'taskTypeCall', meeting: 'taskTypeMeeting', measurement: 'taskTypeMeasurement', followup: 'taskTypeFollowup', other: 'taskTypeOther' };
+            return t(map[type] || 'taskTypeOther');
+        }
+        function taskAssigneeLabel(key) {
+            if (key === 'boss') return t('roleManager') || 'Boss';
+            return getManagerLabel(key) || key || '';
+        }
+        function pad2(n) { return String(n).padStart(2, '0'); }
+        function fmtHM(d) { return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+
+        // Short due label for the card chip (relative + colour class)
+        function formatTaskDueShort(dueAt) {
+            const d = new Date(dueAt);
+            if (isNaN(d.getTime())) return { text: '—', cls: '' };
+            const now = new Date();
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const dDay = new Date(d); dDay.setHours(0, 0, 0, 0);
+            const dayDiff = Math.round((dDay - today) / 86400000);
+            if (d < now) return { text: t('taskDueOverdue'), cls: 'is-overdue' };
+            if (dayDiff === 0) return { text: t('taskDueToday') + ' ' + fmtHM(d), cls: 'is-today' };
+            if (dayDiff === 1) return { text: t('taskDueTomorrow') + ' ' + fmtHM(d), cls: 'is-soon' };
+            return { text: d.toLocaleDateString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' + fmtHM(d), cls: '' };
+        }
+        function formatTaskDueFull(dueAt) {
+            const d = new Date(dueAt);
+            if (isNaN(d.getTime())) return '—';
+            return d.toLocaleString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+        function isTaskOverdue(dueAt) { return new Date(dueAt) < new Date(); }
+
+        // Resolve a Date from the active preset / custom input
+        function computeTaskDue() {
+            const d = new Date();
+            switch (currentTaskWhenPreset) {
+                case '1h': d.setHours(d.getHours() + 1); return d;
+                case 'today': { const x = new Date(); x.setHours(18, 0, 0, 0); return x; }
+                case 'tomorrow': { const x = new Date(); x.setDate(x.getDate() + 1); x.setHours(10, 0, 0, 0); return x; }
+                case '3d': { const x = new Date(); x.setDate(x.getDate() + 3); x.setHours(10, 0, 0, 0); return x; }
+                case 'custom': {
+                    const v = document.getElementById('taskCustomDue').value;
+                    if (!v) return null;
+                    const x = new Date(v);
+                    return isNaN(x.getTime()) ? null : x;
+                }
+                default: d.setHours(d.getHours() + 1); return d;
+            }
+        }
+        function toLocalDatetimeValue(date) {
+            const d = new Date(date);
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+        }
+
+        function openModalEl(id) {
+            const m = document.getElementById(id);
+            if (!m) return;
+            m.style.display = 'flex';
+            setTimeout(() => m.classList.add('modal-open'), 10);
+        }
+        function closeModalEl(id) {
+            const m = document.getElementById(id);
+            if (!m) return;
+            m.classList.remove('modal-open');
+            setTimeout(() => { m.style.display = 'none'; }, 250);
+        }
+
+        // ---- Per-lead tasks modal ----
+        async function openLeadTasks(leadId) {
+            currentTasksLeadId = leadId;
+            const lead = allActiveLeads.find(l => String(l._id) === String(leadId));
+            const titleEl = document.getElementById('leadTasksTitle');
+            if (titleEl) {
+                const nm = lead ? (lead.fullName || (lead.name + ' ' + lead.surname).trim() || lead.phoneNumber) : '';
+                titleEl.textContent = t('tasksTitle') + (nm ? ' — ' + nm : '');
+            }
+            // assignee select (boss only)
+            const aSel = document.getElementById('taskAssigneeInput');
+            if (aSel) {
+                if (isUIRoleBoss()) {
+                    const keys = ['boss', 'anvar', 'akbar', 'davron'];
+                    const def = (lead && lead.assignedTo && ['anvar', 'akbar', 'davron'].includes(String(lead.assignedTo))) ? String(lead.assignedTo) : 'boss';
+                    aSel.innerHTML = keys.map(k => `<option value="${k}" ${k === def ? 'selected' : ''}>${escapeHtml(taskAssigneeLabel(k))}</option>`).join('');
+                    aSel.style.display = '';
+                } else {
+                    aSel.style.display = 'none';
+                    aSel.innerHTML = '';
+                }
+            }
+            // reset composer
+            currentTaskWhenPreset = '1h';
+            document.querySelectorAll('#taskWhenPresets .task-when-chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-preset') === '1h'));
+            const cust = document.getElementById('taskCustomDue');
+            if (cust) { cust.style.display = 'none'; cust.value = toLocalDatetimeValue(new Date(Date.now() + 3600000)); }
+            const ti = document.getElementById('taskTitleInput');
+            if (ti) ti.value = '';
+            const tt = document.getElementById('taskTypeInput');
+            if (tt) tt.value = 'call';
+            document.getElementById('leadTasksList').innerHTML = '<div class="tasks-empty">' + escapeHtml(t('loadingLeads')) + '</div>';
+            openModalEl('leadTasksModal');
+            await loadLeadTasks(leadId);
+        }
+
+        async function loadLeadTasks(leadId) {
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/leads/' + encodeURIComponent(leadId) + '/tasks', { headers: getAuthHeader() });
+                const data = await res.json().catch(() => ({}));
+                renderLeadTasksList(res.ok ? (data.tasks || []) : []);
+            } catch (e) {
+                renderLeadTasksList([]);
+            }
+        }
+
+        function renderLeadTasksList(tasks) {
+            const box = document.getElementById('leadTasksList');
+            if (!box) return;
+            const open = tasks.filter(t0 => t0.status === 'open').sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
+            const done = tasks.filter(t0 => t0.status === 'done').sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
+            if (!open.length && !done.length) {
+                box.innerHTML = '<div class="tasks-empty">' + escapeHtml(t('tasksEmpty')) + '</div>';
+                return;
+            }
+            const row = (t0) => {
+                const overdue = t0.status === 'open' && isTaskOverdue(t0.dueAt);
+                const doneCls = t0.status === 'done' ? ' task-row--done' : '';
+                const completeBtn = t0.status === 'open'
+                    ? `<button type="button" class="task-row-done" data-task-complete="${escapeHtml(String(t0._id))}" title="${escapeHtml(t('taskDoneBtn'))}">✓</button>` : '';
+                const who = t0.assignee ? `<span class="task-row-who">${escapeHtml(taskAssigneeLabel(t0.assignee))}</span>` : '';
+                const resultLine = (t0.status === 'done' && t0.result) ? `<div class="task-row-result">${escapeHtml(t0.result)}</div>` : '';
+                const titleLine = t0.title ? `<div class="task-row-title">${escapeHtml(t0.title)}</div>` : '';
+                return `<div class="task-row${doneCls}${overdue ? ' task-row--overdue' : ''}">
+                    <div class="task-row-main">
+                        <div class="task-row-head">${taskTypeIcon(t0.type)}<span class="task-row-type">${escapeHtml(taskTypeLabelShort(t0.type))}</span><span class="task-row-due">${escapeHtml(formatTaskDueFull(t0.dueAt))}</span>${who}</div>
+                        ${titleLine}${resultLine}
+                    </div>
+                    ${completeBtn}
+                </div>`;
+            };
+            box.innerHTML = open.map(row).join('') + done.map(row).join('');
+        }
+
+        async function createTaskFromComposer() {
+            if (!currentTasksLeadId) return;
+            const btn = document.getElementById('taskCreateBtn');
+            const due = computeTaskDue();
+            if (!due) { showError(t('errorNetwork')); return; }
+            const type = document.getElementById('taskTypeInput').value || 'call';
+            const title = (document.getElementById('taskTitleInput').value || '').trim();
+            const aSel = document.getElementById('taskAssigneeInput');
+            const assignee = (isUIRoleBoss() && aSel) ? aSel.value : undefined;
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/leads/' + encodeURIComponent(currentTasksLeadId) + '/tasks', {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ type, title, dueAt: due.toISOString(), assignee })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { showError(data.error || t('errorNetwork')); return; }
+                document.getElementById('taskTitleInput').value = '';
+                showToast(t('taskCreated'));
+                await loadLeadTasks(currentTasksLeadId);
+                if (isTasksPageOpen()) loadTasksPage(); else loadLeads();
+                refreshTasksBadge();
+            } catch (e) {
+                showError(t('errorNetwork'));
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        // ---- Complete task ----
+        function openTaskComplete(taskId) {
+            document.getElementById('taskCompleteId').value = taskId;
+            document.getElementById('taskResultInput').value = '';
+            openModalEl('taskCompleteModal');
+        }
+        async function confirmTaskComplete() {
+            const id = document.getElementById('taskCompleteId').value;
+            if (!id) return;
+            const result = (document.getElementById('taskResultInput').value || '').trim();
+            const btn = document.getElementById('confirmTaskComplete');
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/tasks/' + encodeURIComponent(id) + '/complete', {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeader()),
+                    body: JSON.stringify({ result })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { showError(data.error || t('errorNetwork')); return; }
+                closeModalEl('taskCompleteModal');
+                showToast(t('taskCompleted'));
+                if (currentTasksLeadId && document.getElementById('leadTasksModal').style.display !== 'none') await loadLeadTasks(currentTasksLeadId);
+                if (isTasksPageOpen()) loadTasksPage();
+                if (!isTasksPageOpen()) loadLeads();
+                refreshTasksBadge();
+            } catch (e) {
+                showError(t('errorNetwork'));
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        // ---- Tasks page (dedicated view) ----
+        function isTasksPageOpen() {
+            const tw = document.getElementById('tasksWrapper');
+            return tw && tw.style.display !== 'none';
+        }
+        function openTasksPage() {
+            const tw = document.getElementById('tasksWrapper');
+            if (!tw) return;
+            if (tw.style.display === 'none') {
+                const aw = document.getElementById('analyticsWrapper');
+                const rw = document.getElementById('requestsWrapper');
+                const leadsWrapper = document.getElementById('leadsTableWrapper');
+                const noL = document.getElementById('noLeadsMessage');
+                if (aw) { aw.style.display = 'none'; stopAnalyticsLive && stopAnalyticsLive(); }
+                if (rw) rw.style.display = 'none';
+                if (leadsWrapper) leadsWrapper.style.display = 'none';
+                if (noL) noL.style.display = 'none';
+                tw.style.display = 'block';
+                buildTasksManagerFilter();
+                loadTasksPage();
+            } else {
+                tw.style.display = 'none';
+                loadLeads();
+            }
+        }
+        function closeTasksPage() {
+            const tw = document.getElementById('tasksWrapper');
+            if (tw) tw.style.display = 'none';
+            loadLeads();
+        }
+        function buildTasksManagerFilter() {
+            const box = document.getElementById('tasksManagerFilter');
+            if (!box) return;
+            if (!isUIRoleBoss()) { box.style.display = 'none'; box.innerHTML = ''; return; }
+            const keys = ['', 'anvar', 'akbar', 'davron', 'boss'];
+            box.style.display = 'flex';
+            box.innerHTML = keys.map(k => {
+                const label = k === '' ? t('tasksAll') : taskAssigneeLabel(k);
+                return `<button type="button" class="tasks-filter-chip ${k === currentTasksManagerFilter ? 'active' : ''}" data-mgr="${k}">${escapeHtml(label)}</button>`;
+            }).join('');
+        }
+        async function loadTasksPage() {
+            const body = document.getElementById('tasksPageBody');
+            if (body) body.innerHTML = '<div class="tasks-empty">' + escapeHtml(t('loadingLeads')) + '</div>';
+            try {
+                const boss = isUIRoleBoss();
+                let url = getApiBase() + '/api/admin/tasks?filter=open';
+                if (boss) {
+                    url += '&scope=all';
+                    if (currentTasksManagerFilter) url += '&assignee=' + encodeURIComponent(currentTasksManagerFilter);
+                } else {
+                    url += '&scope=mine';
+                }
+                const res = await fetch(url, { headers: getAuthHeader() });
+                const data = await res.json().catch(() => ({}));
+                renderTasksPage(res.ok ? (data.tasks || []) : []);
+            } catch (e) {
+                renderTasksPage([]);
+            }
+        }
+        function renderTasksPage(tasks) {
+            const box = document.getElementById('tasksPageBody');
+            if (!box) return;
+            if (!tasks.length) {
+                box.innerHTML = '<div class="tasks-empty">' + escapeHtml(t('tasksEmpty')) + '</div>';
+                return;
+            }
+            const boss = isUIRoleBoss();
+            const now = new Date();
+            const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+            const groups = { overdue: [], today: [], upcoming: [] };
+            tasks.forEach(t0 => {
+                const d = new Date(t0.dueAt);
+                if (d < now) groups.overdue.push(t0);
+                else if (d <= endToday) groups.today.push(t0);
+                else groups.upcoming.push(t0);
+            });
+            const section = (titleKey, arr, cls) => {
+                if (!arr.length) return '';
+                const items = arr.map(t0 => {
+                    const nm = t0.lead ? t0.lead.name : '—';
+                    const lid = t0.lead ? String(t0.lead._id) : '';
+                    const who = boss && t0.assignee ? `<span class="task-row-who">${escapeHtml(taskAssigneeLabel(t0.assignee))}</span>` : '';
+                    return `<div class="task-row task-row--panel ${cls}">
+                        <button type="button" class="task-row-done" data-task-complete="${escapeHtml(String(t0._id))}" title="${escapeHtml(t('taskDoneBtn'))}">✓</button>
+                        <div class="task-row-main">
+                            <div class="task-row-head">${taskTypeIcon(t0.type)}<span class="task-row-type">${escapeHtml(taskTypeLabelShort(t0.type))}</span><span class="task-row-due">${escapeHtml(formatTaskDueFull(t0.dueAt))}</span>${who}</div>
+                            <button type="button" class="task-row-lead" data-task-openlead="${escapeHtml(lid)}">${escapeHtml(nm)}</button>
+                            ${t0.title ? `<div class="task-row-title">${escapeHtml(t0.title)}</div>` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+                return `<div class="tasks-section"><div class="tasks-section-head ${cls}">${escapeHtml(t(titleKey))} <span class="tasks-section-count">${arr.length}</span></div>${items}</div>`;
+            };
+            box.innerHTML =
+                section('tasksOverdue', groups.overdue, 'is-overdue') +
+                section('tasksToday', groups.today, 'is-today') +
+                section('tasksUpcoming', groups.upcoming, 'is-soon');
+        }
+
+        // header "Задачи" badge — count of my own open tasks due ≤ today
+        async function refreshTasksBadge() {
+            if (!adminToken) return;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/tasks?scope=mine&filter=today', { headers: getAuthHeader() });
+                const data = await res.json().catch(() => ({}));
+                const n = (res.ok && Array.isArray(data.tasks)) ? data.tasks.length : 0;
+                const badge = document.getElementById('tasksNavBadge');
+                if (badge) {
+                    if (n > 0) { badge.textContent = String(n); badge.style.display = 'inline-flex'; }
+                    else { badge.style.display = 'none'; }
+                }
+            } catch (e) { /* silent */ }
+        }
+
+        // Notify a manager when the boss assigns them a task (feeds the 🔔 bell).
+        async function fetchAssignedTaskNotifs() {
+            if (isUIRoleBoss() || !userKey || !adminToken) return;
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/tasks?scope=mine&filter=open', { headers: getAuthHeader() });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+                let added = false;
+                tasks.forEach(t0 => {
+                    if (!t0 || !t0._id) return;
+                    if (String(t0.createdBy) === String(userKey)) return; // only tasks given by someone else
+                    const nid = 'task:' + String(t0._id);
+                    if (notifStore.some(n => n.id === nid)) return;       // dedup
+                    const nm = t0.lead ? t0.lead.name : '';
+                    const msg = t('notifTaskAssigned') + ': ' + taskTypeLabelShort(t0.type) + (nm ? ' · ' + nm : '') + ' · ' + formatTaskDueFull(t0.dueAt);
+                    notifStore.unshift({ id: nid, type: 'TASK', message: msg, timeText: formatTimeAgo(t0.createdAt || new Date().toISOString()), badgeType: 'pending' });
+                    added = true;
+                });
+                if (added) renderNotifBadge();
+            } catch (e) { /* optional */ }
+        }
+
+        (function wireTasksUI() {
+            const navBtn = document.getElementById('tasksPageBtn');
+            if (navBtn) navBtn.addEventListener('click', openTasksPage);
+            const back = document.getElementById('tasksBack');
+            if (back) back.addEventListener('click', (e) => { e.preventDefault(); closeTasksPage(); });
+
+            const closeLeadTasks = document.getElementById('closeLeadTasksModal');
+            if (closeLeadTasks) closeLeadTasks.addEventListener('click', () => closeModalEl('leadTasksModal'));
+            const closeComplete = document.getElementById('closeTaskCompleteModal');
+            if (closeComplete) closeComplete.addEventListener('click', () => closeModalEl('taskCompleteModal'));
+            const cancelComplete = document.getElementById('cancelTaskComplete');
+            if (cancelComplete) cancelComplete.addEventListener('click', () => closeModalEl('taskCompleteModal'));
+            const confirmComplete = document.getElementById('confirmTaskComplete');
+            if (confirmComplete) confirmComplete.addEventListener('click', confirmTaskComplete);
+            const createBtn = document.getElementById('taskCreateBtn');
+            if (createBtn) createBtn.addEventListener('click', createTaskFromComposer);
+
+            // when-presets
+            const presets = document.getElementById('taskWhenPresets');
+            if (presets) presets.addEventListener('click', (e) => {
+                const chip = e.target.closest('.task-when-chip');
+                if (!chip) return;
+                currentTaskWhenPreset = chip.getAttribute('data-preset');
+                presets.querySelectorAll('.task-when-chip').forEach(c => c.classList.toggle('active', c === chip));
+                const cust = document.getElementById('taskCustomDue');
+                if (cust) cust.style.display = currentTaskWhenPreset === 'custom' ? 'block' : 'none';
+            });
+
+            // manager filter (boss, on tasks page)
+            const mgrFilter = document.getElementById('tasksManagerFilter');
+            if (mgrFilter) mgrFilter.addEventListener('click', (e) => {
+                const b = e.target.closest('.tasks-filter-chip');
+                if (!b) return;
+                currentTasksManagerFilter = b.getAttribute('data-mgr') || '';
+                mgrFilter.querySelectorAll('.tasks-filter-chip').forEach(x => x.classList.toggle('active', x === b));
+                loadTasksPage();
+            });
+
+            // close on backdrop (modals)
+            ['leadTasksModal', 'taskCompleteModal'].forEach(id => {
+                const m = document.getElementById(id);
+                if (m) m.addEventListener('click', (e) => { if (e.target === m) closeModalEl(id); });
+            });
+
+            // delegated: open lead tasks from card; complete from any list; open lead from page
+            document.addEventListener('click', (e) => {
+                const openBtn = e.target.closest && e.target.closest('[data-task-open]');
+                if (openBtn) { e.stopPropagation(); openLeadTasks(openBtn.getAttribute('data-task-open')); return; }
+                const compBtn = e.target.closest && e.target.closest('[data-task-complete]');
+                if (compBtn) { e.stopPropagation(); openTaskComplete(compBtn.getAttribute('data-task-complete')); return; }
+                const leadBtn = e.target.closest && e.target.closest('[data-task-openlead]');
+                if (leadBtn) { e.stopPropagation(); openLeadTasks(leadBtn.getAttribute('data-task-openlead')); return; }
+            });
+        })();
 
         function getFilteredActiveLeads() {
             const input = document.getElementById('activeSearchInput');

@@ -6,6 +6,110 @@
     <title>Архив — админ‑панель</title>
     <link rel="icon" type="image/png" href="/kukcha.png">
     <link rel="stylesheet" href="/styles.css">
+    <style>
+    /* =====================================================================
+       Единая стилистика «один акцент» для карточек архива (как на доске).
+       Scoped под #archivePanel/#archiveCardGrid — переопределяет общий
+       styles.css ТОЛЬКО на этой странице. admin.html не затрагивается.
+       Карточки нейтральные (графит); цвет = смысл живёт на ИСХОДЕ сделки
+       (метка) и тонкой полоске слева. Источники нейтрализованы.
+       ===================================================================== */
+    #archivePanel {
+        --accent:      #5e6ad2;   /* единый индиго-акцент */
+        --accent-text: #aab2ff;
+        --o-success:   #22c55e;   /* успешно — зелёный */
+        --o-callback:  #eab308;   /* перезвонить — жёлтый */
+        --o-rejected:  #e0607a;   /* отказ — красный (приглушённый) */
+        --o-new:       #868c9e;   /* новый — нейтральный графит */
+    }
+
+    /* ---- сетка ---- */
+    #archiveCardGrid.lead-cards-grid { gap:14px; }
+
+    /* ---- нейтральная графитовая карточка ---- */
+    #archiveCardGrid .lead-card {
+        position:relative;
+        background:rgba(255,255,255,.035);
+        backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:12px;
+        box-shadow:none;
+        padding:14px 14px 12px 16px;
+        gap:10px;
+        overflow:hidden;
+    }
+    #archiveCardGrid .lead-card:hover {
+        transform:translateY(-2px);
+        border-color:rgba(255,255,255,.12);
+        box-shadow:0 8px 22px rgba(0,0,0,.35);
+    }
+    /* единственное место, где цвет = смысл: полоска исхода слева */
+    #archiveCardGrid .lead-card::before {
+        content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+        background:var(--oc, var(--o-new));
+    }
+    #archiveCardGrid .lead-card.out-successful { --oc:var(--o-success); }
+    #archiveCardGrid .lead-card.out-call-back  { --oc:var(--o-callback); }
+    #archiveCardGrid .lead-card.out-rejected   { --oc:var(--o-rejected); }
+    #archiveCardGrid .lead-card.out-new        { --oc:var(--o-new); }
+
+    /* ---- типографика ---- */
+    #archiveCardGrid .lead-card-name  { font-weight:700; font-size:1.05em; letter-spacing:-.01em; color:#e7e8ec; }
+    #archiveCardGrid .lead-card-phone { color:rgba(231,232,236,.62); font-weight:500; }
+    #archiveCardGrid .field-label     { color:rgba(231,232,236,.4); font-weight:600; letter-spacing:.04em; }
+    #archiveCardGrid .field-value     { color:rgba(231,232,236,.9); }
+    #archiveCardGrid .lead-card-comment {
+        background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:9px;
+    }
+    #archiveCardGrid .comment-text { color:rgba(231,232,236,.85); }
+
+    /* ---- бейджи: метка-исход несёт смысл-цвет (мягко), источник нейтрален ---- */
+    #archiveCardGrid .badge {
+        border-radius:7px; font-weight:600; padding:4px 9px; border:1px solid transparent;
+    }
+    #archiveCardGrid .badge-new {
+        background:rgba(134,140,158,.18); color:#c7cbd6; border-color:rgba(134,140,158,.32);
+    }
+    #archiveCardGrid .badge-call-back {
+        background:color-mix(in srgb, var(--o-callback) 16%, transparent); color:#f5d77a;
+        border-color:color-mix(in srgb, var(--o-callback) 32%, transparent);
+    }
+    #archiveCardGrid .badge-successful {
+        background:color-mix(in srgb, var(--o-success) 16%, transparent); color:#86efac;
+        border-color:color-mix(in srgb, var(--o-success) 32%, transparent);
+    }
+    #archiveCardGrid .badge-rejected {
+        background:color-mix(in srgb, var(--o-rejected) 16%, transparent); color:#f3b6c2;
+        border-color:color-mix(in srgb, var(--o-rejected) 32%, transparent);
+    }
+    /* источники — единый нейтральный графит вместо радуги градиентов */
+    #archiveCardGrid .badge-source {
+        background:rgba(255,255,255,.06); color:rgba(231,232,236,.6);
+        border:1px solid rgba(255,255,255,.1); box-shadow:none; font-weight:600;
+    }
+
+    /* ---- действия: «Редактировать» = единый акцент, «Журнал» = ghost ---- */
+    #archiveCardGrid .lead-card-actions { border-top:1px solid rgba(255,255,255,.08); gap:7px; }
+    #archiveCardGrid .btn-edit {
+        background:var(--accent); color:#fff; border:none; border-radius:8px;
+        padding:8px 14px; font-weight:600; font-size:.8rem;
+    }
+    #archiveCardGrid .btn-edit:hover { background:var(--accent); filter:brightness(1.1); box-shadow:none; transform:translateY(-1px); }
+    #archiveCardGrid .btn-journal {
+        background:rgba(255,255,255,.06); color:rgba(231,232,236,.82);
+        border:1px solid rgba(255,255,255,.12); border-radius:8px;
+        padding:8px 14px; font-weight:600; font-size:.8rem; cursor:pointer;
+        transition:background .15s ease, transform .12s ease, color .15s ease;
+    }
+    #archiveCardGrid .btn-journal:hover { background:rgba(255,255,255,.1); color:#fff; transform:translateY(-1px); }
+
+    /* ---- мобильно: карточки идут в один столбец (не сужаются), крупнее тапы ---- */
+    @media (max-width:600px){
+        #archiveCardGrid.lead-cards-grid { grid-template-columns:1fr; gap:12px; }
+        #archiveCardGrid .btn-edit,
+        #archiveCardGrid .btn-journal { padding:10px 14px; }
+    }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -174,6 +278,19 @@
         </div>
     </div>
 
+    <!-- Lead activity timeline (read-only log for archived leads) -->
+    <div id="leadTimelineModal" class="modal" style="display: none;">
+        <div class="modal-content glass modal-content--timeline">
+            <div class="modal-header">
+                <h2 id="leadTimelineTitle" data-i18n="timelineTitle">Журнал клиента</h2>
+                <button type="button" class="modal-close" id="closeLeadTimelineModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="timelineFeed" class="timeline-feed"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let adminToken = null;
         let userRole = null;
@@ -204,6 +321,12 @@
                 loadingArchive: 'Загрузка архива...',
                 noArchive: 'Архив пуст.',
                 noComment: '(Без комментария)',
+                timelineBtn: 'Журнал',
+                timelineTitle: 'Журнал клиента',
+                timelineEmpty: 'Пока нет записей',
+                actComment: 'Комментарий',
+                actClosedWon: 'Сделка закрыта успешно',
+                actClosedLost: 'Лид отклонён',
                 controlsToggle: 'Поиск и фильтры',
                 searchPlaceholder: 'Поиск по имени или телефону',
                 searchBtn: 'Поиск',
@@ -270,6 +393,12 @@
                 loadingArchive: 'Arxiv yuklanmoqda...',
                 noArchive: 'Arxiv bo‘sh.',
                 noComment: '(Izohsiz)',
+                timelineBtn: 'Jurnal',
+                timelineTitle: 'Mijoz jurnali',
+                timelineEmpty: 'Hozircha yozuvlar yo‘q',
+                actComment: 'Izoh',
+                actClosedWon: 'Bitim muvaffaqiyatli yopildi',
+                actClosedLost: 'Lid rad etildi',
                 controlsToggle: 'Qidiruv va filtrlar',
                 searchPlaceholder: 'Ism yoki telefon bo‘yicha qidirish',
                 searchBtn: 'Qidirish',
@@ -654,14 +783,20 @@
                     <div class="comment-text" id="comment-${lead._id}">${escapeHtml(comment)}</div>
                 </div>
                 <div class="lead-card-actions">
+                    <button class="btn-journal btn-log btn-card" data-id="${lead._id}">${t('timelineBtn')}</button>
                     <button class="btn-edit" data-id="${lead._id}">${t('editBtn')}</button>
                 </div>
             `;
         }
 
+        // исход сделки → класс для полоски/акцента (out-successful, out-call-back, out-rejected, out-new)
+        function archiveOutcomeClass(lead) {
+            return getLabelClass(lead.label || 'New Client').replace('badge-', 'out-');
+        }
+
         function createArchiveCardElement(lead, index) {
             const card = document.createElement('div');
-            card.className = 'lead-card card-animate';
+            card.className = 'lead-card card-animate ' + archiveOutcomeClass(lead);
             card.setAttribute('data-lead-id', lead._id);
             card.style.animationDelay = `${index * 0.05}s`;
             card.innerHTML = buildArchiveCardHTML(lead, index);
@@ -693,6 +828,7 @@
                 const lead = pageLeads[i];
                 const existing = grid.querySelector(`[data-lead-id="${lead._id}"]`);
                 if (existing) {
+                    existing.className = 'lead-card card-animate ' + archiveOutcomeClass(lead);
                     existing.innerHTML = buildArchiveCardHTML(lead, i);
                     if (existing !== grid.children[i]) grid.insertBefore(existing, grid.children[i] || null);
                 } else {
@@ -908,6 +1044,11 @@
         });
 
         document.getElementById('archiveCardGrid').addEventListener('click', (e) => {
+            const journalBtn = e.target.closest && e.target.closest('.btn-journal');
+            if (journalBtn) {
+                openArchiveTimeline(journalBtn.getAttribute('data-id'));
+                return;
+            }
             if (e.target.classList.contains('btn-edit')) {
                 const leadId = e.target.getAttribute('data-id');
                 const lead = archivedLeadsById[leadId];
@@ -921,6 +1062,84 @@
                 }, 10);
             }
         });
+
+        // ===== Read-only activity timeline for archived leads =====
+        const ARCHIVE_TIMELINE_TYPES = ['comment', 'closed_won', 'closed_lost', 'archived'];
+        const ARCHIVE_ACT_ICO = { comment: '💬', closed_won: '✅', closed_lost: '🚫', archived: '📦' };
+
+        function fmtMoneyArchive(v) {
+            return (typeof v === 'number' && !isNaN(v)) ? v.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) : '—';
+        }
+
+        function archiveActivityTitle(a) {
+            const meta = a.meta || {};
+            switch (a.type) {
+                case 'closed_won': return t('actClosedWon') + (meta.dealAmount ? ' · ' + fmtMoneyArchive(Number(meta.dealAmount)) : '');
+                case 'closed_lost':
+                case 'archived': return t('actClosedLost');
+                case 'comment': return t('actComment');
+                default: return a.type;
+            }
+        }
+
+        function renderArchiveTimeline(activities) {
+            const feed = document.getElementById('timelineFeed');
+            if (!feed) return;
+            const visible = (activities || []).filter(a => ARCHIVE_TIMELINE_TYPES.includes(a.type))
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            if (!visible.length) {
+                feed.innerHTML = '<div class="timeline-empty">' + escapeHtml(t('timelineEmpty')) + '</div>';
+                return;
+            }
+            feed.innerHTML = visible.map(a => {
+                const ico = ARCHIVE_ACT_ICO[a.type] || '•';
+                const who = a.authorName || roleLabel(a.author) || '—';
+                const when = a.createdAt ? new Date(a.createdAt).toLocaleString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU') : '';
+                const body = a.text && String(a.text).trim()
+                    ? '<div class="timeline-item__text">' + escapeHtml(String(a.text).trim()) + '</div>' : '';
+                return '<div class="timeline-item timeline-item--' + escapeHtml(a.type) + '">'
+                    + '<div class="timeline-item__ico" aria-hidden="true">' + ico + '</div>'
+                    + '<div class="timeline-item__main">'
+                    + '<div class="timeline-item__title">' + escapeHtml(archiveActivityTitle(a)) + '</div>'
+                    + body
+                    + '<div class="timeline-item__meta">' + escapeHtml(who) + ' · ' + escapeHtml(when) + '</div>'
+                    + '</div></div>';
+            }).join('');
+        }
+
+        async function openArchiveTimeline(leadId) {
+            const lead = archivedLeadsById[leadId];
+            const titleEl = document.getElementById('leadTimelineTitle');
+            if (titleEl) {
+                const nm = lead ? (lead.fullName || (lead.name + ' ' + lead.surname).trim() || lead.phoneNumber) : '';
+                titleEl.textContent = t('timelineTitle') + (nm ? ' — ' + nm : '');
+            }
+            const feed = document.getElementById('timelineFeed');
+            if (feed) feed.innerHTML = '<div class="timeline-empty">' + escapeHtml(t('loadingArchive')) + '</div>';
+            const modal = document.getElementById('leadTimelineModal');
+            if (modal) { modal.style.display = 'flex'; setTimeout(() => modal.classList.add('modal-open'), 10); }
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/leads/' + encodeURIComponent(leadId) + '/activity', { headers: getAuthHeader() });
+                const data = await res.json();
+                renderArchiveTimeline(res.ok ? (data.activities || []) : []);
+            } catch (e) {
+                renderArchiveTimeline([]);
+            }
+        }
+
+        function closeArchiveTimeline() {
+            const modal = document.getElementById('leadTimelineModal');
+            if (!modal) return;
+            modal.classList.remove('modal-open');
+            setTimeout(() => { modal.style.display = 'none'; }, 250);
+        }
+
+        (function wireArchiveTimeline() {
+            const closeBtn = document.getElementById('closeLeadTimelineModal');
+            if (closeBtn) closeBtn.addEventListener('click', closeArchiveTimeline);
+            const modal = document.getElementById('leadTimelineModal');
+            if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeArchiveTimeline(); });
+        })();
 
         function closeEditCommentModal() {
             const modal = document.getElementById('editCommentModal');

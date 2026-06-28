@@ -89,7 +89,6 @@ mongoose.connect(MONGODB_URI)
 // MONGOOSE SCHEMA
 // ============================================
 
-const PRIORITY_OPTIONS = ['Quality', 'Design', 'Production Time', 'Price', 'Warranty'];
 const PRIORITY_OPTIONS_NEW = ['Качество и надежность', 'Цена', 'Дизайн и стиль', 'Гарантии и сервис', 'Надежность и безопасность'];
 const LABEL_OPTIONS = ['New Client', 'Call Back', 'Successful', 'Rejected'];
 const STAGE_OPTIONS = ['new', 'in_progress', 'thinking', 'successful', 'preparing'];
@@ -139,6 +138,11 @@ const leadSchema = new mongoose.Schema({
   phoneNumber: {
     type: String,
     required: true
+  },
+  phoneNormalized: {
+    type: String,
+    default: '',
+    index: true
   },
   priorities: {
     type: [String],
@@ -264,6 +268,88 @@ const approvalSchema = new mongoose.Schema({
 approvalSchema.index({ leadId: 1, status: 1, type: 1 });
 
 const Approval = mongoose.model('Approval', approvalSchema);
+
+// ============================================
+// ACTIVITY LOG (amoCRM-style per-lead timeline)
+// ============================================
+const ACTIVITY_TYPE = {
+  CREATED: 'created',
+  COMMENT: 'comment',
+  ASSIGNED: 'assigned',
+  CLAIMED: 'claimed',
+  STAGE: 'stage_changed',
+  CLOSED_WON: 'closed_won',
+  CLOSED_LOST: 'closed_lost',
+  ARCHIVED: 'archived',
+  DELETED: 'deleted',
+  TASK_CREATED: 'task_created',
+  TASK_DONE: 'task_done',
+  TASK_CANCELLED: 'task_cancelled'
+};
+
+const activitySchema = new mongoose.Schema({
+  leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+  phoneNormalized: { type: String, default: '', index: true },
+  type: { type: String, required: true },
+  text: { type: String, default: '' },          // free-form comment text
+  author: { type: String, default: '' },        // user key: boss/anvar/akbar/davron/system
+  authorName: { type: String, default: '' },    // display name
+  meta: { type: mongoose.Schema.Types.Mixed, default: {} }, // {fromStage,toStage,dealAmount,label,assignedTo,...}
+  createdAt: { type: Date, default: Date.now, index: true }
+});
+activitySchema.index({ leadId: 1, createdAt: 1 });
+
+const Activity = mongoose.model('Activity', activitySchema);
+
+// ============================================
+// TASKS (follow-up / reminders, amoCRM-style "next action")
+// ============================================
+const TASK_TYPE = { CALL: 'call', MEETING: 'meeting', MEASUREMENT: 'measurement', FOLLOWUP: 'followup', OTHER: 'other' };
+const TASK_STATUS = { OPEN: 'open', DONE: 'done', CANCELLED: 'cancelled' };
+
+const taskSchema = new mongoose.Schema({
+  leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', required: true, index: true },
+  phoneNormalized: { type: String, default: '', index: true }, // denormalized, like Activity — survives lead lifecycle
+  type: { type: String, enum: Object.values(TASK_TYPE), default: TASK_TYPE.CALL },
+  title: { type: String, default: '' },                 // optional free-form description
+  dueAt: { type: Date, required: true, index: true },
+  assignee: { type: String, default: '' },              // user key: boss/anvar/akbar/davron
+  status: { type: String, enum: Object.values(TASK_STATUS), default: TASK_STATUS.OPEN, index: true },
+  createdBy: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  completedAt: { type: Date, default: null },
+  completedBy: { type: String, default: '' },
+  result: { type: String, default: '' }                 // outcome note left on completion
+});
+taskSchema.index({ status: 1, dueAt: 1 });
+taskSchema.index({ assignee: 1, status: 1, dueAt: 1 });
+const Task = mongoose.model('Task', taskSchema);
+
+// Append a timeline entry. Never throws into the request flow (best-effort logging).
+async function logActivity(lead, type, { text = '', author = '', authorName = '', meta = {} } = {}) {
+  try {
+    if (!lead || !lead._id) return;
+    await Activity.create({
+      leadId: lead._id,
+      phoneNormalized: lead.phoneNormalized || normalizePhone(lead.phoneNumber),
+      type,
+      text: String(text || ''),
+      author: String(author || ''),
+      authorName: String(authorName || ''),
+      meta: meta || {}
+    });
+  } catch (e) {
+    console.error('⚠️ [ACTIVITY] Failed to log activity:', e.message);
+  }
+}
+
+// Resolve a user's key + display name for activity authorship.
+function actorFromUser(user) {
+  if (!user) return { author: 'system', authorName: 'System' };
+  if (isAppBossUser(user)) return { author: 'boss', authorName: MANAGER_DISPLAY_NAMES.boss || 'Boss' };
+  const key = user.key || getUserIdFromUser(user) || 'call';
+  return { author: key, authorName: MANAGER_DISPLAY_NAMES[key] || key };
+}
 
 // ============================================
 // PRIORITIES HELPERS
@@ -466,6 +552,14 @@ function validatePhoneNumber(raw) {
   return cleaned;
 }
 
+// Matching key for "same customer" lookups: digits only, last 9 (UZ local number).
+// Makes +998 90 123-45-67, 998901234567, 901234567 all match the same person.
+function normalizePhone(raw) {
+  const digits = String(raw == null ? '' : raw).replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.length > 9 ? digits.slice(-9) : digits;
+}
+
 // Best-effort in-memory rate limiter (per client IP). On serverless this only
 // catches bursts that hit the same warm instance; the duplicate-phone check
 // below is the durable guard. Together they stop simple flood/double-submit spam.
@@ -556,6 +650,7 @@ app.post('/api/leads', async (req, res) => {
         width: widthNum,
         dobor: doborValue,
         phoneNumber,
+        phoneNormalized: normalizePhone(phoneNumber),
         priorities: prioritiesArray,
         name: '',
         surname: '',
@@ -583,6 +678,7 @@ app.post('/api/leads', async (req, res) => {
         width: 0,
         dobor: '',
         phoneNumber,
+        phoneNormalized: normalizePhone(phoneNumber),
         priorities: prioritiesArray,
         name: '',
         surname: '',
@@ -603,6 +699,10 @@ app.post('/api/leads', async (req, res) => {
     const lead = new Lead(leadData);
     await lead.save();
     console.log(`✅ [MONGODB] Lead submitted: ${lead.fullName || lead.phoneNumber}`);
+    await logActivity(lead, ACTIVITY_TYPE.CREATED, {
+      author: 'system', authorName: 'Website',
+      meta: { source: lead.source }
+    });
 
     res.status(201).json({
       success: true,
@@ -702,6 +802,7 @@ app.post('/api/admin/leads', authenticateAdmin, async (req, res) => {
         width: widthNum,
         dobor: doborValue,
         phoneNumber,
+        phoneNormalized: normalizePhone(phoneNumber),
         priorities: prioritiesArray,
         name: '',
         surname: '',
@@ -726,6 +827,7 @@ app.post('/api/admin/leads', authenticateAdmin, async (req, res) => {
         width: 0,
         dobor: '',
         phoneNumber,
+        phoneNormalized: normalizePhone(phoneNumber),
         priorities: prioritiesArray,
         name: '',
         surname: '',
@@ -753,6 +855,10 @@ app.post('/api/admin/leads', authenticateAdmin, async (req, res) => {
     }
     await lead.save();
     console.log(`✅ [MONGODB] Lead added by manager: ${lead.fullName || lead.phoneNumber}`);
+    {
+      const actor = actorFromUser(req.user);
+      await logActivity(lead, ACTIVITY_TYPE.CREATED, { ...actor, meta: { source: lead.source, manual: true } });
+    }
     res.status(201).json({ success: true, message: 'Client added', lead });
   } catch (error) {
     console.error('❌ [ERROR] Error adding lead:', error);
@@ -766,11 +872,49 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
     const query = { status: 'new' };
     const leads = await Lead.find(query)
       .sort({ createdAt: -1 })
-      .select('name surname fullName doorType measurements length width dobor phoneNumber priorities label source stage assignedTo isPreparing readyDate createdBy lockedUntil createdAt updatedAt _id');
+      .select('name surname fullName doorType measurements length width dobor phoneNumber phoneNormalized priorities label source stage assignedTo isPreparing readyDate createdBy lockedUntil createdAt updatedAt _id')
+      .lean();
+
+    // Mark returning customers: active leads whose phone matches a prior closed/archived deal.
+    const norms = [...new Set(leads
+      .map(l => l.phoneNormalized || normalizePhone(l.phoneNumber))
+      .filter(Boolean))];
+    const priorCount = {};
+    if (norms.length) {
+      const priors = await Lead.aggregate([
+        { $match: { status: { $in: ['done', 'archived'] }, phoneNormalized: { $in: norms } } },
+        { $group: { _id: '$phoneNormalized', count: { $sum: 1 } } }
+      ]);
+      priors.forEach(p => { priorCount[p._id] = p.count; });
+    }
+    // Attach each lead's open-task summary (next due task + count) so cards render the
+    // task chip without per-card requests.
+    const leadIds = leads.map(l => l._id);
+    const openTasksByLead = {};
+    if (leadIds.length) {
+      const openTasks = await Task.find({ leadId: { $in: leadIds }, status: 'open' })
+        .select('leadId type dueAt assignee')
+        .sort({ dueAt: 1 })
+        .lean();
+      openTasks.forEach(t => {
+        const k = String(t.leadId);
+        (openTasksByLead[k] || (openTasksByLead[k] = [])).push(t);
+      });
+    }
+
+    const enriched = leads.map(l => {
+      const norm = l.phoneNormalized || normalizePhone(l.phoneNumber);
+      const count = priorCount[norm] || 0;
+      const ltasks = openTasksByLead[String(l._id)] || [];
+      const nextTask = ltasks.length
+        ? { type: ltasks[0].type, dueAt: ltasks[0].dueAt, assignee: ltasks[0].assignee }
+        : null;
+      return { ...l, isReturning: count > 0, priorDealsCount: count, nextTask, openTaskCount: ltasks.length };
+    });
 
     res.json({
       success: true,
-      leads
+      leads: enriched
     });
   } catch (error) {
     console.error('Error fetching leads:', error);
@@ -793,9 +937,22 @@ app.patch('/api/admin/leads/:id/assign', authenticateAdmin, requireBoss, async (
       return res.status(400).json({ error: 'Only active leads can be assigned' });
     }
 
+    const prevAssigned = lead.assignedTo || null;
     lead.assignedTo = value;
     lead.updatedAt = new Date();
     await lead.save();
+
+    if (prevAssigned !== value) {
+      const actor = actorFromUser(req.user);
+      await logActivity(lead, ACTIVITY_TYPE.ASSIGNED, {
+        ...actor,
+        meta: {
+          from: prevAssigned,
+          to: value,
+          toName: value ? (MANAGER_DISPLAY_NAMES[value] || value) : null
+        }
+      });
+    }
 
     res.json({
       success: true,
@@ -846,6 +1003,11 @@ async function tryAtomicallyClaimInProgress(leadId, user) {
     { new: true }
   );
   if (updated) {
+    await logActivity(updated, ACTIVITY_TYPE.CLAIMED, {
+      author: key,
+      authorName: MANAGER_DISPLAY_NAMES[key] || key,
+      meta: { toStage: 'in_progress' }
+    });
     return { ok: true, lead: updated };
   }
   const current = await Lead.findById(leadId);
@@ -882,6 +1044,12 @@ async function applyStageSuccessful(lead, dealAmount, comment, closedByValue) {
   }
   lead.updatedAt = new Date();
   await lead.save();
+  await logActivity(lead, ACTIVITY_TYPE.CLOSED_WON, {
+    author: closedByValue,
+    authorName: MANAGER_DISPLAY_NAMES[closedByValue] || closedByValue,
+    text: comment != null ? String(comment).trim() : '',
+    meta: { dealAmount: lead.dealAmount, label: lead.label }
+  });
 }
 
 // PATCH /api/admin/leads/:id/stage - Update lead stage (claim in_progress = atomic; manager "successful" → approval)
@@ -973,6 +1141,8 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
       });
     }
 
+    const prevStage = lead.stage || 'new';
+
     if (lead.stage === 'preparing' && stageValue !== 'preparing') {
       lead.isPreparing = false;
       lead.readyDate = null;
@@ -989,9 +1159,20 @@ app.patch('/api/admin/leads/:id/stage', authenticateAdmin, async (req, res) => {
 
     if (stageValue === 'successful') {
       const amount = dealAmount != null ? Number(dealAmount) : NaN;
-      await applyStageSuccessful(lead, amount, comment, closedByValue);
+      await applyStageSuccessful(lead, amount, comment, closedByValue); // logs CLOSED_WON
     } else {
       await lead.save();
+      if (prevStage !== stageValue) {
+        const actor = actorFromUser(req.user);
+        await logActivity(lead, ACTIVITY_TYPE.STAGE, {
+          ...actor,
+          meta: {
+            fromStage: prevStage,
+            toStage: stageValue,
+            readyDate: stageValue === 'preparing' && lead.readyDate ? lead.readyDate : undefined
+          }
+        });
+      }
     }
 
     const fresh = await Lead.findById(id);
@@ -1186,16 +1367,22 @@ app.post('/api/admin/leads/:id/not', authenticateAdmin, async (req, res) => {
     }
 
     const closedByValue = closedByFromRequestUser(req.user);
+    const prevStage = lead.stage || 'new';
     // Update lead status to archived
     lead.status = 'archived';
     lead.closedBy = closedByValue;
     lead.closedAt = new Date();
     lead.label = 'Rejected';
     lead.updatedAt = new Date();
-    
+
     // Save to MongoDB - this is immediate (not queued) for admin actions
     await lead.save();
     console.log(`✅ [MONGODB] Lead ${id} archived and saved to database`);
+    await logActivity(lead, ACTIVITY_TYPE.CLOSED_LOST, {
+      author: closedByValue,
+      authorName: MANAGER_DISPLAY_NAMES[closedByValue] || closedByValue,
+      meta: { fromStage: prevStage, label: lead.label }
+    });
 
     res.json({
       success: true,
@@ -1227,6 +1414,13 @@ async function applyDoneLabel(lead, trimmedLabel, comment, dealAmount, closedByV
     }
   }
   await lead.save();
+  const won = trimmedLabel === 'Successful';
+  await logActivity(lead, won ? ACTIVITY_TYPE.CLOSED_WON : ACTIVITY_TYPE.CLOSED_LOST, {
+    author: closedByValue,
+    authorName: MANAGER_DISPLAY_NAMES[closedByValue] || closedByValue,
+    text: comment != null ? String(comment).trim() : '',
+    meta: { label: trimmedLabel, dealAmount: won ? lead.dealAmount : undefined }
+  });
 }
 
 // DELETE /api/admin/leads/:id — boss: immediate; manager: approval (own leads only) or 403
@@ -1672,6 +1866,362 @@ app.post('/api/admin/leads/:id/comment', authenticateAdmin, async (req, res) => 
   }
 });
 
+// ============================================
+// ACTIVITY TIMELINE + CUSTOMER HISTORY (amoCRM-style)
+// ============================================
+
+// For leads with no Activity records yet (created before this feature), build a
+// virtual timeline from existing fields so old/returning customers still have history.
+function synthesizeActivities(lead) {
+  const out = [];
+  const createdByName = !lead.createdBy || lead.createdBy === 'system'
+    ? 'Website'
+    : (MANAGER_DISPLAY_NAMES[lead.createdBy] || lead.createdBy);
+  out.push({
+    _id: 'syn-created-' + lead._id,
+    leadId: lead._id,
+    type: ACTIVITY_TYPE.CREATED,
+    text: '',
+    author: lead.createdBy || 'system',
+    authorName: createdByName,
+    meta: { source: lead.source, synthesized: true },
+    createdAt: lead.createdAt
+  });
+  if (lead.status === 'done' || lead.status === 'archived') {
+    const won = lead.status === 'done' && lead.stage === 'successful';
+    out.push({
+      _id: 'syn-closed-' + lead._id,
+      leadId: lead._id,
+      type: won ? ACTIVITY_TYPE.CLOSED_WON : ACTIVITY_TYPE.CLOSED_LOST,
+      text: lead.comment || '',
+      author: lead.closedBy || '',
+      authorName: MANAGER_DISPLAY_NAMES[lead.closedBy] || lead.closedBy || '—',
+      meta: { label: lead.label, dealAmount: won ? lead.dealAmount : undefined, synthesized: true },
+      createdAt: lead.closedAt || lead.updatedAt || lead.createdAt
+    });
+  } else if (lead.comment && String(lead.comment).trim()) {
+    out.push({
+      _id: 'syn-comment-' + lead._id,
+      leadId: lead._id,
+      type: ACTIVITY_TYPE.COMMENT,
+      text: lead.comment,
+      author: lead.lastEditedBy || '',
+      authorName: MANAGER_DISPLAY_NAMES[lead.lastEditedBy] || lead.lastEditedBy || '—',
+      meta: { synthesized: true },
+      createdAt: lead.commentUpdatedAt || lead.updatedAt || lead.createdAt
+    });
+  }
+  return out;
+}
+
+async function getTimeline(lead) {
+  const real = await Activity.find({ leadId: lead._id }).sort({ createdAt: 1 }).lean();
+  // Merge synthesized anchors (created/closed/legacy-comment) so pre-feature history
+  // survives even after the first real activity is added to an old lead.
+  const synth = synthesizeActivities(lead);
+  const hasType = (t) => real.some(a => a.type === t);
+  const merged = [...real];
+  for (const s of synth) {
+    if (s.type === ACTIVITY_TYPE.CREATED && !hasType(ACTIVITY_TYPE.CREATED)) merged.push(s);
+    else if ((s.type === ACTIVITY_TYPE.CLOSED_WON || s.type === ACTIVITY_TYPE.CLOSED_LOST)
+      && !hasType(ACTIVITY_TYPE.CLOSED_WON) && !hasType(ACTIVITY_TYPE.CLOSED_LOST)) merged.push(s);
+    else if (s.type === ACTIVITY_TYPE.COMMENT && !hasType(ACTIVITY_TYPE.COMMENT)) merged.push(s);
+  }
+  merged.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  return merged;
+}
+
+// GET /api/admin/leads/:id/activity — full timeline of one lead
+app.get('/api/admin/leads/:id/activity', authenticateAdmin, async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id).lean();
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+    const activities = await getTimeline(lead);
+    res.json({ success: true, activities });
+  } catch (error) {
+    console.error('❌ [ERROR] Error fetching lead activity:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/leads/:id/activity { text } — add a manager comment to the timeline
+app.post('/api/admin/leads/:id/activity', authenticateAdmin, async (req, res) => {
+  try {
+    const text = req.body && req.body.text != null ? String(req.body.text).trim() : '';
+    if (!text) return res.status(400).json({ error: 'Comment text is required' });
+    if (text.length > 2000) return res.status(400).json({ error: 'Comment is too long' });
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+    // Boss: any lead. Manager: only leads they are allowed to act on (own / not taken by other).
+    if (isAppManagerUser(req.user)) {
+      if (isLeadClaimedByOther(lead, req.user) || !canManagerActOnOwnLeadOrBoss(req.user, lead)) {
+        return res.status(403).json({ error: 'Недостаточно прав для комментария по этому лиду' });
+      }
+    }
+
+    const actor = actorFromUser(req.user);
+    await logActivity(lead, ACTIVITY_TYPE.COMMENT, { ...actor, text });
+
+    // Keep latest comment on the lead and bump updatedAt so live-sync notices.
+    lead.comment = text;
+    lead.commentUpdatedAt = new Date();
+    lead.lastEditedBy = actor.author;
+    lead.updatedAt = new Date();
+    await lead.save();
+
+    res.json({ success: true, message: 'Comment added' });
+  } catch (error) {
+    console.error('❌ [ERROR] Error adding lead comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
+// TASK HELPERS + ENDPOINTS
+// ============================================
+const TASK_ASSIGNEE_KEYS = ['boss', ...CALL_MANAGER_KEYS];
+
+function parseDueAt(value) {
+  if (value == null || String(value).trim() === '') return null;
+  const s = String(value).trim();
+  // date-only (yyyy-mm-dd) → local noon to avoid TZ edge; otherwise parse as full datetime
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00') : new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
+function sanitizeTaskType(v) {
+  const s = String(v || '').trim();
+  return Object.values(TASK_TYPE).includes(s) ? s : TASK_TYPE.CALL;
+}
+
+// Who is responsible: boss may assign to anyone; manager — always themselves.
+function resolveTaskAssignee(user, lead, requested) {
+  if (isAppBossUser(user)) {
+    const r = String(requested || '').trim();
+    if (TASK_ASSIGNEE_KEYS.includes(r)) return r;
+    if (lead && lead.assignedTo && CALL_MANAGER_KEYS.includes(String(lead.assignedTo))) return String(lead.assignedTo);
+    return 'boss';
+  }
+  return user.key || 'call';
+}
+
+// Manager may manage tasks only on own/claimed lead; boss — any.
+function canManageLeadTasks(user, lead) {
+  if (isAppBossUser(user)) return true;
+  if (!isAppManagerUser(user) || !user.key) return false;
+  if (isLeadClaimedByOther(lead, user)) return false;
+  return canManagerActOnOwnLeadOrBoss(user, lead);
+}
+
+function canCompleteTask(user, task) {
+  if (isAppBossUser(user)) return true;
+  if (!user || !user.key) return false;
+  return String(task.assignee) === String(user.key) || String(task.createdBy) === String(getUserIdFromUser(user));
+}
+
+// Touch a lead's updatedAt so the live-sync version endpoint notices task changes.
+async function touchLead(leadId) {
+  try { await Lead.updateOne({ _id: leadId }, { $set: { updatedAt: new Date() } }); } catch (e) { /* best-effort */ }
+}
+
+// POST /api/admin/leads/:id/tasks — create a follow-up task on a lead
+app.post('/api/admin/leads/:id/tasks', authenticateAdmin, async (req, res) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+    if (!canManageLeadTasks(req.user, lead)) {
+      return res.status(403).json({ error: 'Недостаточно прав для задачи по этому лиду' });
+    }
+    const dueAt = parseDueAt(req.body && req.body.dueAt);
+    if (!dueAt) return res.status(400).json({ error: 'Укажите корректный срок задачи' });
+    const type = sanitizeTaskType(req.body && req.body.type);
+    const title = req.body && req.body.title != null ? String(req.body.title).trim().slice(0, 500) : '';
+    const assignee = resolveTaskAssignee(req.user, lead, req.body && req.body.assignee);
+    const actor = actorFromUser(req.user);
+
+    const task = await Task.create({
+      leadId: lead._id,
+      phoneNormalized: lead.phoneNormalized || normalizePhone(lead.phoneNumber),
+      type, title, dueAt, assignee,
+      status: TASK_STATUS.OPEN,
+      createdBy: actor.author
+    });
+
+    await logActivity(lead, ACTIVITY_TYPE.TASK_CREATED, {
+      ...actor, text: title,
+      meta: { taskId: String(task._id), taskType: type, dueAt, assignee }
+    });
+    await touchLead(lead._id);
+
+    res.json({ success: true, task });
+  } catch (error) {
+    console.error('❌ [ERROR] create task:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/leads/:id/tasks — all tasks for a lead (open by due asc, then closed)
+app.get('/api/admin/leads/:id/tasks', authenticateAdmin, async (req, res) => {
+  try {
+    const tasks = await Task.find({ leadId: req.params.id }).sort({ status: 1, dueAt: 1 }).lean();
+    res.json({ success: true, tasks });
+  } catch (error) {
+    console.error('❌ [ERROR] list lead tasks:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/tasks/:taskId/complete — mark a task done (optional result note)
+app.post('/api/admin/tasks/:taskId/complete', authenticateAdmin, async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.taskId);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (task.status !== TASK_STATUS.OPEN) return res.status(409).json({ error: 'Задача уже закрыта' });
+    if (!canCompleteTask(req.user, task)) return res.status(403).json({ error: 'Недостаточно прав' });
+
+    const actor = actorFromUser(req.user);
+    const result = req.body && req.body.result != null ? String(req.body.result).trim().slice(0, 1000) : '';
+    task.status = TASK_STATUS.DONE;
+    task.completedAt = new Date();
+    task.completedBy = actor.author;
+    task.result = result;
+    await task.save();
+
+    const lead = await Lead.findById(task.leadId);
+    if (lead) {
+      await logActivity(lead, ACTIVITY_TYPE.TASK_DONE, {
+        ...actor, text: result,
+        meta: { taskId: String(task._id), taskType: task.type }
+      });
+      await touchLead(lead._id);
+    }
+    res.json({ success: true, task });
+  } catch (error) {
+    console.error('❌ [ERROR] complete task:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/admin/tasks/:taskId — reschedule / edit an open task
+app.patch('/api/admin/tasks/:taskId', authenticateAdmin, async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.taskId);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (task.status !== TASK_STATUS.OPEN) return res.status(409).json({ error: 'Задача уже закрыта' });
+    if (!canCompleteTask(req.user, task)) return res.status(403).json({ error: 'Недостаточно прав' });
+
+    if (req.body && req.body.dueAt != null) {
+      const dueAt = parseDueAt(req.body.dueAt);
+      if (!dueAt) return res.status(400).json({ error: 'Некорректный срок' });
+      task.dueAt = dueAt;
+    }
+    if (req.body && req.body.type != null) task.type = sanitizeTaskType(req.body.type);
+    if (req.body && req.body.title != null) task.title = String(req.body.title).trim().slice(0, 500);
+    if (req.body && req.body.assignee != null && isAppBossUser(req.user)) {
+      const r = String(req.body.assignee).trim();
+      if (TASK_ASSIGNEE_KEYS.includes(r)) task.assignee = r;
+    }
+    await task.save();
+    await touchLead(task.leadId);
+    res.json({ success: true, task });
+  } catch (error) {
+    console.error('❌ [ERROR] edit task:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/tasks?scope=mine|all&filter=overdue|today|upcoming|open|done
+//   Boss: defaults to all; manager: always own (assignee = key). Joins minimal lead info.
+app.get('/api/admin/tasks', authenticateAdmin, async (req, res) => {
+  try {
+    const boss = isAppBossUser(req.user);
+    const scope = String(req.query.scope || (boss ? 'all' : 'mine'));
+    const filter = String(req.query.filter || 'open');
+
+    const q = {};
+    if (!boss || scope === 'mine') {
+      q.assignee = boss ? 'boss' : (req.user.key || '__none__');
+    } else if (boss && req.query.assignee) {
+      // boss can filter the "all" list down to one manager
+      const a = String(req.query.assignee).trim();
+      if (TASK_ASSIGNEE_KEYS.includes(a)) q.assignee = a;
+    }
+    if (filter === 'done') {
+      q.status = TASK_STATUS.DONE;
+    } else {
+      q.status = TASK_STATUS.OPEN;
+      const now = new Date();
+      const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+      if (filter === 'overdue') q.dueAt = { $lt: now };
+      else if (filter === 'today') q.dueAt = { $lte: endToday };
+      else if (filter === 'upcoming') q.dueAt = { $gt: endToday };
+    }
+
+    const tasks = await Task.find(q).sort({ dueAt: 1 }).limit(500).lean();
+    const ids = [...new Set(tasks.map(t => String(t.leadId)))];
+    const leads = ids.length
+      ? await Lead.find({ _id: { $in: ids } }).select('fullName name surname phoneNumber stage status').lean()
+      : [];
+    const leadById = {};
+    leads.forEach(l => { leadById[String(l._id)] = l; });
+    const enriched = tasks.map(t => {
+      const l = leadById[String(t.leadId)] || null;
+      const leadName = l ? (l.fullName || [l.name, l.surname].filter(Boolean).join(' ').trim() || l.phoneNumber) : '';
+      return { ...t, lead: l ? { _id: l._id, name: leadName, phoneNumber: l.phoneNumber, stage: l.stage, status: l.status } : null };
+    });
+    res.json({ success: true, tasks: enriched });
+  } catch (error) {
+    console.error('❌ [ERROR] list tasks:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/customers/history?phone=...&excludeLeadId=... — prior deals of the same customer
+app.get('/api/admin/customers/history', authenticateAdmin, async (req, res) => {
+  try {
+    const norm = normalizePhone(req.query.phone);
+    if (!norm) return res.json({ success: true, leads: [] });
+    const exclude = req.query.excludeLeadId;
+
+    let query = { phoneNormalized: norm };
+    if (exclude) query._id = { $ne: exclude };
+    let leads = await Lead.find(query).sort({ createdAt: -1 }).lean();
+
+    // Legacy fallback: leads created before phoneNormalized was backfilled.
+    if (!leads.length) {
+      const q2 = { phoneNumber: new RegExp(norm + '$') };
+      if (exclude) q2._id = { $ne: exclude };
+      leads = await Lead.find(q2).sort({ createdAt: -1 }).lean();
+    }
+
+    const out = [];
+    for (const l of leads) {
+      out.push({
+        _id: l._id,
+        fullName: l.fullName,
+        phoneNumber: l.phoneNumber,
+        status: l.status,
+        stage: l.stage,
+        label: l.label,
+        dealAmount: l.dealAmount,
+        closedBy: l.closedBy,
+        closedByName: MANAGER_DISPLAY_NAMES[l.closedBy] || l.closedBy || null,
+        closedAt: l.closedAt,
+        createdAt: l.createdAt,
+        comment: l.comment,
+        activities: await getTimeline(l)
+      });
+    }
+    res.json({ success: true, leads: out });
+  } catch (error) {
+    console.error('❌ [ERROR] Error fetching customer history:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/admin/analytics/priorities - Count only new priorities (Manager only)
 app.get('/api/admin/analytics/priorities', authenticateAdmin, requireManager, async (req, res) => {
   try {
@@ -1927,7 +2477,7 @@ app.get('/api/admin/analytics/funnel', authenticateAdmin, requireManager, async 
   }
 });
 
-// Lightweight polling endpoint: detect new "new" status clients since given timestamp detect new "new" status clients since given timestamp
+// Lightweight polling endpoint: detect new "new" status clients since given timestamp
 // Query params:
 //   since: ISO timestamp string representing last seen createdAt
 // Response:
