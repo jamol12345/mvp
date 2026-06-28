@@ -4,6 +4,9 @@ node_modules/
 # Environment variables
 .env
 
+# Generated initial account credentials (never commit)
+SEED-CREDENTIALS.txt
+
 # Logs
 *.log
 npm-debug.log*

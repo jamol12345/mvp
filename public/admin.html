@@ -63,14 +63,25 @@
 
                 <form id="loginForm" method="post" action="#" autocomplete="off" novalidate>
                     <div class="form-group">
-                        <label for="adminToken" data-i18n="adminTokenLabel">Админ‑токен</label>
-                        <input 
-                            type="password" 
-                            id="adminToken" 
-                            inputmode="text" 
-                            placeholder="Введите админ‑токен"
-                            data-i18n-placeholder="adminTokenPlaceholder"
-                            autocomplete="off"
+                        <label for="loginUsername" data-i18n="usernameLabel">Логин</label>
+                        <input
+                            type="text"
+                            id="loginUsername"
+                            inputmode="text"
+                            placeholder="Введите логин"
+                            data-i18n-placeholder="usernamePlaceholder"
+                            autocomplete="username"
+                            autocapitalize="off"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword" data-i18n="passwordLabel">Пароль</label>
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            placeholder="Введите пароль"
+                            data-i18n-placeholder="passwordPlaceholder"
+                            autocomplete="current-password"
                         >
                     </div>
                     <button type="submit" class="submit-btn" id="loginSubmitBtn" data-i18n="loginButton">Войти</button>
@@ -548,8 +559,10 @@
                 languageLabel: 'Язык',
                 loginTitle: 'Вход в админ‑панель',
                 loginSubtitle: 'Введите админ‑токен для доступа к панели',
-                adminTokenLabel: 'Админ‑токен',
-                adminTokenPlaceholder: 'Введите админ‑токен',
+                usernameLabel: 'Логин',
+                usernamePlaceholder: 'Введите логин',
+                passwordLabel: 'Пароль',
+                passwordPlaceholder: 'Введите пароль',
                 loginButton: 'Войти',
                 adminTitle: 'Админ‑панель — управление лидами',
                 viewArchive: 'Архив →',
@@ -786,6 +799,7 @@
                 roleManager: 'Босс‑менеджер',
                 roleCallManager: 'Колл‑менеджер',
                 errorTokenRequired: 'Введите админ‑токен.',
+                errorCredentialsRequired: 'Введите логин и пароль.',
                 errorInvalidToken: 'Неверный токен. Попробуйте снова.',
                 errorNetwork: 'Ошибка сети. Проверьте соединение и попробуйте снова.',
                 errorSessionExpired: 'Сессия истекла. Войдите заново.',
@@ -805,8 +819,10 @@
                 languageLabel: 'Til',
                 loginTitle: 'Administrator paneliga kirish',
                 loginSubtitle: 'Panelga kirish uchun administrator tokenini kiriting',
-                adminTokenLabel: 'Administrator tokeni',
-                adminTokenPlaceholder: 'Administrator tokenini kiriting',
+                usernameLabel: 'Login',
+                usernamePlaceholder: 'Loginni kiriting',
+                passwordLabel: 'Parol',
+                passwordPlaceholder: 'Parolni kiriting',
                 loginButton: 'Kirish',
                 adminTitle: 'Administrator paneli — mijozlar boshqaruvi',
                 viewArchive: 'Arxiv →',
@@ -1043,6 +1059,7 @@
                 roleManager: 'Bosh menejer',
                 roleCallManager: 'Qo‘ng‘iroq menejeri',
                 errorTokenRequired: 'Administrator tokenini kiriting.',
+                errorCredentialsRequired: 'Login va parolni kiriting.',
                 errorInvalidToken: 'Noto‘g‘ri token. Qayta urinib ko‘ring.',
                 errorNetwork: 'Tarmoq xatosi. Ulanishni tekshirib qayta urinib ko‘ring.',
                 errorSessionExpired: 'Sessiya tugadi. Qayta kiring.',
@@ -1482,12 +1499,14 @@
         }
 
         async function performAdminLogin() {
-            const inputEl = document.getElementById('adminToken');
-            const token = (inputEl && inputEl.value) ? String(inputEl.value).trim() : '';
+            const uEl = document.getElementById('loginUsername');
+            const pEl = document.getElementById('loginPassword');
+            const username = (uEl && uEl.value) ? String(uEl.value).trim() : '';
+            const password = (pEl && pEl.value) ? String(pEl.value) : '';
             document.getElementById('loginError').style.display = 'none';
 
-            if (!token) {
-                showLoginError(t('errorTokenRequired'));
+            if (!username || !password) {
+                showLoginError(t('errorCredentialsRequired'));
                 return;
             }
 
@@ -1495,7 +1514,7 @@
                 const response = await fetch(getApiBase() + '/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
+                    body: JSON.stringify({ username, password })
                 });
 
                 const data = await response.json();
@@ -1514,7 +1533,8 @@
                     setRoleUI(userRole);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('adminPanel').style.display = 'block';
-                    document.getElementById('adminToken').value = '';
+                    const _pw = document.getElementById('loginPassword'); if (_pw) _pw.value = '';
+                    const _un = document.getElementById('loginUsername'); if (_un) _un.value = '';
                     applyTranslations();
                     initLastSeenAt();
                     startLiveSync();

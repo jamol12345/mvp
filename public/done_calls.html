@@ -151,15 +151,28 @@
 
                 <form id="loginForm">
                     <div class="form-group">
-                        <label for="adminToken" data-i18n="adminTokenLabel">Админ‑токен</label>
-                        <input 
-                            type="password" 
-                            id="adminToken" 
-                            name="adminToken" 
-                            required 
-                            placeholder="Введите админ‑токен"
-                            data-i18n-placeholder="adminTokenPlaceholder"
-                            autocomplete="off"
+                        <label for="loginUsername" data-i18n="usernameLabel">Логин</label>
+                        <input
+                            type="text"
+                            id="loginUsername"
+                            name="username"
+                            required
+                            placeholder="Введите логин"
+                            data-i18n-placeholder="usernamePlaceholder"
+                            autocomplete="username"
+                            autocapitalize="off"
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword" data-i18n="passwordLabel">Пароль</label>
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            name="password"
+                            required
+                            placeholder="Введите пароль"
+                            data-i18n-placeholder="passwordPlaceholder"
+                            autocomplete="current-password"
                         >
                     </div>
                     <button type="submit" class="submit-btn" data-i18n="loginButton">Войти</button>
@@ -312,8 +325,10 @@
                 pageTitle: 'Архив — админ‑панель',
                 loginTitle: 'Вход в админ‑панель',
                 loginSubtitle: 'Введите админ‑токен для доступа к архиву',
-                adminTokenLabel: 'Админ‑токен',
-                adminTokenPlaceholder: 'Введите админ‑токен',
+                usernameLabel: 'Логин',
+                usernamePlaceholder: 'Введите логин',
+                passwordLabel: 'Пароль',
+                passwordPlaceholder: 'Введите пароль',
                 loginButton: 'Войти',
                 archiveTitle: 'Архив',
                 archiveSubtitle: 'Закрытые и архивные лиды',
@@ -362,6 +377,7 @@
                 sourceWordOfMouth: 'Сарафан',
                 sourceWebsite: 'Сайт',
                 errorTokenRequired: 'Введите админ‑токен.',
+                errorCredentialsRequired: 'Введите логин и пароль.',
                 errorInvalidToken: 'Неверный токен. Попробуйте снова.',
                 errorNetwork: 'Ошибка сети. Проверьте соединение и попробуйте снова.',
                 errorSessionExpired: 'Сессия истекла. Войдите заново.',
@@ -384,8 +400,10 @@
                 pageTitle: 'Arxiv — administrator paneli',
                 loginTitle: 'Administrator paneliga kirish',
                 loginSubtitle: 'Arxivga kirish uchun administrator tokenini kiriting',
-                adminTokenLabel: 'Administrator tokeni',
-                adminTokenPlaceholder: 'Administrator tokenini kiriting',
+                usernameLabel: 'Login',
+                usernamePlaceholder: 'Loginni kiriting',
+                passwordLabel: 'Parol',
+                passwordPlaceholder: 'Parolni kiriting',
                 loginButton: 'Kirish',
                 archiveTitle: 'Arxiv',
                 archiveSubtitle: 'Yopilgan va arxivlangan mijozlar',
@@ -434,6 +452,7 @@
                 sourceWordOfMouth: 'Sarafan',
                 sourceWebsite: 'Veb‑sayt',
                 errorTokenRequired: 'Administrator tokenini kiriting.',
+                errorCredentialsRequired: 'Login va parolni kiriting.',
                 errorInvalidToken: 'Noto‘g‘ri token. Qayta urinib ko‘ring.',
                 errorNetwork: 'Tarmoq xatosi. Ulanishni tekshirib qayta urinib ko‘ring.',
                 errorSessionExpired: 'Sessiya tugadi. Qayta kiring.',
@@ -528,11 +547,12 @@
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const token = document.getElementById('adminToken').value.trim();
+            const username = (document.getElementById('loginUsername').value || '').trim();
+            const password = document.getElementById('loginPassword').value || '';
             document.getElementById('loginError').style.display = 'none';
 
-            if (!token) {
-                showLoginError(t('errorTokenRequired'));
+            if (!username || !password) {
+                showLoginError(t('errorCredentialsRequired'));
                 return;
             }
 
@@ -540,7 +560,7 @@
                 const response = await fetch(getApiBase() + '/api/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token })
+                    body: JSON.stringify({ username, password })
                 });
 
                 const data = await response.json();
@@ -553,7 +573,8 @@
                     setRoleUI(userRole);
                     document.getElementById('loginSection').style.display = 'none';
                     document.getElementById('archivePanel').style.display = 'block';
-                    document.getElementById('adminToken').value = '';
+                    var _pw = document.getElementById('loginPassword'); if (_pw) _pw.value = '';
+                    var _un = document.getElementById('loginUsername'); if (_un) _un.value = '';
                     applyTranslations();
                     startArchiveSilentRefresh();
                     startRealtime();

@@ -10,6 +10,7 @@ const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
 const ExcelJS = require('exceljs');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -126,6 +127,8 @@ if (!MONGODB_URI) {
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB');
+    refreshUserCache();
+    setInterval(refreshUserCache, 60000); // keep cache fresh (covers edits from another instance)
     // Only the persistent Railway server (run directly) holds sockets and watches the DB.
     // When imported as a module (legacy Vercel serverless), require.main !== module → skip.
     if (require.main === module) startChangeStreams();
@@ -394,6 +397,48 @@ taskSchema.post('save', function (doc) { if (doc && doc.leadId) rtEmitAll('lead:
 
 const Task = mongoose.model('Task', taskSchema);
 
+// ============================================
+// USERS (per-account auth: username + password, replaces shared role tokens)
+// ============================================
+const userSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true, index: true },      // immutable identity used across leads/activities/tasks/approvals
+  username: { type: String, required: true, unique: true, index: true }, // login handle (= key)
+  passwordHash: { type: String, required: true },
+  name: { type: String, default: '' },
+  role: { type: String, enum: ['boss', 'call'], default: 'call' },
+  active: { type: Boolean, default: true },
+  createdBy: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+  lastLoginAt: { type: Date, default: null }
+});
+const User = mongoose.model('User', userSchema);
+
+// In-memory snapshot so per-request auth + display + key-lists need no DB hit. Active keys gate
+// access (instant revoke). The name map includes INACTIVE users too, so historical attribution
+// on old leads never shows a blank.
+async function refreshUserCache() {
+  try {
+    const users = await User.find({}).select('key name role active').lean();
+    if (!users.length) return; // keep defaults as break-glass if the collection is empty
+    const names = {}; const active = new Set(); const calls = []; const analytics = [];
+    for (const u of users) {
+      names[u.key] = u.name || u.key;
+      if (u.active) {
+        active.add(u.key);
+        analytics.push(u.key);
+        if (u.role === 'call') calls.push(u.key);
+      }
+    }
+    MANAGER_DISPLAY_NAMES = names;
+    activeUserKeys = active;
+    CALL_MANAGER_KEYS = calls;
+    MANAGER_ANALYTICS_KEYS = analytics;
+  } catch (e) {
+    console.error('⚠️ [USER-CACHE] refresh failed:', e.message);
+  }
+}
+
 // Append a timeline entry. Never throws into the request flow (best-effort logging).
 async function logActivity(lead, type, { text = '', author = '', authorName = '', meta = {} } = {}) {
   try {
@@ -415,7 +460,10 @@ async function logActivity(lead, type, { text = '', author = '', authorName = ''
 // Resolve a user's key + display name for activity authorship.
 function actorFromUser(user) {
   if (!user) return { author: 'system', authorName: 'System' };
-  if (isAppBossUser(user)) return { author: 'boss', authorName: MANAGER_DISPLAY_NAMES.boss || 'Boss' };
+  if (isAppBossUser(user)) {
+    const k = getUserIdFromUser(user) || 'boss';
+    return { author: k, authorName: MANAGER_DISPLAY_NAMES[k] || 'Boss' };
+  }
   const key = user.key || getUserIdFromUser(user) || 'call';
   return { author: key, authorName: MANAGER_DISPLAY_NAMES[key] || key };
 }
@@ -467,25 +515,24 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// Static USERS: Boss + Call Managers (tokens from env). Vercel dashboard must use exact names: BOSS_TOKEN, CALL_ANVAR_TOKEN, CALL_AKBAR_TOKEN, CALL_DAVRON_TOKEN.
-const trimEnv = (v) => String(v || '').trim();
-const USERS = [
-  { role: 'boss', name: 'Boss', token: trimEnv(process.env.BOSS_TOKEN || process.env.MANAGER_TOKEN) },
-  { role: 'call', key: 'anvar', name: 'Анвар', token: trimEnv(process.env.CALL_ANVAR_TOKEN) },
-  { role: 'call', key: 'akbar', name: 'Акбар', token: trimEnv(process.env.CALL_AKBAR_TOKEN) },
-  { role: 'call', key: 'davron', name: 'Даврон', token: trimEnv(process.env.CALL_DAVRON_TOKEN) }
+// Per-user accounts live in the `users` collection (see User model below). DEFAULT_USERS is
+// only used to (a) seed the in-memory cache before the first DB load and (b) act as a break-glass
+// if the collection is empty. 'boss' is the boss identity key; the rest are call managers.
+const DEFAULT_USERS = [
+  { role: 'boss', key: 'boss', name: 'Boss' },
+  { role: 'call', key: 'anvar', name: 'Анвар' },
+  { role: 'call', key: 'akbar', name: 'Акбар' },
+  { role: 'call', key: 'davron', name: 'Даврон' }
 ];
-const CALL_MANAGER_KEYS = ['anvar', 'akbar', 'davron'];
-const MANAGER_ANALYTICS_KEYS = ['boss', 'anvar', 'akbar', 'davron'];
-const MANAGER_DISPLAY_NAMES = { boss: 'Boss', anvar: 'Анвар', akbar: 'Акбар', davron: 'Даврон' };
+// Start from defaults; refreshUserCache() REPLACES these from the DB. Kept as `let` so the rest
+// of the app (assignment / analytics / tasks / display) always reads live values.
+let CALL_MANAGER_KEYS = DEFAULT_USERS.filter(u => u.role === 'call').map(u => u.key);
+let MANAGER_ANALYTICS_KEYS = DEFAULT_USERS.map(u => u.key);
+let MANAGER_DISPLAY_NAMES = DEFAULT_USERS.reduce((m, u) => { m[u.key] = u.name; return m; }, {});
+let activeUserKeys = new Set(DEFAULT_USERS.map(u => u.key));
+function isUserActive(key) { return !!key && activeUserKeys.has(String(key)); }
 
-// Fail fast if any login token is missing (Vercel: set these in Settings → Environment Variables)
-const missingTokens = USERS.filter(u => !u.token).map(u => u.name);
-if (missingTokens.length) {
-  console.warn('⚠️  Missing login token(s) for:', missingTokens.join(', '));
-}
-
-// --- RBAC: BOSS (boss token) / MANAGER (call managers) ---
+// --- RBAC: BOSS / MANAGER (call managers) ---
 const APP_ROLE = { BOSS: 'BOSS', MANAGER: 'MANAGER' };
 const PENDING_MSG_RU = 'Ожидает подтверждения';
 const WEBSITE_CLAIM_LOCK_MS = 5000;
@@ -572,16 +619,21 @@ const authenticateAdmin = (req, res, next) => {
         : APP_ROLE.BOSS;
       const userId = decoded.userId != null && String(decoded.userId) !== '' ? String(decoded.userId) : 'boss';
       req.user = { role: 'boss', appRole, userId };
-      return next();
+    } else {
+      // role === 'call' or 'call_manager'
+      const key = decoded.key || (role === 'call_manager' ? 'call' : decoded.key);
+      const k = key || null;
+      const appRole = decoded.appRole === APP_ROLE.MANAGER || decoded.appRole === APP_ROLE.BOSS
+        ? decoded.appRole
+        : APP_ROLE.MANAGER;
+      const userId = decoded.userId != null && String(decoded.userId) !== '' ? String(decoded.userId) : (k || 'call');
+      req.user = { role: 'call', key: k, appRole, userId };
     }
-    // role === 'call' or 'call_manager'
-    const key = decoded.key || (role === 'call_manager' ? 'call' : decoded.key);
-    const k = key || null;
-    const appRole = decoded.appRole === APP_ROLE.MANAGER || decoded.appRole === APP_ROLE.BOSS
-      ? decoded.appRole
-      : APP_ROLE.MANAGER;
-    const userId = decoded.userId != null && String(decoded.userId) !== '' ? String(decoded.userId) : (k || 'call');
-    req.user = { role: 'call', key: k, appRole, userId };
+    // Per-user revoke: reject if the account is no longer active (instant via the cache).
+    const idKey = req.user.role === 'boss' ? req.user.userId : req.user.key;
+    if (idKey && !isUserActive(idKey)) {
+      return res.status(401).json({ error: 'Account disabled' });
+    }
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
@@ -814,38 +866,126 @@ app.post('/api/leads', async (req, res) => {
 // ============================================
 
 // POST /api/admin/login - Admin login (returns JWT with role, name, key for call)
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
   const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress;
   if (loginRateLimited(clientIp)) {
     return res.status(429).json({ error: 'Too many login attempts, please try again later' });
   }
-  const incomingToken = String(req.body.token || '').trim();
-  if (!incomingToken) {
-    return res.status(400).json({ error: 'Token is required' });
+  const username = String((req.body && req.body.username) || '').trim().toLowerCase();
+  const password = String((req.body && req.body.password) || '');
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
   }
-  const user = USERS.find(u => u.token && u.token === incomingToken);
-  if (!user) {
-    recordLoginFailure(clientIp);
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  try {
+    const user = await User.findOne({ username });
+    const ok = !!user && user.active && await bcrypt.compare(password, user.passwordHash || '');
+    if (!ok) {
+      recordLoginFailure(clientIp);
+      return res.status(401).json({ error: 'Неверный логин или пароль' });
+    }
+    clearLoginFailures(clientIp);
+    user.lastLoginAt = new Date();
+    await user.save();
+    const isBoss = user.role === 'boss';
+    const payload = isBoss
+      ? { role: 'boss', appRole: APP_ROLE.BOSS, userId: user.key }
+      : { role: 'call', key: user.key, appRole: APP_ROLE.MANAGER, userId: user.key };
+    const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+    const response = {
+      success: true,
+      message: 'Login successful',
+      token: jwtToken,
+      role: user.role,
+      appRole: isBoss ? APP_ROLE.BOSS : APP_ROLE.MANAGER,
+      userId: user.key,
+      name: user.name
+    };
+    if (!isBoss) response.key = user.key;
+    res.json(response);
+  } catch (e) {
+    console.error('❌ [LOGIN] error:', e.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  clearLoginFailures(clientIp);
-  const payload = user.role === 'boss'
-    ? { role: 'boss', appRole: APP_ROLE.BOSS, userId: 'boss' }
-    : { role: 'call', key: user.key, appRole: APP_ROLE.MANAGER, userId: user.key };
-  const jwtToken = jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
-  const response = {
-    success: true,
-    message: 'Login successful',
-    token: jwtToken,
-    role: user.role,
-    appRole: user.role === 'boss' ? APP_ROLE.BOSS : APP_ROLE.MANAGER,
-    userId: user.role === 'boss' ? 'boss' : user.key,
-    name: user.name
-  };
-  if (user.role === 'call') {
-    response.key = user.key;
+});
+
+// ============================================
+// USER MANAGEMENT (boss only)
+// ============================================
+function sanitizeUsername(v) {
+  return String(v || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+}
+function publicUser(u) {
+  return { id: String(u._id), key: u.key, username: u.username, name: u.name, role: u.role, active: u.active, lastLoginAt: u.lastLoginAt, createdAt: u.createdAt };
+}
+
+app.get('/api/admin/users', authenticateAdmin, requireBoss, async (req, res) => {
+  try {
+    const users = await User.find({}).sort({ active: -1, role: 1, username: 1 }).lean();
+    res.json({ success: true, users: users.map(publicUser) });
+  } catch (e) {
+    console.error('❌ [USERS] list:', e.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  res.json(response);
+});
+
+app.post('/api/admin/users', authenticateAdmin, requireBoss, async (req, res) => {
+  try {
+    const username = sanitizeUsername(req.body && req.body.username);
+    const name = String((req.body && req.body.name) || '').trim();
+    const role = (req.body && req.body.role) === 'boss' ? 'boss' : 'call';
+    const password = String((req.body && req.body.password) || '');
+    if (!username) return res.status(400).json({ error: 'Логин обязателен (a-z, 0-9, . _ -)' });
+    if (password.length < 6) return res.status(400).json({ error: 'Пароль минимум 6 символов' });
+    const exists = await User.findOne({ $or: [{ username }, { key: username }] }).lean();
+    if (exists) return res.status(409).json({ error: 'Такой пользователь уже существует' });
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      key: username, username, name: name || username, role, active: true,
+      passwordHash, createdBy: getUserIdFromUser(req.user)
+    });
+    await refreshUserCache();
+    res.status(201).json({ success: true, user: publicUser(user) });
+  } catch (e) {
+    console.error('❌ [USERS] create:', e.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.patch('/api/admin/users/:id', authenticateAdmin, requireBoss, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const isSelf = String(user.key) === String(getUserIdFromUser(req.user));
+    const body = req.body || {};
+
+    if (body.name != null) user.name = String(body.name).trim() || user.name;
+    if (body.role === 'boss' || body.role === 'call') {
+      if (isSelf && body.role !== 'boss') return res.status(400).json({ error: 'Нельзя снять роль boss с самого себя' });
+      user.role = body.role;
+    }
+    if (body.active != null) {
+      const nextActive = !!body.active;
+      if (isSelf && !nextActive) return res.status(400).json({ error: 'Нельзя отключить свой аккаунт' });
+      user.active = nextActive;
+    }
+    if (body.password != null) {
+      const pw = String(body.password);
+      if (pw.length < 6) return res.status(400).json({ error: 'Пароль минимум 6 символов' });
+      user.passwordHash = await bcrypt.hash(pw, 10);
+    }
+    // Never leave the system without an active boss.
+    if (user.role !== 'boss' || !user.active) {
+      const otherBoss = await User.findOne({ role: 'boss', active: true, _id: { $ne: user._id } }).select('_id').lean();
+      if (!otherBoss) return res.status(400).json({ error: 'Должен остаться хотя бы один активный boss' });
+    }
+    user.updatedAt = new Date();
+    await user.save();
+    await refreshUserCache();
+    res.json({ success: true, user: publicUser(user) });
+  } catch (e) {
+    console.error('❌ [USERS] update:', e.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // POST /api/admin/leads - Add client manually (Boss and managers)
@@ -1068,7 +1208,7 @@ app.patch('/api/admin/leads/:id/assign', authenticateAdmin, requireBoss, async (
 
 function closedByFromRequestUser(user) {
   if (isAppManagerUser(user) && user.key) return user.key;
-  return 'boss';
+  return getUserIdFromUser(user) || 'boss';
 }
 
 /**
