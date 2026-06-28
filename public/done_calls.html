@@ -111,6 +111,12 @@
         #archiveCardGrid .btn-edit,
         #archiveCardGrid .btn-journal { padding:10px 14px; }
     }
+    /* Search box — same as the board */
+    .board-search { position: relative; display: flex; align-items: center; flex: 1 1 260px; min-width: 200px; }
+    .board-search-ico { position: absolute; left: 12px; font-size: 13px; opacity: 0.5; pointer-events: none; }
+    .board-search .table-search { flex: 1; width: 100%; padding-left: 34px; padding-right: 32px; }
+    .board-search-clear { position: absolute; right: 8px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: var(--text-2); cursor: pointer; align-items: center; justify-content: center; font-size: 15px; line-height: 1; padding: 0; }
+    .board-search-clear:hover { background: rgba(255,255,255,0.18); color: var(--text); }
     </style>
 </head>
 <body>
@@ -208,7 +214,11 @@
             <div class="table-controls-wrapper glass" id="archiveControlsWrapper" style="margin-bottom: 10px;">
                 <button id="archiveControlsToggle" class="controls-toggle" type="button" data-i18n="controlsToggle">Поиск и фильтры</button>
                 <div class="header-actions table-controls">
-                    <input id="archiveSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
+                    <div class="board-search">
+                        <span class="board-search-ico" aria-hidden="true">🔍</span>
+                        <input id="archiveSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
+                        <button type="button" id="archiveSearchClear" class="board-search-clear" aria-label="Очистить" style="display:none;">×</button>
+                    </div>
                     <select id="archiveLabelFilter" class="table-select">
                         <option value="" data-i18n="allLabels">Все метки</option>
                         <option value="Call Back" data-i18n="labelCallBack">Перезвонить</option>
@@ -960,10 +970,15 @@
             let filtered = allArchiveLeads;
             if (label) filtered = filtered.filter(lead => (lead.label || '') === label);
             if (query) {
+                const qDigits = query.replace(/\D/g, ''); // phone match by digits → any format works
                 filtered = filtered.filter(lead => {
-                    const fullName = (lead.fullName || (lead.name + ' ' + lead.surname).trim() || '').toLowerCase();
-                    const phone = (lead.phoneNumber || '').toLowerCase();
-                    return fullName.includes(query) || phone.includes(query);
+                    const fullName = (lead.fullName || ((lead.name || '') + ' ' + (lead.surname || '')).trim() || '').toLowerCase();
+                    if (fullName.includes(query)) return true;
+                    if (qDigits) {
+                        const phoneDigits = String(lead.phoneNumber || '').replace(/\D/g, '');
+                        if (phoneDigits.includes(qDigits)) return true;
+                    }
+                    return false;
                 });
             }
             return filtered;
@@ -1004,9 +1019,32 @@
         });
 
         document.getElementById('archiveSearchInput').addEventListener('input', () => {
+            const v = document.getElementById('archiveSearchInput').value;
+            const clr = document.getElementById('archiveSearchClear');
+            if (clr) clr.style.display = v ? 'flex' : 'none';
             archiveCurrentPage = 1;
             applyArchiveFilters();
         });
+        document.getElementById('archiveSearchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.target.value = '';
+                const clr = document.getElementById('archiveSearchClear');
+                if (clr) clr.style.display = 'none';
+                archiveCurrentPage = 1;
+                applyArchiveFilters();
+            }
+        });
+        (function () {
+            const clr = document.getElementById('archiveSearchClear');
+            if (clr) clr.addEventListener('click', () => {
+                const inp = document.getElementById('archiveSearchInput');
+                inp.value = '';
+                clr.style.display = 'none';
+                inp.focus();
+                archiveCurrentPage = 1;
+                applyArchiveFilters();
+            });
+        })();
 
         document.getElementById('archiveLabelFilter').addEventListener('change', () => {
             archiveCurrentPage = 1;
