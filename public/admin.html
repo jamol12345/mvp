@@ -11,17 +11,34 @@
     <!-- Socket.IO client is served by our own backend at the same origin -->
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        .users-list { display: flex; flex-direction: column; gap: 8px; }
-        .user-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; }
-        .user-row--off { opacity: 0.55; }
-        .user-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-        .user-row-name { font-weight: 600; }
-        .user-row-meta { font-size: 12px; opacity: 0.7; }
-        .user-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-        .user-role-select { padding: 4px 8px; font-size: 13px; }
-        .users-add-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
-        .users-add-form input, .users-add-form select { min-width: 0; }
-        @media (max-width: 560px) { .users-add-form { grid-template-columns: 1fr; } .user-row { flex-direction: column; align-items: stretch; } }
+        /* ===== Команда (team page) ===== */
+        .users-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 18px; }
+        .users-page-title { margin: 0; font-size: 18px; }
+        .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+        .user-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.02); transition: border-color .15s ease, transform .15s ease; }
+        .user-card:hover { border-color: rgba(255,255,255,0.16); transform: translateY(-1px); }
+        .user-card--off { opacity: 0.6; }
+        .user-card-top { display: flex; align-items: center; gap: 12px; }
+        .user-avatar { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; text-transform: uppercase; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .user-card-id { flex: 1; min-width: 0; }
+        .user-card-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-card-login { font-size: 12px; opacity: 0.6; }
+        .user-badge { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+        .user-badge--boss { background: rgba(139,92,246,0.18); color: #c4b5fd; }
+        .user-badge--call { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+        .user-card-status { font-size: 12px; opacity: 0.7; }
+        .user-card-status.is-off { color: #fca5a5; opacity: 0.95; }
+        .user-card-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+        .user-role-select { width: 100%; padding: 7px 9px; font-size: 13px; }
+        .user-card-btns { display: flex; gap: 8px; }
+        .user-mini-btn { flex: 1; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: inherit; cursor: pointer; font-size: 12.5px; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+        .user-mini-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.22); }
+        .user-mini-btn--danger:hover { border-color: rgba(239,68,68,0.55); color: #fca5a5; }
+        .user-mini-btn:disabled { opacity: 0.5; cursor: default; }
+        .add-account-panel { border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.02); }
+        .add-account-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+        .add-account-fields input, .add-account-fields select { min-width: 0; }
+        .add-account-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
     </style>
 </head>
 <body>
@@ -330,6 +347,34 @@
                 </div>
                 <div id="tasksPageBody" class="tasks-panel-body"></div>
             </div>
+
+            <!-- Команда (team / users) page — boss only -->
+            <div id="usersWrapper" class="glass users-page" style="display: none; margin-top: 20px;">
+                <div class="analytics-header">
+                    <a href="#" class="btn-link" id="usersBack" data-i18n="backToActive">← Назад к активным</a>
+                </div>
+                <div class="users-page-head">
+                    <h3 class="users-page-title" data-i18n="usersTitle">Команда</h3>
+                    <button type="button" class="add-client-btn" id="addAccountBtn" data-i18n="usersAddBtn">+ Добавить аккаунт</button>
+                </div>
+                <div id="addAccountPanel" class="add-account-panel" style="display: none;">
+                    <div class="add-account-fields">
+                        <input type="text" id="newUserName" class="glass-input" data-i18n-placeholder="usersNamePh" placeholder="Имя" autocomplete="off">
+                        <input type="text" id="newUserUsername" class="glass-input" data-i18n-placeholder="usernamePlaceholder" placeholder="Логин" autocapitalize="off" autocomplete="off">
+                        <select id="newUserRole" class="glass-input">
+                            <option value="call" data-i18n="roleCallManager">Менеджер</option>
+                            <option value="boss" data-i18n="roleManager">Босс</option>
+                        </select>
+                        <input type="password" id="newUserPassword" class="glass-input" data-i18n-placeholder="passwordPlaceholder" placeholder="Пароль" autocomplete="new-password">
+                    </div>
+                    <div class="add-account-actions">
+                        <button type="button" class="add-client-btn" id="createUserBtn" data-i18n="usersCreateBtn">Создать</button>
+                        <button type="button" class="btn-link" id="cancelAddAccount" data-i18n="cancelBtn">Отмена</button>
+                    </div>
+                </div>
+                <div id="usersError" class="message error-message" style="display: none; margin-bottom: 12px;"><p id="usersErrorText"></p></div>
+                <div id="usersGrid" class="users-grid"></div>
+            </div>
         </div>
     </div>
 
@@ -485,32 +530,6 @@
                     <textarea id="timelineCommentInput" class="glass-input timeline-composer-input" rows="2" maxlength="2000" data-i18n-placeholder="timelinePlaceholder" placeholder="Написать комментарий…"></textarea>
                     <button type="button" class="btn-submit timeline-send" id="timelineSendBtn" data-i18n="timelineSend">Добавить</button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Команда: user management (boss only) -->
-    <div id="usersModal" class="modal" style="display: none;">
-        <div class="modal-content glass">
-            <div class="modal-header">
-                <h2 data-i18n="usersTitle">Команда</h2>
-                <button type="button" class="modal-close" id="closeUsersModal" aria-label="Close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="usersList" class="users-list"></div>
-                <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:16px 0;">
-                <h3 data-i18n="usersAddTitle" style="margin:0 0 10px;font-size:15px;">Добавить сотрудника</h3>
-                <div class="users-add-form">
-                    <input type="text" id="newUserUsername" class="glass-input" data-i18n-placeholder="usernamePlaceholder" placeholder="Логин" autocapitalize="off" autocomplete="off">
-                    <input type="text" id="newUserName" class="glass-input" data-i18n-placeholder="usersNamePh" placeholder="Имя" autocomplete="off">
-                    <select id="newUserRole" class="glass-input">
-                        <option value="call" data-i18n="roleCallManager">Менеджер</option>
-                        <option value="boss" data-i18n="roleManager">Босс</option>
-                    </select>
-                    <input type="password" id="newUserPassword" class="glass-input" data-i18n-placeholder="passwordPlaceholder" placeholder="Пароль" autocomplete="new-password">
-                    <button type="button" class="btn-submit" id="createUserBtn" data-i18n="usersAddBtn">Добавить</button>
-                </div>
-                <div id="usersError" class="message error-message" style="display:none;margin-top:10px;"><p id="usersErrorText"></p></div>
             </div>
         </div>
     </div>
@@ -700,6 +719,8 @@
                 usersOff: 'отключён',
                 usersNewPwFor: 'Новый пароль для',
                 usersCreated: 'Сотрудник добавлен',
+                usersActive: 'Активен',
+                usersCreateBtn: 'Создать',
                 taskCreated: 'Задача создана',
                 taskCompleted: 'Задача выполнена',
                 taskDueOverdue: 'Просрочена',
@@ -971,6 +992,8 @@
                 usersOff: 'o‘chirilgan',
                 usersNewPwFor: 'Yangi parol —',
                 usersCreated: 'Xodim qo‘shildi',
+                usersActive: 'Faol',
+                usersCreateBtn: 'Yaratish',
                 taskCreated: 'Vazifa yaratildi',
                 taskCompleted: 'Vazifa bajarildi',
                 taskDueOverdue: 'Muddati o‘tgan',
@@ -1762,33 +1785,51 @@
             if (e.target.id === 'addClientModal') closeAddClientModal();
         });
 
-        // ===== Команда (user management, boss only) =====
-        function openUsersModal() {
-            const m = document.getElementById('usersModal');
-            if (!m) return;
-            document.getElementById('usersError').style.display = 'none';
-            m.style.display = 'flex';
-            m.setAttribute('aria-hidden', 'false');
-            setTimeout(() => m.classList.add('modal-open'), 10);
-            loadUsers();
-        }
-        function closeUsersModal() {
-            const m = document.getElementById('usersModal');
-            if (!m) return;
-            m.classList.remove('modal-open');
-            setTimeout(() => { m.style.display = 'none'; }, 300);
-        }
+        // ===== Команда (team page, boss only) =====
         function showUsersNotice(msg, ok) {
             const box = document.getElementById('usersError');
             const txt = document.getElementById('usersErrorText');
             if (!box || !txt) return;
             box.className = 'message ' + (ok ? 'info-message' : 'error-message');
-            box.style.marginTop = '10px';
+            box.style.marginBottom = '12px';
             txt.textContent = msg;
             box.style.display = 'block';
         }
+        function hideUsersNotice() { const b = document.getElementById('usersError'); if (b) b.style.display = 'none'; }
         function roleLabelText(role) { return role === 'boss' ? t('roleManager') : t('roleCallManager'); }
+
+        function openUsersPage() {
+            const uw = document.getElementById('usersWrapper');
+            if (!uw) return;
+            if (uw.style.display === 'none') {
+                const aw = document.getElementById('analyticsWrapper');
+                const rw = document.getElementById('requestsWrapper');
+                const tw = document.getElementById('tasksWrapper');
+                const leadsWrapper = document.getElementById('leadsTableWrapper');
+                const noL = document.getElementById('noLeadsMessage');
+                if (aw) { aw.style.display = 'none'; stopAnalyticsLive && stopAnalyticsLive(); }
+                if (rw) rw.style.display = 'none';
+                if (tw) tw.style.display = 'none';
+                if (leadsWrapper) leadsWrapper.style.display = 'none';
+                if (noL) noL.style.display = 'none';
+                hideAddAccountPanel();
+                hideUsersNotice();
+                uw.style.display = 'block';
+                loadUsers();
+            } else {
+                uw.style.display = 'none';
+                loadLeads();
+            }
+        }
+        function closeUsersPage() {
+            const uw = document.getElementById('usersWrapper');
+            if (uw) uw.style.display = 'none';
+            loadLeads();
+        }
+
         async function loadUsers() {
+            const grid = document.getElementById('usersGrid');
+            if (grid) grid.innerHTML = '<div class="user-card-status">' + escapeHtml(t('loadingLeads')) + '</div>';
             try {
                 const res = await fetch(getApiBase() + '/api/admin/users', { headers: getAuthHeader() });
                 const data = await res.json();
@@ -1797,24 +1838,32 @@
             } catch (e) { showUsersNotice(t('errorNetwork')); }
         }
         function renderUsers(users) {
-            const box = document.getElementById('usersList');
-            if (!box) return;
-            box.innerHTML = users.map(u => {
-                const off = u.active ? '' : ' user-row--off';
+            const grid = document.getElementById('usersGrid');
+            if (!grid) return;
+            grid.innerHTML = users.map(u => {
+                const off = u.active ? '' : ' user-card--off';
+                const initial = escapeHtml((String(u.name || u.username || '?').trim()[0]) || '?');
                 const toggleLabel = u.active ? t('usersDisable') : t('usersEnable');
-                const meta = escapeHtml(u.username) + ' · ' + escapeHtml(roleLabelText(u.role)) + (u.active ? '' : ' · ' + t('usersOff'));
-                return '<div class="user-row' + off + '" data-id="' + u.id + '">'
-                    + '<div class="user-row-info"><span class="user-row-name">' + escapeHtml(u.name || u.username) + '</span>'
-                    + '<span class="user-row-meta">' + meta + '</span></div>'
-                    + '<div class="user-row-actions">'
+                const statusCls = u.active ? '' : ' is-off';
+                const statusTxt = u.active ? t('usersActive') : t('usersOff');
+                return '<div class="user-card' + off + '" data-id="' + u.id + '">'
+                    + '<div class="user-card-top">'
+                    + '<div class="user-avatar">' + initial + '</div>'
+                    + '<div class="user-card-id"><div class="user-card-name">' + escapeHtml(u.name || u.username) + '</div>'
+                    + '<div class="user-card-login">@' + escapeHtml(u.username) + '</div></div>'
+                    + '<span class="user-badge user-badge--' + (u.role === 'boss' ? 'boss' : 'call') + '">' + escapeHtml(roleLabelText(u.role)) + '</span>'
+                    + '</div>'
+                    + '<div class="user-card-status' + statusCls + '">' + statusTxt + '</div>'
+                    + '<div class="user-card-actions">'
                     + '<select class="glass-input user-role-select" data-act="role">'
                     + '<option value="call"' + (u.role === 'call' ? ' selected' : '') + '>' + t('roleCallManager') + '</option>'
                     + '<option value="boss"' + (u.role === 'boss' ? ' selected' : '') + '>' + t('roleManager') + '</option>'
                     + '</select>'
-                    + '<button type="button" class="btn-link" data-act="reset">' + t('usersReset') + '</button>'
-                    + '<button type="button" class="btn-link" data-act="toggle">' + toggleLabel + '</button>'
-                    + '</div></div>';
-            }).join('') || '<div class="user-row-meta">—</div>';
+                    + '<div class="user-card-btns">'
+                    + '<button type="button" class="user-mini-btn" data-act="reset">' + t('usersReset') + '</button>'
+                    + '<button type="button" class="user-mini-btn user-mini-btn--danger" data-act="toggle">' + toggleLabel + '</button>'
+                    + '</div></div></div>';
+            }).join('') || '<div class="user-card-status">—</div>';
         }
         async function patchUser(id, body) {
             const res = await fetch(getApiBase() + '/api/admin/users/' + encodeURIComponent(id), {
@@ -1823,34 +1872,41 @@
             const data = await res.json();
             return { ok: res.ok, data };
         }
-        document.getElementById('usersList').addEventListener('click', async (e) => {
+        document.getElementById('usersGrid').addEventListener('click', async (e) => {
             const btn = e.target.closest('button[data-act]');
             if (!btn) return;
-            const row = btn.closest('.user-row');
-            const id = row && row.getAttribute('data-id');
+            const card = btn.closest('.user-card');
+            const id = card && card.getAttribute('data-id');
             if (!id) return;
             const act = btn.getAttribute('data-act');
             btn.disabled = true;
-            const body = act === 'toggle' ? { active: row.classList.contains('user-row--off') } : { resetPassword: true };
+            const body = act === 'toggle' ? { active: card.classList.contains('user-card--off') } : { resetPassword: true };
             const { ok, data } = await patchUser(id, body).catch(() => ({ ok: false, data: null }));
             if (!ok) { showUsersNotice((data && data.error) || t('errorNetwork')); btn.disabled = false; return; }
             if (data.user && data.user.newPassword) {
                 showUsersNotice(t('usersNewPwFor') + ' ' + (data.user.name || data.user.username) + ': ' + data.user.newPassword, true);
-            } else {
-                document.getElementById('usersError').style.display = 'none';
-            }
+            } else { hideUsersNotice(); }
             loadUsers();
         });
-        document.getElementById('usersList').addEventListener('change', async (e) => {
+        document.getElementById('usersGrid').addEventListener('change', async (e) => {
             const sel = e.target.closest('select[data-act="role"]');
             if (!sel) return;
-            const row = sel.closest('.user-row');
-            const id = row && row.getAttribute('data-id');
+            const card = sel.closest('.user-card');
+            const id = card && card.getAttribute('data-id');
             if (!id) return;
             const { ok, data } = await patchUser(id, { role: sel.value }).catch(() => ({ ok: false, data: null }));
             if (!ok) showUsersNotice((data && data.error) || t('errorNetwork'));
             loadUsers();
         });
+        function showAddAccountPanel() {
+            const p = document.getElementById('addAccountPanel');
+            if (p) p.style.display = 'block';
+            const f = document.getElementById('newUserName'); if (f) f.focus();
+        }
+        function hideAddAccountPanel() {
+            const p = document.getElementById('addAccountPanel');
+            if (p) p.style.display = 'none';
+        }
         document.getElementById('createUserBtn').addEventListener('click', async () => {
             const username = (document.getElementById('newUserUsername').value || '').trim();
             const name = (document.getElementById('newUserName').value || '').trim();
@@ -1867,17 +1923,24 @@
                 document.getElementById('newUserUsername').value = '';
                 document.getElementById('newUserName').value = '';
                 document.getElementById('newUserPassword').value = '';
+                document.getElementById('newUserRole').value = 'call';
+                hideAddAccountPanel();
                 showUsersNotice(t('usersCreated'), true);
                 loadUsers();
             } catch (e) { showUsersNotice(t('errorNetwork')); }
         });
-        (function wireUsersModal() {
+        (function wireUsersPage() {
             const trigger = document.getElementById('usersBtn');
-            if (trigger) trigger.addEventListener('click', openUsersModal);
-            const closeBtn = document.getElementById('closeUsersModal');
-            if (closeBtn) closeBtn.addEventListener('click', closeUsersModal);
-            const modal = document.getElementById('usersModal');
-            if (modal) modal.addEventListener('click', (e) => { if (e.target.id === 'usersModal') closeUsersModal(); });
+            if (trigger) trigger.addEventListener('click', openUsersPage);
+            const back = document.getElementById('usersBack');
+            if (back) back.addEventListener('click', (e) => { e.preventDefault(); closeUsersPage(); });
+            const addBtn = document.getElementById('addAccountBtn');
+            if (addBtn) addBtn.addEventListener('click', () => {
+                const p = document.getElementById('addAccountPanel');
+                if (p && p.style.display === 'none') showAddAccountPanel(); else hideAddAccountPanel();
+            });
+            const cancel = document.getElementById('cancelAddAccount');
+            if (cancel) cancel.addEventListener('click', hideAddAccountPanel);
         })();
 
         document.getElementById('addPriorityButtons').addEventListener('click', (e) => {
@@ -1984,6 +2047,8 @@
             if (requestsWrapper) requestsWrapper.style.display = 'none';
             const analyticsW = document.getElementById('analyticsWrapper');
             if (analyticsW) analyticsW.style.display = 'none';
+            const usersW = document.getElementById('usersWrapper');
+            if (usersW) usersW.style.display = 'none';
             const activeControls = document.getElementById('activeControlsWrapper');
             if (activeControls) activeControls.style.display = 'block';
 
@@ -2502,6 +2567,8 @@
             if (requestsWrapper) requestsWrapper.style.display = 'none';
             const tasksWrapperEl = document.getElementById('tasksWrapper');
             if (tasksWrapperEl) tasksWrapperEl.style.display = 'none';
+            const usersWrapperEl = document.getElementById('usersWrapper');
+            if (usersWrapperEl) usersWrapperEl.style.display = 'none';
             const isBoss = isUIRoleBoss();
             if (analyticsWrapper.style.display === 'none') {
                 leadsWrapper.style.display = 'none';
@@ -2656,6 +2723,8 @@
                         if (aw) aw.style.display = 'none';
                         if (leadsWrapper) leadsWrapper.style.display = 'none';
                         if (noL) noL.style.display = 'none';
+                        const uw = document.getElementById('usersWrapper');
+                        if (uw) uw.style.display = 'none';
                         rw.style.display = 'block';
                         await loadApprovals();
                     } else {
@@ -3106,6 +3175,8 @@
             const rw = document.getElementById('requestsWrapper');
             const analyticsOpen = aw && aw.style.display !== 'none';
             const requestsOpen = rw && rw.style.display !== 'none';
+            const usersOpenEl = document.getElementById('usersWrapper');
+            const usersOpen = usersOpenEl && usersOpenEl.style.display !== 'none';
             try {
                 const response = await fetch(getApiBase() + '/api/admin/leads', { method: 'GET', headers: getAuthHeader() });
                 const data = await response.json();
@@ -3121,7 +3192,7 @@
                     }
                     renderNotifBadge();
                     const changed = leadsSignature(allActiveLeads) !== beforeSig;
-                    if (changed && !analyticsOpen && !requestsOpen && !isKanbanDragging && !isAnyModalOpen()) {
+                    if (changed && !analyticsOpen && !requestsOpen && !usersOpen && !isKanbanDragging && !isAnyModalOpen()) {
                         displayKanbanLeads();
                     }
                     // Subtle cue when genuinely new leads arrived (ids not seen before this refresh).
@@ -3635,6 +3706,8 @@
                 if (rw) rw.style.display = 'none';
                 if (leadsWrapper) leadsWrapper.style.display = 'none';
                 if (noL) noL.style.display = 'none';
+                const uw = document.getElementById('usersWrapper');
+                if (uw) uw.style.display = 'none';
                 tw.style.display = 'block';
                 buildTasksManagerFilter();
                 loadTasksPage();
