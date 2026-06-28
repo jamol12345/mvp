@@ -32,6 +32,7 @@
                         <span class="user-role-label" id="userRoleLabel">—</span>
                     </button>
                     <div id="userDropdown" class="user-dropdown" style="display: none;">
+                        <button type="button" class="user-dropdown-item" id="soundToggleBtn">🔔 Звук: вкл</button>
                         <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn" data-i18n="logoutBtn">Выйти</button>
                     </div>
                 </div>
@@ -525,6 +526,7 @@
         let appRole = null; // BOSS | MANAGER from server
         let userId = null;
         let realtimeToastsEnabled = false; // true after first board load — gates new-lead toasts
+        let soundEnabled = (function () { try { return localStorage.getItem('crmSound') !== '0'; } catch (e) { return true; } })();
         let allActiveLeads = [];
         let serverPendingApprovals = [];
         const optimisticPendingByLead = new Map();
@@ -631,6 +633,9 @@
                 taskNoneShort: 'Нет задач',
                 newLeadOne: 'Новый лид',
                 newLeadMany: '{n} новых лидов',
+                newLeadNotifBody: 'Нажмите, чтобы открыть доску',
+                soundOn: '🔔 Звук: вкл',
+                soundOff: '🔕 Звук: выкл',
                 taskCreated: 'Задача создана',
                 taskCompleted: 'Задача выполнена',
                 taskDueOverdue: 'Просрочена',
@@ -885,6 +890,9 @@
                 taskNoneShort: 'Vazifa yo‘q',
                 newLeadOne: 'Yangi lid',
                 newLeadMany: '{n} ta yangi lid',
+                newLeadNotifBody: 'Doskani ochish uchun bosing',
+                soundOn: '🔔 Tovush: yoniq',
+                soundOff: '🔕 Tovush: o‘chiq',
                 taskCreated: 'Vazifa yaratildi',
                 taskCompleted: 'Vazifa bajarildi',
                 taskDueOverdue: 'Muddati o‘tgan',
@@ -1076,6 +1084,7 @@
             if (roleLabel && userRole) {
                 roleLabel.textContent = (userRole === 'manager' || userRole === 'boss') ? t('roleManager') : t('roleCallManager');
             }
+            updateSoundToggleLabel();
         }
 
         function setLanguage(lang) {
@@ -1510,6 +1519,9 @@
                     initLastSeenAt();
                     startLiveSync();
                     startRealtime();
+                    ensureNotifPermission();
+                    getAudioCtx();
+                    updateSoundToggleLabel();
                     loadLeads();
                 } else {
                     showLoginError(t('errorInvalidToken'));
@@ -1539,6 +1551,14 @@
             e.stopPropagation();
             const dropdown = document.getElementById('userDropdown');
             dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        });
+
+        document.getElementById('soundToggleBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            soundEnabled = !soundEnabled;
+            try { localStorage.setItem('crmSound', soundEnabled ? '1' : '0'); } catch (e2) {}
+            updateSoundToggleLabel();
+            if (soundEnabled) { getAudioCtx(); playNewLeadChime(); } // resume + short preview
         });
 
         document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
@@ -1619,6 +1639,8 @@
             initLastSeenAt();
             startLiveSync();
             startRealtime();
+            updateSoundToggleLabel();
+            primeAudioOnFirstGesture();
             loadLeads();
         }
 
@@ -2904,6 +2926,8 @@
                     const newCount = allActiveLeads.filter(l => !beforeIds.has(String(l._id))).length;
                     if (realtimeToastsEnabled && newCount > 0) {
                         showLiveToast(newCount === 1 ? t('newLeadOne') : t('newLeadMany').replace('{n}', String(newCount)));
+                        playNewLeadChime();
+                        notifyNewLead(newCount);
                     }
                 }
             } catch (e) { /* silent */ }
@@ -3713,6 +3737,65 @@
             el.textContent = text;
             el.style.display = 'block';
             toastTimeoutId = setTimeout(() => { el.style.display = 'none'; toastTimeoutId = null; }, 2500);
+        }
+
+        // ===== New-lead audible + desktop cue (amoCRM-style) =====
+        let _audioCtx = null;
+        function getAudioCtx() {
+            try {
+                if (!_audioCtx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (!AC) return null;
+                    _audioCtx = new AC();
+                }
+                if (_audioCtx.state === 'suspended') _audioCtx.resume();
+                return _audioCtx;
+            } catch (e) { return null; }
+        }
+        // Browser autoplay policy: an AudioContext can only start after a user gesture.
+        // On session restore (page load, no gesture) we prime it on the first click/keypress.
+        function primeAudioOnFirstGesture() {
+            const r = () => getAudioCtx();
+            document.addEventListener('click', r, { once: true });
+            document.addEventListener('keydown', r, { once: true });
+        }
+        // Soft two-note chime synthesized in-browser (no asset, no network request).
+        function playNewLeadChime() {
+            if (!soundEnabled) return;
+            const ctx = getAudioCtx();
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            [{ f: 880.0, t: 0 }, { f: 1174.66, t: 0.12 }].forEach(({ f, t }) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = f;
+                osc.connect(gain); gain.connect(ctx.destination);
+                const s = now + t;
+                gain.gain.setValueAtTime(0.0001, s);
+                gain.gain.exponentialRampToValueAtTime(0.18, s + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, s + 0.5);
+                osc.start(s); osc.stop(s + 0.55);
+            });
+        }
+        // Desktop notification only when the tab is in the background (foreground already
+        // has the toast + chime, so we don't double-notify).
+        function notifyNewLead(count) {
+            try {
+                if (typeof Notification === 'undefined' || Notification.permission !== 'granted' || !document.hidden) return;
+                const title = count === 1 ? t('newLeadOne') : t('newLeadMany').replace('{n}', String(count));
+                const n = new Notification(title, { body: t('newLeadNotifBody'), icon: '/kukcha.png', tag: 'new-lead', renotify: true });
+                n.onclick = () => { try { window.focus(); } catch (e) {} n.close(); };
+            } catch (e) {}
+        }
+        function ensureNotifPermission() {
+            try {
+                if (typeof Notification !== 'undefined' && Notification.permission === 'default') Notification.requestPermission();
+            } catch (e) {}
+        }
+        function updateSoundToggleLabel() {
+            const b = document.getElementById('soundToggleBtn');
+            if (b) b.textContent = soundEnabled ? t('soundOn') : t('soundOff');
         }
 
         let toastTimeoutId = null;
