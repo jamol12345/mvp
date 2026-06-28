@@ -73,6 +73,19 @@
         .managers-table tr:last-child td { border-bottom: none; }
         .managers-table th:not(:first-child), .managers-table td:not(:first-child) { text-align: right; }
         .mgr-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--mgr); margin-right: 8px; vertical-align: middle; }
+        /* Sales funnel — clean horizontal bars (single accent, no rainbow) */
+        .fbars { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+        .fbar-row { display: grid; grid-template-columns: 150px 1fr 60px; align-items: center; gap: 14px; }
+        .fbar-row.is-leak .fbar-name { color: #fca5a5; }
+        .fbar-info { min-width: 0; }
+        .fbar-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .fbar-meta { font-size: 11.5px; opacity: 0.55; }
+        .fbar-track { position: relative; height: 36px; background: rgba(255,255,255,0.05); border-radius: 9px; overflow: hidden; display: flex; align-items: center; }
+        .fbar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--accent), var(--accent-soft, #6e79ec)); border-radius: 9px; min-width: 4px; transition: width .45s cubic-bezier(.22,1,.36,1); }
+        .fbar-count { position: relative; z-index: 1; margin-left: 12px; font-weight: 800; font-size: 15px; color: #fff; }
+        .fbar-conv { font-size: 12.5px; font-weight: 700; text-align: right; opacity: 0.65; white-space: nowrap; }
+        .fbar-conv.is-drop { color: #f0c074; opacity: 1; }
+        @media (max-width: 600px) { .fbar-row { grid-template-columns: 104px 1fr 48px; gap: 8px; } .fbar-track { height: 32px; } }
         /* Realtime connection indicator (shows only when the socket drops) */
         .conn-status { position: fixed; left: 16px; bottom: 16px; z-index: 1200; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: rgba(224,162,58,0.16); color: #f0c074; border: 1px solid rgba(224,162,58,0.4); box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
         /* Client log (timeline) — clean, business-like vertical feed */
@@ -2604,49 +2617,25 @@
                 const maxReached = stages.reduce((m, s) => Math.max(m, s.reached || 0), 0) || 1;
                 const leakKey = data.biggestLeak ? data.biggestLeak.toStage : null;
 
-                // amoCRM-style funnel: centered trapezoid bands that narrow stage by stage.
-                // Per-stage color spectrum; width is proportional to cumulative reach (min floor
-                // so even small stages stay readable). `reached` is monotonic, so the shape
-                // always narrows downward like a real funnel.
-                const FUNNEL_PALETTE = [
-                    ['#6366f1', '#818cf8'],
-                    ['#0ea5e9', '#38bdf8'],
-                    ['#f59e0b', '#fbbf24'],
-                    ['#10b981', '#34d399'],
-                    ['#a855f7', '#c084fc']
-                ];
-                const MIN_W = 38; // floor width (%) so narrow stages keep their label legible
-                const widthOf = (reached) => MIN_W + (100 - MIN_W) * (reached / maxReached);
-
-                barsEl.innerHTML = stages.map((s, i) => {
-                    const topW = widthOf(s.reached);
-                    const nextReached = i + 1 < stages.length ? stages[i + 1].reached : null;
-                    const bottomW = nextReached != null ? widthOf(nextReached) : Math.max(topW - 8, MIN_W);
-                    const tl = (100 - topW) / 2, tr = (100 + topW) / 2;
-                    const bl = (100 - bottomW) / 2, br = (100 + bottomW) / 2;
-                    const clip = `polygon(${tl}% 0, ${tr}% 0, ${br}% 100%, ${bl}% 100%)`;
-                    const [c1, c2] = FUNNEL_PALETTE[i % FUNNEL_PALETTE.length];
+                // Clean horizontal funnel: bar length = how many leads reached the stage
+                // (proportional to the widest stage). Single accent — no rainbow. Conversion
+                // from the previous stage is shown on the right; the biggest leak is flagged red.
+                const inWork = currentLang === 'uz' ? 'ishda' : 'в работе';
+                barsEl.innerHTML = '<div class="fbars">' + stages.map((s, i) => {
+                    const pct = Math.max(4, Math.round((s.reached / maxReached) * 100));
                     const isLeak = s.key === leakKey;
-                    const convClass = s.conversionFromPrev < 100 ? ' is-drop' : '';
-                    const convText = s.conversionFromPrev != null ? s.conversionFromPrev.toFixed(0) + '%' : '—';
-                    const convRow = i === 0 ? '' : `
-                        <div class="amo-funnel-conv-row">
-                            <span class="amo-funnel-conv${convClass}">↓ ${convText}</span>
-                        </div>`;
-                    const stalled = s.stalled > 0
-                        ? `<span class="amo-funnel-stalled" title="Застряли > ${data.staleDays} дн.">⏳ ${s.stalled}</span>`
-                        : '';
-                    return `${convRow}
-                        <div class="amo-funnel-stage${isLeak ? ' is-leak' : ''}">
-                            <div class="amo-funnel-band" style="--c1:${c1};--c2:${c2};clip-path:${clip};-webkit-clip-path:${clip}">
-                                <div class="amo-funnel-band-inner">
-                                    <span class="amo-funnel-stage-name">${escapeHtml(s.label)}</span>
-                                    <span class="amo-funnel-stage-count">${s.reached}<small>в работе ${s.current}</small></span>
-                                </div>
-                            </div>
-                            ${stalled}
-                        </div>`;
-                }).join('');
+                    const convClass = (i > 0 && s.conversionFromPrev != null && s.conversionFromPrev < 100) ? ' is-drop' : '';
+                    const conv = (i > 0 && s.conversionFromPrev != null) ? '↓ ' + s.conversionFromPrev.toFixed(0) + '%' : '';
+                    const stalled = s.stalled > 0 ? ' · ⏳ ' + s.stalled : '';
+                    return `<div class="fbar-row${isLeak ? ' is-leak' : ''}">
+                        <div class="fbar-info">
+                            <div class="fbar-name">${escapeHtml(s.label)}</div>
+                            <div class="fbar-meta">${inWork} ${s.current}${stalled}</div>
+                        </div>
+                        <div class="fbar-track"><div class="fbar-fill" style="width:${pct}%"></div><span class="fbar-count">${s.reached}</span></div>
+                        <div class="fbar-conv${convClass}">${conv}</div>
+                    </div>`;
+                }).join('') + '</div>';
 
                 if (leakEl) {
                     if (data.biggestLeak) {
