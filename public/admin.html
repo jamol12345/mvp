@@ -40,6 +40,13 @@
         .add-account-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
         .add-account-fields input, .add-account-fields select { min-width: 0; }
         .add-account-actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+        /* Board cards: uniform height + manager color attribution */
+        .lead-card { min-height: 150px; }
+        .lead-card-body { flex: 1 1 auto; }
+        .lead-card-body .lead-card-actions { margin-top: auto; }
+        .lead-card--owned { border-left: 3px solid var(--mgr-color, transparent); }
+        .lead-card-owner { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 11.5px; font-weight: 600; line-height: 1.2; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--mgr) 16%, transparent); color: var(--mgr); border: 1px solid color-mix(in srgb, var(--mgr) 38%, transparent); }
+        .lead-card-owner-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mgr); flex-shrink: 0; }
     </style>
 </head>
 <body>
@@ -2800,6 +2807,13 @@
             return 'background:' + tones[h % tones.length] + ';';
         }
 
+        // Stable vivid color per manager key (auto — works for any number of users).
+        function managerColor(key) {
+            const s = String(key || '');
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+            return 'hsl(' + (h % 360) + ' 62% 58%)';
+        }
         function buildLeadCardHTML(lead, index) {
             const actLocked = isLeadCardActionsLocked(lead);
             const timeLock = isLeadTimeLocked(lead);
@@ -2851,21 +2865,15 @@
                     const sid = escapeHtml(String(lead._id));
                     return `<div class="lead-card-assign lead-card-assign--compact"><select id="assign-select-${sid}" class="assign-select assign-dropdown" data-lead-id="${lead._id}" aria-label="${escapeHtml(t('assignLabel'))}"><option value="" ${!isAssigned ? 'selected' : ''}>${escapeHtml(t('assignUnassigned'))}</option>${options}</select></div>`;
                 }
-                if (userKey && lead.assignedTo === userKey) {
-                    return `<div class="lead-card-assign lead-card-assign--compact"><span class="badge badge-assigned">${t('yourClient')}</span></div>`;
-                }
                 return '';
             })();
-            const pinnedRow = (function() {
-                if (!lead.assignedTo) return '';
+            // Color chip showing whose lead it is (managers' view; boss uses the dropdown).
+            const ownerChip = (function() {
+                if (!lead.assignedTo || isUIRoleBoss()) return '';
                 const key = String(lead.assignedTo);
-                if (isUIRoleBoss()) {
-                    return `<div class="lead-card-pinned">${escapeHtml(t('pinnedToManager'))} ${escapeHtml(getManagerLabel(key) || key)}</div>`;
-                }
-                if (userKey && String(userKey) !== key) {
-                    return `<div class="lead-card-pinned lead-card-pinned--other">${escapeHtml(t('pinnedToManager'))} ${escapeHtml(getManagerLabel(key) || key)}</div>`;
-                }
-                return '';
+                const isMine = userKey && String(userKey) === key;
+                const label = isMine ? t('yourClient') : (getManagerLabel(key) || key);
+                return `<span class="lead-card-owner" style="--mgr:${managerColor(key)}"><span class="lead-card-owner-dot"></span>${escapeHtml(label)}</span>`;
             })();
             const stalledHtml = (function() {
                 const stalled = isStalled(lead);
@@ -2904,7 +2912,7 @@
                     </div>
                     ${taskBlock}
                     ${returningBadge}
-                    ${pinnedRow}
+                    ${ownerChip}
                     ${prioritiesChipsHTML ? `<div class="lead-card-priorities"><div class="priority-chips priority-chips--kanban">${prioritiesChipsHTML}</div></div>` : ''}
                     ${assignBlock}
                     ${createdCompact ? `<div class="lead-card-date">${escapeHtml(createdCompact)}</div>` : ''}
@@ -2933,7 +2941,8 @@
             const noDrag = !canDragLead(lead);
             const actL = isLeadCardActionsLocked(lead);
             const tl = isLeadTimeLocked(lead);
-            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}${prepStateClass}${noDrag ? ' lead-card--no-drag' : ''}${actL ? ' lead-card--actions-locked' : ''}${tl ? ' lead-card--time-locked' : ''}`;
+            card.className = `lead-card card-animate${isNew ? ' lead-card--new' : ''}${stalled ? ' stalled-card' : ''}${prepStateClass}${noDrag ? ' lead-card--no-drag' : ''}${actL ? ' lead-card--actions-locked' : ''}${tl ? ' lead-card--time-locked' : ''}${lead.assignedTo ? ' lead-card--owned' : ''}`;
+            if (lead.assignedTo) card.style.setProperty('--mgr-color', managerColor(lead.assignedTo));
             card.setAttribute('data-lead-id', lead._id);
             card.style.animationDelay = `${index * 0.05}s`;
             card.innerHTML = buildLeadCardHTML(lead, index);

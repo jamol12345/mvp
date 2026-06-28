@@ -1156,10 +1156,9 @@ textarea {
 
 .kanban-column {
     --c: var(--s-new); /* перекрывается per-stage ниже */
-    flex: 0 0 320px;
-    min-width: 300px;
-    max-width: 340px;
-    width: 320px;
+    flex: 1 1 0;            /* колонки делят ширину экрана — все 5 видны без горизонтального скролла */
+    min-width: 210px;      /* ниже этого включится скролл (очень узкие экраны) */
+    width: auto;
     height: calc(100vh - 220px);
     scroll-snap-align: start;
     background: var(--surface);
