@@ -7,10 +7,22 @@ const express = require('express');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
 const ExcelJS = require('exceljs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ============================================
+// REALTIME (Socket.IO) — `io` is created at the bottom (after all routes); these
+// helpers are safe no-ops until then. The Mongoose post-hooks below push changes
+// to connected clients so managers see updates without reloading.
+// ============================================
+let io = null;
+function rtEmitAll(event, payload = {}) { if (io) io.to('all').emit(event, payload); }
+function rtEmitBoss(event, payload = {}) { if (io) io.to('boss').emit(event, payload); }
+function rtEmitManager(key, event, payload = {}) { if (io && key) io.to('mgr:' + String(key)).emit(event, payload); }
 
 // CORS first (before any other middleware) so it always runs in Vercel serverless.
 const defaultCorsOrigins = [
@@ -227,6 +239,14 @@ leadSchema.pre('save', function(next) {
   next();
 });
 
+// Realtime: every lead write pushes a board-change signal to all connected clients.
+// Document hooks (save/deleteOne) carry the doc; query hooks (updateOne/findOneAndUpdate)
+// may not — we still emit so the client reconciles by refetching (guarantees no lost update).
+leadSchema.post('save', function (doc) { if (doc) rtEmitAll('lead:changed', { id: String(doc._id), status: doc.status }); });
+leadSchema.post('findOneAndUpdate', function (doc) { if (doc) rtEmitAll('lead:changed', { id: String(doc._id), status: doc.status }); });
+leadSchema.post('updateOne', function () { rtEmitAll('lead:changed', {}); });
+leadSchema.post('deleteOne', { document: true, query: false }, function (doc) { rtEmitAll('lead:changed', { id: doc ? String(doc._id) : null, removed: true }); });
+
 // Mongoose model: 'Lead' -> MongoDB collection: 'leads' (lowercase, pluralized)
 // Database: Extracted from MONGODB_URI (e.g., 'leads' or default database)
 // Collection: 'leads' (Mongoose automatically pluralizes model name)
@@ -266,6 +286,13 @@ const approvalSchema = new mongoose.Schema({
 });
 
 approvalSchema.index({ leadId: 1, status: 1, type: 1 });
+
+// Realtime: approval create/resolve refreshes the boss queue and notifies the requester.
+approvalSchema.post('save', function (doc) {
+  if (!doc) return;
+  rtEmitBoss('approval:changed', { id: String(doc._id), status: doc.status });
+  rtEmitManager(doc.requestedBy, 'approval:changed', { id: String(doc._id), status: doc.status });
+});
 
 const Approval = mongoose.model('Approval', approvalSchema);
 
@@ -323,6 +350,10 @@ const taskSchema = new mongoose.Schema({
 });
 taskSchema.index({ status: 1, dueAt: 1 });
 taskSchema.index({ assignee: 1, status: 1, dueAt: 1 });
+
+// Realtime: a task change affects its lead's card chip → nudge the board.
+taskSchema.post('save', function (doc) { if (doc && doc.leadId) rtEmitAll('lead:changed', { id: String(doc.leadId) }); });
+
 const Task = mongoose.model('Task', taskSchema);
 
 // Append a timeline entry. Never throws into the request flow (best-effort logging).
@@ -2544,19 +2575,60 @@ app.get('/api/admin/leads/version', authenticateAdmin, async (req, res) => {
 });
 
 // ============================================
-// SERVER START (LOCAL ONLY — do not listen when deployed to Vercel)
+// SERVER START + REALTIME (Socket.IO on the same HTTP server)
+// Listens when run directly (Railway: `node server.js`, local: `npm start`).
+// When imported as a module (tests / legacy serverless), it does NOT listen —
+// the Express `app` is still exported for those callers.
 // ============================================
 
-if (process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+const httpServer = http.createServer(app);
+
+// The same HTTP server upgrades connections to WebSocket. The frontend is served
+// from this same origin in production, so CORS only matters for cross-origin dev.
+io = new Server(httpServer, {
+  cors: { origin: allowedOrigins, methods: ['GET', 'POST'], credentials: true }
+});
+
+// Authenticate every socket with the SAME JWT used for REST (sent in handshake.auth.token).
+// Mirrors authenticateAdmin so socket.user matches req.user semantics.
+io.use((socket, next) => {
+  try {
+    const raw = socket.handshake.auth && socket.handshake.auth.token ? String(socket.handshake.auth.token) : '';
+    const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
+    if (!token) return next(new Error('unauthorized'));
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const role = decoded.role;
+    if (!role || !['manager', 'call_manager', 'boss', 'call'].includes(role)) {
+      return next(new Error('unauthorized'));
+    }
+    if (role === 'boss' || role === 'manager') {
+      socket.user = { role: 'boss', appRole: APP_ROLE.BOSS, userId: decoded.userId != null ? String(decoded.userId) : 'boss' };
+    } else {
+      const key = decoded.key || null;
+      socket.user = { role: 'call', key, appRole: APP_ROLE.MANAGER, userId: key || 'call' };
+    }
+    next();
+  } catch (e) {
+    next(new Error('unauthorized'));
+  }
+});
+
+// On connect, join broadcast rooms: everyone → 'all'; boss → 'boss'; manager → 'mgr:<key>'.
+io.on('connection', (socket) => {
+  const u = socket.user || {};
+  socket.join('all');
+  if (isAppBossUser(u)) socket.join('boss');
+  else if (u.key) socket.join('mgr:' + String(u.key));
+});
+
+if (require.main === module) {
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Server (HTTP + WebSocket) running on http://localhost:${PORT}`);
+    console.log(`📡 Realtime: Socket.IO ready (rooms: all / boss / mgr:<key>)`);
     console.log(`📝 Public form: http://localhost:${PORT}/`);
     console.log(`🔐 Admin panel: http://localhost:${PORT}/admin.html`);
-    console.log(`✅ Done calls archive: http://localhost:${PORT}/done_calls.html`);
-    console.log(`\n💾 MongoDB Info:`);
-    console.log(`   Database: ${mongoose.connection.name || 'Will be set on connection'}`);
-    console.log(`   Collection: 'leads'`);
-    console.log(`   Check data in MongoDB Compass using your connection string\n`);
+    console.log(`✅ Archive: http://localhost:${PORT}/done_calls.html`);
+    console.log(`💾 MongoDB: ${mongoose.connection.name || '(connecting…)'} / collection 'leads'`);
   });
 }
 

@@ -6,6 +6,8 @@
     <title>Архив — админ‑панель</title>
     <link rel="icon" type="image/png" href="/kukcha.png">
     <link rel="stylesheet" href="/styles.css">
+    <!-- Socket.IO client served by our backend at the same origin -->
+    <script src="/socket.io/socket.io.js"></script>
     <style>
     /* =====================================================================
        Единая стилистика «один акцент» для карточек архива (как на доске).
@@ -554,6 +556,7 @@
                     document.getElementById('adminToken').value = '';
                     applyTranslations();
                     startArchiveSilentRefresh();
+                    startRealtime();
                     loadDoneCalls();
                 } else {
                     showLoginError(t('errorInvalidToken'));
@@ -585,6 +588,7 @@
             sessionStorage.removeItem('authToken');
             sessionStorage.removeItem('authRole');
             stopArchiveSilentRefresh();
+            stopRealtime();
             document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('archivePanel').style.display = 'none';
@@ -610,6 +614,7 @@
             document.getElementById('archivePanel').style.display = 'block';
             applyTranslations();
             startArchiveSilentRefresh();
+            startRealtime();
             loadDoneCalls();
         }
 
@@ -886,6 +891,33 @@
                 clearInterval(archiveSilentRefreshIntervalId);
                 archiveSilentRefreshIntervalId = null;
             }
+        }
+
+        // ===== Realtime: archive updates live when leads close/change =====
+        // WebSocket is the instant trigger; the 30s poll above stays as a safety net.
+        let rtSocket = null, rtRefreshTimer = null, rtRefreshPending = false;
+        function scheduleArchiveRefresh() {
+            rtRefreshPending = true;
+            if (rtRefreshTimer) return;
+            rtRefreshTimer = setTimeout(function () {
+                rtRefreshTimer = null;
+                if (!rtRefreshPending) return;
+                rtRefreshPending = false;
+                silentRefreshArchive();
+            }, 300);
+        }
+        function startRealtime() {
+            if (!adminToken || typeof io === 'undefined') return; // no token / client unavailable → poll fallback
+            if (rtSocket) { rtSocket.auth = { token: adminToken }; if (!rtSocket.connected) rtSocket.connect(); return; }
+            rtSocket = io({ auth: { token: adminToken }, transports: ['websocket', 'polling'] });
+            rtSocket.on('connect', () => { scheduleArchiveRefresh(); }); // reconcile on (re)connect
+            rtSocket.on('lead:changed', () => { scheduleArchiveRefresh(); });
+            rtSocket.on('connect_error', () => { /* fallback: 30s safety poll keeps archive fresh */ });
+        }
+        function stopRealtime() {
+            if (rtSocket) { rtSocket.removeAllListeners(); rtSocket.disconnect(); rtSocket = null; }
+            if (rtRefreshTimer) { clearTimeout(rtRefreshTimer); rtRefreshTimer = null; }
+            rtRefreshPending = false;
         }
 
         function escapeHtml(text) {

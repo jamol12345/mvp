@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <!-- Socket.IO client is served by our own backend at the same origin -->
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <div class="container">
@@ -1510,6 +1512,7 @@
                     initLastSeenAt();
                     startPolling();
                     startLiveSync();
+                    startRealtime();
                     loadLeads();
                 } else {
                     showLoginError(t('errorInvalidToken'));
@@ -1553,6 +1556,7 @@
             sessionStorage.removeItem('authAppRole');
             sessionStorage.removeItem('authUserId');
             stopLiveSync();
+            stopRealtime();
             stopAnalyticsLive();
             if (lockTickerInterval) {
                 clearInterval(lockTickerInterval);
@@ -1622,6 +1626,7 @@
             initLastSeenAt();
             startPolling();
             startLiveSync();
+            startRealtime();
             loadLeads();
         }
 
@@ -2875,8 +2880,10 @@
             displayKanbanLeads();
         }
 
-        // ===== Live sync: near-real-time updates via cheap version polling =====
-        const LIVE_SYNC_INTERVAL_MS = 4000;
+        // ===== Live sync: safety-net reconcile poll (realtime WebSocket below is primary) =====
+        // Realtime push handles instant updates; this slow poll only guards against a
+        // silently-dropped socket so a lead can never be missed.
+        const LIVE_SYNC_INTERVAL_MS = 20000;
         let liveSyncIntervalId = null;
         let lastLiveVersion = null;
         let isKanbanDragging = false;
@@ -2966,6 +2973,53 @@
         function stopLiveSync() {
             if (liveSyncIntervalId) { clearInterval(liveSyncIntervalId); liveSyncIntervalId = null; }
             lastLiveVersion = null;
+        }
+
+        // ===== Realtime (WebSocket / Socket.IO): instant push + reconcile on (re)connect =====
+        // WS is the primary trigger. On any server event we refetch and reconcile via the
+        // existing liveRefresh() — the DB stays the source of truth, so even a missed event
+        // (offline blip) is recovered on reconnect. No lead is ever lost.
+        let rtSocket = null;
+        let rtRefreshTimer = null;
+        let rtRefreshPending = false;
+
+        // Debounce a burst of events into one refresh; defer while dragging or a data-entry
+        // modal is open (retry shortly) so realtime never yanks the board mid-action.
+        function scheduleLiveRefresh() {
+            rtRefreshPending = true;
+            if (rtRefreshTimer) return;
+            rtRefreshTimer = setTimeout(async function run() {
+                rtRefreshTimer = null;
+                if (!rtRefreshPending) return;
+                if (isKanbanDragging || isBlockingModalOpen()) {
+                    rtRefreshTimer = setTimeout(run, 800);
+                    return;
+                }
+                rtRefreshPending = false;
+                await liveRefresh();
+                pulseLiveSignal();
+            }, 250);
+        }
+
+        function startRealtime() {
+            if (!adminToken || typeof io === 'undefined') return; // no token or client failed to load → poll fallback
+            if (rtSocket) {
+                rtSocket.auth = { token: adminToken };
+                if (!rtSocket.connected) rtSocket.connect();
+                return;
+            }
+            rtSocket = io({ auth: { token: adminToken }, transports: ['websocket', 'polling'] });
+            // Reconcile on first connect AND every reconnect → recovers anything missed while offline.
+            rtSocket.on('connect', () => { scheduleLiveRefresh(); });
+            rtSocket.on('lead:changed', () => { scheduleLiveRefresh(); });
+            rtSocket.on('approval:changed', () => { scheduleLiveRefresh(); });
+            rtSocket.on('connect_error', () => { /* stay silent; the safety poll keeps the UI fresh */ });
+        }
+
+        function stopRealtime() {
+            if (rtSocket) { rtSocket.removeAllListeners(); rtSocket.disconnect(); rtSocket = null; }
+            if (rtRefreshTimer) { clearTimeout(rtRefreshTimer); rtRefreshTimer = null; }
+            rtRefreshPending = false;
         }
 
         // ===== Lead activity timeline (amoCRM-style log + customer history) =====
