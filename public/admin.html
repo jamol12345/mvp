@@ -10,6 +10,19 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <!-- Socket.IO client is served by our own backend at the same origin -->
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .users-list { display: flex; flex-direction: column; gap: 8px; }
+        .user-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; }
+        .user-row--off { opacity: 0.55; }
+        .user-row-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .user-row-name { font-weight: 600; }
+        .user-row-meta { font-size: 12px; opacity: 0.7; }
+        .user-row-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .user-role-select { padding: 4px 8px; font-size: 13px; }
+        .users-add-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
+        .users-add-form input, .users-add-form select { min-width: 0; }
+        @media (max-width: 560px) { .users-add-form { grid-template-columns: 1fr; } .user-row { flex-direction: column; align-items: stretch; } }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -96,6 +109,7 @@
                 <div class="header-actions">
                     <a class='btn-link' data-i18n='viewArchive' href='done_calls.html'>Архив →</a>
                     <button id="requestsBtn" class="btn-link" style="display: none;" data-i18n="requestsNav" type="button">Запросы</button>
+                    <button id="usersBtn" class="btn-link" style="display: none;" data-i18n="usersNav" type="button">Команда</button>
                     <button id="tasksPageBtn" class="btn-link tasks-page-btn" style="display: none;" type="button"><span data-i18n="tasksNav">Задачи</span><span class="tasks-nav-badge" id="tasksNavBadge" style="display: none;">0</span></button>
                     <button id="analyticsBtn" class="btn-link" style="display: none;" data-i18n="analyticsBtn" type="button">Аналитика</button>
                 </div>
@@ -475,6 +489,32 @@
         </div>
     </div>
 
+    <!-- Команда: user management (boss only) -->
+    <div id="usersModal" class="modal" style="display: none;">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2 data-i18n="usersTitle">Команда</h2>
+                <button type="button" class="modal-close" id="closeUsersModal" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="usersList" class="users-list"></div>
+                <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:16px 0;">
+                <h3 data-i18n="usersAddTitle" style="margin:0 0 10px;font-size:15px;">Добавить сотрудника</h3>
+                <div class="users-add-form">
+                    <input type="text" id="newUserUsername" class="glass-input" data-i18n-placeholder="usernamePlaceholder" placeholder="Логин" autocapitalize="off" autocomplete="off">
+                    <input type="text" id="newUserName" class="glass-input" data-i18n-placeholder="usersNamePh" placeholder="Имя" autocomplete="off">
+                    <select id="newUserRole" class="glass-input">
+                        <option value="call" data-i18n="roleCallManager">Менеджер</option>
+                        <option value="boss" data-i18n="roleManager">Босс</option>
+                    </select>
+                    <input type="password" id="newUserPassword" class="glass-input" data-i18n-placeholder="passwordPlaceholder" placeholder="Пароль" autocomplete="new-password">
+                    <button type="button" class="btn-submit" id="createUserBtn" data-i18n="usersAddBtn">Добавить</button>
+                </div>
+                <div id="usersError" class="message error-message" style="display:none;margin-top:10px;"><p id="usersErrorText"></p></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Per-lead tasks modal (list + create) -->
     <div id="leadTasksModal" class="modal" style="display: none;">
         <div class="modal-content glass modal-content--timeline">
@@ -649,6 +689,17 @@
                 newLeadNotifBody: 'Нажмите, чтобы открыть доску',
                 soundOn: '🔔 Звук: вкл',
                 soundOff: '🔕 Звук: выкл',
+                usersNav: 'Команда',
+                usersTitle: 'Команда',
+                usersAddTitle: 'Добавить сотрудника',
+                usersNamePh: 'Имя',
+                usersAddBtn: 'Добавить',
+                usersDisable: 'Отключить',
+                usersEnable: 'Включить',
+                usersReset: 'Сбросить пароль',
+                usersOff: 'отключён',
+                usersNewPwFor: 'Новый пароль для',
+                usersCreated: 'Сотрудник добавлен',
                 taskCreated: 'Задача создана',
                 taskCompleted: 'Задача выполнена',
                 taskDueOverdue: 'Просрочена',
@@ -909,6 +960,17 @@
                 newLeadNotifBody: 'Doskani ochish uchun bosing',
                 soundOn: '🔔 Tovush: yoniq',
                 soundOff: '🔕 Tovush: o‘chiq',
+                usersNav: 'Jamoa',
+                usersTitle: 'Jamoa',
+                usersAddTitle: 'Xodim qo‘shish',
+                usersNamePh: 'Ism',
+                usersAddBtn: 'Qo‘shish',
+                usersDisable: 'O‘chirish',
+                usersEnable: 'Yoqish',
+                usersReset: 'Parolni tiklash',
+                usersOff: 'o‘chirilgan',
+                usersNewPwFor: 'Yangi parol —',
+                usersCreated: 'Xodim qo‘shildi',
                 taskCreated: 'Vazifa yaratildi',
                 taskCompleted: 'Vazifa bajarildi',
                 taskDueOverdue: 'Muddati o‘tgan',
@@ -1457,6 +1519,8 @@
             if (requestsBtn) {
                 requestsBtn.style.display = isBoss ? 'inline-block' : 'none';
             }
+            const usersBtnEl = document.getElementById('usersBtn');
+            if (usersBtnEl) usersBtnEl.style.display = isBoss ? 'inline-block' : 'none';
             const tasksPageBtn = document.getElementById('tasksPageBtn');
             if (tasksPageBtn) {
                 tasksPageBtn.style.display = 'inline-block';
@@ -1697,6 +1761,124 @@
         document.getElementById('addClientModal').addEventListener('click', (e) => {
             if (e.target.id === 'addClientModal') closeAddClientModal();
         });
+
+        // ===== Команда (user management, boss only) =====
+        function openUsersModal() {
+            const m = document.getElementById('usersModal');
+            if (!m) return;
+            document.getElementById('usersError').style.display = 'none';
+            m.style.display = 'flex';
+            m.setAttribute('aria-hidden', 'false');
+            setTimeout(() => m.classList.add('modal-open'), 10);
+            loadUsers();
+        }
+        function closeUsersModal() {
+            const m = document.getElementById('usersModal');
+            if (!m) return;
+            m.classList.remove('modal-open');
+            setTimeout(() => { m.style.display = 'none'; }, 300);
+        }
+        function showUsersNotice(msg, ok) {
+            const box = document.getElementById('usersError');
+            const txt = document.getElementById('usersErrorText');
+            if (!box || !txt) return;
+            box.className = 'message ' + (ok ? 'info-message' : 'error-message');
+            box.style.marginTop = '10px';
+            txt.textContent = msg;
+            box.style.display = 'block';
+        }
+        function roleLabelText(role) { return role === 'boss' ? t('roleManager') : t('roleCallManager'); }
+        async function loadUsers() {
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/users', { headers: getAuthHeader() });
+                const data = await res.json();
+                if (!res.ok) { showUsersNotice((data && data.error) || t('errorNetwork')); return; }
+                renderUsers(data.users || []);
+            } catch (e) { showUsersNotice(t('errorNetwork')); }
+        }
+        function renderUsers(users) {
+            const box = document.getElementById('usersList');
+            if (!box) return;
+            box.innerHTML = users.map(u => {
+                const off = u.active ? '' : ' user-row--off';
+                const toggleLabel = u.active ? t('usersDisable') : t('usersEnable');
+                const meta = escapeHtml(u.username) + ' · ' + escapeHtml(roleLabelText(u.role)) + (u.active ? '' : ' · ' + t('usersOff'));
+                return '<div class="user-row' + off + '" data-id="' + u.id + '">'
+                    + '<div class="user-row-info"><span class="user-row-name">' + escapeHtml(u.name || u.username) + '</span>'
+                    + '<span class="user-row-meta">' + meta + '</span></div>'
+                    + '<div class="user-row-actions">'
+                    + '<select class="glass-input user-role-select" data-act="role">'
+                    + '<option value="call"' + (u.role === 'call' ? ' selected' : '') + '>' + t('roleCallManager') + '</option>'
+                    + '<option value="boss"' + (u.role === 'boss' ? ' selected' : '') + '>' + t('roleManager') + '</option>'
+                    + '</select>'
+                    + '<button type="button" class="btn-link" data-act="reset">' + t('usersReset') + '</button>'
+                    + '<button type="button" class="btn-link" data-act="toggle">' + toggleLabel + '</button>'
+                    + '</div></div>';
+            }).join('') || '<div class="user-row-meta">—</div>';
+        }
+        async function patchUser(id, body) {
+            const res = await fetch(getApiBase() + '/api/admin/users/' + encodeURIComponent(id), {
+                method: 'PATCH', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            return { ok: res.ok, data };
+        }
+        document.getElementById('usersList').addEventListener('click', async (e) => {
+            const btn = e.target.closest('button[data-act]');
+            if (!btn) return;
+            const row = btn.closest('.user-row');
+            const id = row && row.getAttribute('data-id');
+            if (!id) return;
+            const act = btn.getAttribute('data-act');
+            btn.disabled = true;
+            const body = act === 'toggle' ? { active: row.classList.contains('user-row--off') } : { resetPassword: true };
+            const { ok, data } = await patchUser(id, body).catch(() => ({ ok: false, data: null }));
+            if (!ok) { showUsersNotice((data && data.error) || t('errorNetwork')); btn.disabled = false; return; }
+            if (data.user && data.user.newPassword) {
+                showUsersNotice(t('usersNewPwFor') + ' ' + (data.user.name || data.user.username) + ': ' + data.user.newPassword, true);
+            } else {
+                document.getElementById('usersError').style.display = 'none';
+            }
+            loadUsers();
+        });
+        document.getElementById('usersList').addEventListener('change', async (e) => {
+            const sel = e.target.closest('select[data-act="role"]');
+            if (!sel) return;
+            const row = sel.closest('.user-row');
+            const id = row && row.getAttribute('data-id');
+            if (!id) return;
+            const { ok, data } = await patchUser(id, { role: sel.value }).catch(() => ({ ok: false, data: null }));
+            if (!ok) showUsersNotice((data && data.error) || t('errorNetwork'));
+            loadUsers();
+        });
+        document.getElementById('createUserBtn').addEventListener('click', async () => {
+            const username = (document.getElementById('newUserUsername').value || '').trim();
+            const name = (document.getElementById('newUserName').value || '').trim();
+            const role = document.getElementById('newUserRole').value || 'call';
+            const password = document.getElementById('newUserPassword').value || '';
+            if (!username || !password) { showUsersNotice(t('errorCredentialsRequired')); return; }
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/users', {
+                    method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, name, role, password })
+                });
+                const data = await res.json();
+                if (!res.ok) { showUsersNotice((data && data.error) || t('errorNetwork')); return; }
+                document.getElementById('newUserUsername').value = '';
+                document.getElementById('newUserName').value = '';
+                document.getElementById('newUserPassword').value = '';
+                showUsersNotice(t('usersCreated'), true);
+                loadUsers();
+            } catch (e) { showUsersNotice(t('errorNetwork')); }
+        });
+        (function wireUsersModal() {
+            const trigger = document.getElementById('usersBtn');
+            if (trigger) trigger.addEventListener('click', openUsersModal);
+            const closeBtn = document.getElementById('closeUsersModal');
+            if (closeBtn) closeBtn.addEventListener('click', closeUsersModal);
+            const modal = document.getElementById('usersModal');
+            if (modal) modal.addEventListener('click', (e) => { if (e.target.id === 'usersModal') closeUsersModal(); });
+        })();
 
         document.getElementById('addPriorityButtons').addEventListener('click', (e) => {
             const btn = e.target.closest('.priority-btn');

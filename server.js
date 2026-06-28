@@ -11,6 +11,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const ExcelJS = require('exceljs');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -968,7 +969,12 @@ app.patch('/api/admin/users/:id', authenticateAdmin, requireBoss, async (req, re
       if (isSelf && !nextActive) return res.status(400).json({ error: 'Нельзя отключить свой аккаунт' });
       user.active = nextActive;
     }
-    if (body.password != null) {
+    let generatedPassword = null;
+    if (body.resetPassword === true) {
+      // Boss-initiated reset: generate a new password and return it ONCE to display.
+      generatedPassword = crypto.randomBytes(8).toString('base64').replace(/[+/=]/g, '').slice(0, 10);
+      user.passwordHash = await bcrypt.hash(generatedPassword, 10);
+    } else if (body.password != null) {
       const pw = String(body.password);
       if (pw.length < 6) return res.status(400).json({ error: 'Пароль минимум 6 символов' });
       user.passwordHash = await bcrypt.hash(pw, 10);
@@ -981,7 +987,9 @@ app.patch('/api/admin/users/:id', authenticateAdmin, requireBoss, async (req, re
     user.updatedAt = new Date();
     await user.save();
     await refreshUserCache();
-    res.json({ success: true, user: publicUser(user) });
+    const out = publicUser(user);
+    if (generatedPassword) out.newPassword = generatedPassword;
+    res.json({ success: true, user: out });
   } catch (e) {
     console.error('❌ [USERS] update:', e.message);
     res.status(500).json({ error: 'Internal server error' });
