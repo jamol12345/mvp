@@ -77,6 +77,36 @@
         .tlh-date { font-size: 11.5px; opacity: 0.6; margin-left: auto; }
         .tlh-row2 { font-size: 12px; opacity: 0.7; margin-top: 6px; }
         .tlh-quote { margin-top: 8px; padding: 9px 12px; border-radius: 9px; background: rgba(255,255,255,0.04); font-size: 13px; line-height: 1.45; font-style: italic; }
+        /* Tasks page — spacious cards, clear type + assignee */
+        .tasks-page .tasks-panel-body { max-width: 860px; }
+        .tasks-page-head { margin-bottom: 20px; }
+        .tasks-filter { gap: 8px; }
+        .tasks-filter-chip--mgr { display: inline-flex; align-items: center; gap: 6px; }
+        .tasks-filter-chip--mgr .tfc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mgr); }
+        .tasks-filter-chip--mgr.active { color: #fff; background: color-mix(in srgb, var(--mgr) 24%, transparent); border-color: color-mix(in srgb, var(--mgr) 48%, transparent); }
+        .tcards { display: flex; flex-direction: column; gap: 12px; }
+        .tcard { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.02); border-left: 3px solid rgba(255,255,255,0.18); }
+        .tcard.is-overdue { border-left-color: #ef4444; }
+        .tcard.is-today { border-left-color: #f59e0b; }
+        .tcard.is-soon { border-left-color: rgba(255,255,255,0.2); }
+        .tcard-done { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.18); background: transparent; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 15px; line-height: 1; transition: background .15s, color .15s, border-color .15s; }
+        .tcard-done:hover { background: #22c55e; color: #fff; border-color: transparent; }
+        .tcard-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+        .tcard-row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .tcard-type { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,0.07); }
+        .tcard-type--call { background: rgba(59,130,246,0.16); color: #93c5fd; }
+        .tcard-type--meeting { background: rgba(139,92,246,0.16); color: #c4b5fd; }
+        .tcard-type--measurement { background: rgba(20,184,166,0.16); color: #5eead4; }
+        .tcard-type--followup { background: rgba(245,158,11,0.16); color: #fcd34d; }
+        .tcard-type--other { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
+        .tcard-due { font-size: 12.5px; opacity: 0.75; }
+        .tcard.is-overdue .tcard-due { color: #fca5a5; opacity: 1; }
+        .tcard.is-today .tcard-due { color: #fcd34d; opacity: 1; }
+        .tcard-who { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--mgr) 16%, transparent); color: var(--mgr); border: 1px solid color-mix(in srgb, var(--mgr) 36%, transparent); }
+        .tcard-who-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mgr); flex-shrink: 0; }
+        .tcard-lead { align-self: flex-start; font-size: 14px; font-weight: 600; color: var(--accent-text, #a5b4fc); background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+        .tcard-lead:hover { text-decoration: underline; }
+        .tcard-title { font-size: 13px; opacity: 0.8; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -3535,6 +3565,22 @@
         let tasksBadgeInterval = null;
         const TASK_TYPE_ICON = { call: '📞', meeting: '🤝', measurement: '📐', followup: '⏰', other: '•' };
 
+        // Team cache (boss) — drives the tasks filter + assignee names/colors for any team member.
+        let teamUsers = null;
+        let teamNameByKey = {};
+        async function ensureTeamUsers() {
+            if (teamUsers) return teamUsers;
+            if (!isUIRoleBoss()) { teamUsers = []; return teamUsers; }
+            try {
+                const res = await fetch(getApiBase() + '/api/admin/users', { headers: getAuthHeader() });
+                const data = await res.json().catch(() => ({}));
+                teamUsers = (res.ok && Array.isArray(data.users)) ? data.users : [];
+            } catch (e) { teamUsers = []; }
+            teamNameByKey = {};
+            teamUsers.forEach(u => { teamNameByKey[u.key] = u.name || u.username || u.key; });
+            return teamUsers;
+        }
+
         function taskTypeIcon(type) {
             return '<span class="lct-ico" aria-hidden="true">' + (TASK_TYPE_ICON[type] || '•') + '</span>';
         }
@@ -3543,6 +3589,7 @@
             return t(map[type] || 'taskTypeOther');
         }
         function taskAssigneeLabel(key) {
+            if (teamNameByKey[key]) return teamNameByKey[key];
             if (key === 'boss') return t('roleManager') || 'Boss';
             return getManagerLabel(key) || key || '';
         }
@@ -3775,16 +3822,18 @@
             if (tw) tw.style.display = 'none';
             loadLeads();
         }
-        function buildTasksManagerFilter() {
+        async function buildTasksManagerFilter() {
             const box = document.getElementById('tasksManagerFilter');
             if (!box) return;
             if (!isUIRoleBoss()) { box.style.display = 'none'; box.innerHTML = ''; return; }
-            const keys = ['', 'anvar', 'akbar', 'davron', 'boss'];
+            await ensureTeamUsers();
             box.style.display = 'flex';
-            box.innerHTML = keys.map(k => {
-                const label = k === '' ? t('tasksAll') : taskAssigneeLabel(k);
-                return `<button type="button" class="tasks-filter-chip ${k === currentTasksManagerFilter ? 'active' : ''}" data-mgr="${k}">${escapeHtml(label)}</button>`;
+            let html = `<button type="button" class="tasks-filter-chip${currentTasksManagerFilter === '' ? ' active' : ''}" data-mgr="">${escapeHtml(t('tasksAll'))}</button>`;
+            html += (teamUsers || []).filter(u => u.active).map(u => {
+                const act = u.key === currentTasksManagerFilter ? ' active' : '';
+                return `<button type="button" class="tasks-filter-chip tasks-filter-chip--mgr${act}" data-mgr="${escapeHtml(u.key)}" style="--mgr:${managerColor(u.key)}"><span class="tfc-dot"></span>${escapeHtml(u.name || u.key)}</button>`;
             }).join('');
+            box.innerHTML = html;
         }
         async function loadTasksPage() {
             const body = document.getElementById('tasksPageBody');
@@ -3827,17 +3876,23 @@
                 const items = arr.map(t0 => {
                     const nm = t0.lead ? t0.lead.name : '—';
                     const lid = t0.lead ? String(t0.lead._id) : '';
-                    const who = boss && t0.assignee ? `<span class="task-row-who">${escapeHtml(taskAssigneeLabel(t0.assignee))}</span>` : '';
-                    return `<div class="task-row task-row--panel ${cls}">
-                        <button type="button" class="task-row-done" data-task-complete="${escapeHtml(String(t0._id))}" title="${escapeHtml(t('taskDoneBtn'))}">✓</button>
-                        <div class="task-row-main">
-                            <div class="task-row-head">${taskTypeIcon(t0.type)}<span class="task-row-type">${escapeHtml(taskTypeLabelShort(t0.type))}</span><span class="task-row-due">${escapeHtml(formatTaskDueFull(t0.dueAt))}</span>${who}</div>
-                            <button type="button" class="task-row-lead" data-task-openlead="${escapeHtml(lid)}">${escapeHtml(nm)}</button>
-                            ${t0.title ? `<div class="task-row-title">${escapeHtml(t0.title)}</div>` : ''}
+                    const who = boss && t0.assignee
+                        ? `<span class="tcard-who" style="--mgr:${managerColor(t0.assignee)}"><span class="tcard-who-dot"></span>${escapeHtml(taskAssigneeLabel(t0.assignee))}</span>`
+                        : '';
+                    return `<div class="tcard ${cls}">
+                        <button type="button" class="tcard-done" data-task-complete="${escapeHtml(String(t0._id))}" title="${escapeHtml(t('taskDoneBtn'))}">✓</button>
+                        <div class="tcard-body">
+                            <div class="tcard-row1">
+                                <span class="tcard-type tcard-type--${escapeHtml(t0.type)}">${taskTypeIcon(t0.type)}<span>${escapeHtml(taskTypeLabelShort(t0.type))}</span></span>
+                                <span class="tcard-due">${escapeHtml(formatTaskDueFull(t0.dueAt))}</span>
+                                ${who}
+                            </div>
+                            <button type="button" class="tcard-lead" data-task-openlead="${escapeHtml(lid)}">${escapeHtml(nm)}</button>
+                            ${t0.title ? `<div class="tcard-title">${escapeHtml(t0.title)}</div>` : ''}
                         </div>
                     </div>`;
                 }).join('');
-                return `<div class="tasks-section"><div class="tasks-section-head ${cls}">${escapeHtml(t(titleKey))} <span class="tasks-section-count">${arr.length}</span></div>${items}</div>`;
+                return `<div class="tasks-section"><div class="tasks-section-head ${cls}">${escapeHtml(t(titleKey))} <span class="tasks-section-count">${arr.length}</span></div><div class="tcards">${items}</div></div>`;
             };
             box.innerHTML =
                 section('tasksOverdue', groups.overdue, 'is-overdue') +
