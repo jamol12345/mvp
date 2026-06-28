@@ -1943,27 +1943,27 @@ textarea {
 }
 
 .modal.modal-open {
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.7);
 }
 
 .modal-content {
-    border-radius: 20px;
+    border-radius: 16px;
     width: 90%;
     max-width: 500px;
     max-height: 90vh;
     overflow-y: auto;
+    background: var(--surface);   /* solid base so no modal is see-through */
+    color: var(--text);
     transform: scale(0.9) translateY(-20px);
     opacity: 0;
     transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 .modal-content.glass {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    color: #fff;
+    background: var(--surface);   /* solid — no see-through behind the modal */
+    border: 1px solid var(--bd);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+    color: var(--text);
 }
 
 .modal.modal-open .modal-content {
