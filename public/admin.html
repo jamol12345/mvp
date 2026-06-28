@@ -73,6 +73,8 @@
         .managers-table tr:last-child td { border-bottom: none; }
         .managers-table th:not(:first-child), .managers-table td:not(:first-child) { text-align: right; }
         .mgr-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--mgr); margin-right: 8px; vertical-align: middle; }
+        /* Realtime connection indicator (shows only when the socket drops) */
+        .conn-status { position: fixed; left: 16px; bottom: 16px; z-index: 1200; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: rgba(224,162,58,0.16); color: #f0c074; border: 1px solid rgba(224,162,58,0.4); box-shadow: 0 4px 14px rgba(0,0,0,0.3); }
         /* Client log (timeline) — clean, business-like vertical feed */
         .tlf { display: flex; flex-direction: column; }
         .tlf-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 11px; padding: 0 0 16px; }
@@ -189,6 +191,7 @@
                     </button>
                     <div id="userDropdown" class="user-dropdown" style="display: none;">
                         <button type="button" class="user-dropdown-item" id="soundToggleBtn">🔔 Звук: вкл</button>
+                        <button type="button" class="user-dropdown-item" id="changePasswordBtn" data-i18n="changePassword">Сменить пароль</button>
                         <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn" data-i18n="logoutBtn">Выйти</button>
                     </div>
                 </div>
@@ -508,6 +511,27 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" style="display: none;"></div>
+    <div id="connStatus" class="conn-status" role="status" aria-live="polite" style="display: none;"></div>
+
+    <!-- Change own password (any user) -->
+    <div id="changePasswordModal" class="modal" style="display: none;">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2 data-i18n="changePasswordTitle">Сменить пароль</h2>
+                <button type="button" class="modal-close" id="closeChangePassword" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label data-i18n="currentPasswordLabel">Текущий пароль</label><input type="password" id="cpCurrent" class="glass-input" autocomplete="current-password"></div>
+                <div class="form-group"><label data-i18n="newPasswordLabel">Новый пароль</label><input type="password" id="cpNew" class="glass-input" autocomplete="new-password"></div>
+                <div class="form-group"><label data-i18n="confirmPasswordLabel">Повторите новый</label><input type="password" id="cpConfirm" class="glass-input" autocomplete="new-password"></div>
+                <div id="cpError" class="message error-message" style="display:none;margin-top:8px;"><p id="cpErrorText"></p></div>
+                <div class="modal-actions" style="display:flex;gap:10px;margin-top:14px;">
+                    <button type="button" class="add-client-btn" id="cpSave" data-i18n="changePasswordSave">Сохранить</button>
+                    <button type="button" class="btn-link" id="cpCancel" data-i18n="cancelBtn">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal for Add Client (Manager only) -->
     <div id="addClientModal" class="modal" style="display: none;">
@@ -837,6 +861,16 @@
                 newLeadNotifBody: 'Нажмите, чтобы открыть доску',
                 soundOn: '🔔 Звук: вкл',
                 soundOff: '🔕 Звук: выкл',
+                changePassword: 'Сменить пароль',
+                changePasswordTitle: 'Сменить пароль',
+                currentPasswordLabel: 'Текущий пароль',
+                newPasswordLabel: 'Новый пароль',
+                confirmPasswordLabel: 'Повторите новый',
+                changePasswordSave: 'Сохранить',
+                passwordMinLen: 'Пароль минимум 6 символов',
+                passwordMismatch: 'Пароли не совпадают',
+                passwordChanged: 'Пароль изменён',
+                connReconnecting: 'Переподключаюсь…',
                 usersNav: 'Команда',
                 usersTitle: 'Команда',
                 usersAddTitle: 'Добавить сотрудника',
@@ -1111,6 +1145,16 @@
                 newLeadNotifBody: 'Doskani ochish uchun bosing',
                 soundOn: '🔔 Tovush: yoniq',
                 soundOff: '🔕 Tovush: o‘chiq',
+                changePassword: 'Parolni o‘zgartirish',
+                changePasswordTitle: 'Parolni o‘zgartirish',
+                currentPasswordLabel: 'Joriy parol',
+                newPasswordLabel: 'Yangi parol',
+                confirmPasswordLabel: 'Yangi parolni takrorlang',
+                changePasswordSave: 'Saqlash',
+                passwordMinLen: 'Parol kamida 6 belgi',
+                passwordMismatch: 'Parollar mos kelmadi',
+                passwordChanged: 'Parol o‘zgartirildi',
+                connReconnecting: 'Qayta ulanmoqda…',
                 usersNav: 'Jamoa',
                 usersTitle: 'Jamoa',
                 usersAddTitle: 'Xodim qo‘shish',
@@ -1798,6 +1842,51 @@
             updateSoundToggleLabel();
             if (soundEnabled) { getAudioCtx(); playNewLeadChime(); } // resume + short preview
         });
+
+        // ===== Change own password =====
+        function openChangePassword() {
+            ['cpCurrent', 'cpNew', 'cpConfirm'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            const err = document.getElementById('cpError'); if (err) err.style.display = 'none';
+            const m = document.getElementById('changePasswordModal'); if (!m) return;
+            m.style.display = 'flex'; setTimeout(() => m.classList.add('modal-open'), 10);
+            const f = document.getElementById('cpCurrent'); if (f) f.focus();
+        }
+        function closeChangePassword() {
+            const m = document.getElementById('changePasswordModal'); if (!m) return;
+            m.classList.remove('modal-open'); setTimeout(() => { m.style.display = 'none'; }, 300);
+        }
+        (function wireChangePassword() {
+            const open = document.getElementById('changePasswordBtn');
+            if (open) open.addEventListener('click', (e) => { e.stopPropagation(); const d = document.getElementById('userDropdown'); if (d) d.style.display = 'none'; openChangePassword(); });
+            const close = document.getElementById('closeChangePassword'); if (close) close.addEventListener('click', closeChangePassword);
+            const cancel = document.getElementById('cpCancel'); if (cancel) cancel.addEventListener('click', closeChangePassword);
+            const modal = document.getElementById('changePasswordModal'); if (modal) modal.addEventListener('click', (e) => { if (e.target.id === 'changePasswordModal') closeChangePassword(); });
+            const save = document.getElementById('cpSave');
+            if (save) save.addEventListener('click', async () => {
+                const cur = (document.getElementById('cpCurrent').value || '');
+                const nw = (document.getElementById('cpNew').value || '');
+                const cf = (document.getElementById('cpConfirm').value || '');
+                const err = document.getElementById('cpError'); const errT = document.getElementById('cpErrorText');
+                const showErr = (msg) => { if (errT) errT.textContent = msg; if (err) err.style.display = 'block'; };
+                if (nw.length < 6) { showErr(t('passwordMinLen')); return; }
+                if (nw !== cf) { showErr(t('passwordMismatch')); return; }
+                try {
+                    const res = await fetch(getApiBase() + '/api/admin/me/password', { method: 'POST', headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: cur, newPassword: nw }) });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) { showErr((data && data.error) || t('errorNetwork')); return; }
+                    closeChangePassword();
+                    showLiveToast(t('passwordChanged'));
+                } catch (e2) { showErr(t('errorNetwork')); }
+            });
+        })();
+
+        // ===== Realtime connection indicator =====
+        function setConnStatus(disconnected) {
+            const el = document.getElementById('connStatus');
+            if (!el) return;
+            if (disconnected) { el.textContent = '● ' + (t('connReconnecting') || 'Переподключаюсь…'); el.style.display = 'flex'; }
+            else { el.style.display = 'none'; }
+        }
 
         document.getElementById('logoutDropdownBtn').addEventListener('click', () => {
             adminToken = null;
@@ -3441,13 +3530,15 @@
             }
             rtSocket = io({ auth: { token: adminToken }, transports: ['websocket', 'polling'] });
             // Reconcile on first connect AND every reconnect → recovers anything missed while offline.
-            rtSocket.on('connect', () => { scheduleLiveRefresh(); });
+            rtSocket.on('connect', () => { setConnStatus(false); scheduleLiveRefresh(); });
             rtSocket.on('lead:changed', () => { scheduleLiveRefresh(); });
             rtSocket.on('approval:changed', () => { scheduleLiveRefresh(); });
-            rtSocket.on('connect_error', () => { /* stay silent; the safety poll keeps the UI fresh */ });
+            rtSocket.on('disconnect', () => { setConnStatus(true); });
+            rtSocket.on('connect_error', () => { setConnStatus(true); });
         }
 
         function stopRealtime() {
+            setConnStatus(false);
             if (rtSocket) { rtSocket.removeAllListeners(); rtSocket.disconnect(); rtSocket = null; }
             if (rtRefreshTimer) { clearTimeout(rtRefreshTimer); rtRefreshTimer = null; }
             rtRefreshPending = false;

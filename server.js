@@ -996,6 +996,28 @@ app.patch('/api/admin/users/:id', authenticateAdmin, requireBoss, async (req, re
   }
 });
 
+// POST /api/admin/me/password — change YOUR OWN password (any authenticated user)
+app.post('/api/admin/me/password', authenticateAdmin, async (req, res) => {
+  try {
+    const idKey = req.user.role === 'boss' ? req.user.userId : req.user.key;
+    if (!idKey) return res.status(400).json({ error: 'Unknown user' });
+    const current = String((req.body && req.body.currentPassword) || '');
+    const next = String((req.body && req.body.newPassword) || '');
+    if (next.length < 6) return res.status(400).json({ error: 'Пароль минимум 6 символов' });
+    const user = await User.findOne({ key: idKey });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const ok = await bcrypt.compare(current, user.passwordHash || '');
+    if (!ok) return res.status(401).json({ error: 'Текущий пароль неверный' });
+    user.passwordHash = await bcrypt.hash(next, 10);
+    user.updatedAt = new Date();
+    await user.save();
+    res.json({ success: true });
+  } catch (e) {
+    console.error('❌ [ME] change password:', e.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/admin/leads - Add client manually (Boss and managers)
 // New payload: { fullName?, phone|phoneNumber, priorities?, source } — phone + source required.
 // Legacy: full door + measurements + length/width + exactly 2 priorities (unchanged).
