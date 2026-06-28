@@ -101,10 +101,6 @@
                 <p data-i18n="noLeads">Новых лидов нет.</p>
             </div>
 
-            <div id="newClientNotification" class="message info-message slide-in-top" style="display: none;">
-                <p id="newClientNotificationText">Появились новые клиенты. Обновите таблицу.</p>
-            </div>
-
             <div id="managerPendingStrip" class="manager-pending-strip glass" style="display: none; margin-bottom: 12px;" aria-live="polite">
                 <div class="manager-pending-strip__head">
                     <span class="manager-pending-strip__title" data-i18n="awaitingApprovalStrip">В согласовании (не в воронке)</span>
@@ -528,7 +524,7 @@
         let userKey = null;
         let appRole = null; // BOSS | MANAGER from server
         let userId = null;
-        let pollIntervalId = null;
+        let realtimeToastsEnabled = false; // true after first board load — gates new-lead toasts
         let allActiveLeads = [];
         let serverPendingApprovals = [];
         const optimisticPendingByLead = new Map();
@@ -539,7 +535,6 @@
         let notifFeedInterval = null;
         let readNotifIdSet = new Set();
         let currentLang = 'ru';
-        let lastNotificationCount = 0;
         const KANBAN_STAGES = ['new', 'in_progress', 'thinking', 'successful', 'preparing'];
         let kanbanSortables = [];
         let pendingSuccessDrop = null;
@@ -634,6 +629,8 @@
                 taskCompleteConfirm: 'Завершить',
                 taskOpenLead: 'Открыть лид',
                 taskNoneShort: 'Нет задач',
+                newLeadOne: 'Новый лид',
+                newLeadMany: '{n} новых лидов',
                 taskCreated: 'Задача создана',
                 taskCompleted: 'Задача выполнена',
                 taskDueOverdue: 'Просрочена',
@@ -886,6 +883,8 @@
                 taskCompleteConfirm: 'Yakunlash',
                 taskOpenLead: 'Lidni ochish',
                 taskNoneShort: 'Vazifa yo‘q',
+                newLeadOne: 'Yangi lid',
+                newLeadMany: '{n} ta yangi lid',
                 taskCreated: 'Vazifa yaratildi',
                 taskCompleted: 'Vazifa bajarildi',
                 taskDueOverdue: 'Muddati o‘tgan',
@@ -1077,7 +1076,6 @@
             if (roleLabel && userRole) {
                 roleLabel.textContent = (userRole === 'manager' || userRole === 'boss') ? t('roleManager') : t('roleCallManager');
             }
-            updateNotificationText(lastNotificationCount);
         }
 
         function setLanguage(lang) {
@@ -1510,7 +1508,6 @@
                     document.getElementById('adminToken').value = '';
                     applyTranslations();
                     initLastSeenAt();
-                    startPolling();
                     startLiveSync();
                     startRealtime();
                     loadLeads();
@@ -1557,6 +1554,7 @@
             sessionStorage.removeItem('authUserId');
             stopLiveSync();
             stopRealtime();
+            realtimeToastsEnabled = false;
             stopAnalyticsLive();
             if (lockTickerInterval) {
                 clearInterval(lockTickerInterval);
@@ -1566,15 +1564,10 @@
                 clearInterval(notifFeedInterval);
                 notifFeedInterval = null;
             }
-            if (pollIntervalId) {
-                clearInterval(pollIntervalId);
-                pollIntervalId = null;
-            }
             document.getElementById('userDropdown').style.display = 'none';
             document.getElementById('loginSection').style.display = 'block';
             document.getElementById('adminPanel').style.display = 'none';
             document.getElementById('leadsCardGrid').innerHTML = '';
-            document.getElementById('newClientNotification').style.display = 'none';
             const userMenu = document.getElementById('userMenuWrapper');
             if (userMenu) {
                 userMenu.style.display = 'none';
@@ -1624,7 +1617,6 @@
             document.getElementById('adminPanel').style.display = 'block';
             applyTranslations();
             initLastSeenAt();
-            startPolling();
             startLiveSync();
             startRealtime();
             loadLeads();
@@ -1799,11 +1791,11 @@
                     if (allActiveLeads.length > 0) {
                         updateLastSeenAtFromLeads(allActiveLeads);
                         displayKanbanLeads();
-                        document.getElementById('newClientNotification').style.display = 'none';
                     } else {
                         document.getElementById('noLeadsMessage').style.display = 'block';
                         document.getElementById('leadsTableWrapper').style.display = 'none';
                     }
+                    realtimeToastsEnabled = true;
                     startLockTicker();
                     const nw = document.getElementById('notifBellWrap');
                     if (nw) {
@@ -1859,42 +1851,8 @@
             }
         }
 
-        const POLL_INTERVAL_MS = 12000;
-
-        async function pollForNewClients() {
-            if (!adminToken) return;
-            const since = getLastSeenAt();
-            if (!since) {
-                initLastSeenAt();
-                return;
-            }
-            try {
-                const response = await fetch(getApiBase() + '/api/admin/leads/poll?since=' + encodeURIComponent(since), {
-                    method: 'GET',
-                    headers: getAuthHeader()
-                });
-                const data = await response.json();
-                if (response.ok) {
-                    if (data.newClients && data.newClients > 0) {
-                        lastNotificationCount = data.newClients;
-                        updateNotificationText(lastNotificationCount);
-                        document.getElementById('newClientNotification').style.display = 'block';
-                    }
-                } else if (response.status === 401) {
-                    showError(t('errorSessionExpired'));
-                }
-            } catch (err) {
-                // Fail silently to keep polling lightweight
-                console.error('Polling error', err);
-            }
-        }
-
-        function startPolling() {
-            if (pollIntervalId) {
-                clearInterval(pollIntervalId);
-            }
-            pollIntervalId = setInterval(pollForNewClients, POLL_INTERVAL_MS);
-        }
+        // New-client polling removed — WebSocket (startRealtime) pushes new leads instantly,
+        // and a subtle toast (showLiveToast) replaces the old "refresh the table" banner.
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
             loadLeads();
@@ -2929,6 +2887,7 @@
                 const data = await response.json();
                 if (response.ok) {
                     const beforeSig = leadsSignature(allActiveLeads);
+                    const beforeIds = new Set((allActiveLeads || []).map(l => String(l._id)));
                     allActiveLeads = await applyServerPendingToLeads(data.leads || []);
                     mergeManagerPendingStrips();
                     if (isUIRoleBoss()) {
@@ -2941,6 +2900,11 @@
                     if (changed && !analyticsOpen && !requestsOpen && !isKanbanDragging && !isAnyModalOpen()) {
                         displayKanbanLeads();
                     }
+                    // Subtle cue when genuinely new leads arrived (ids not seen before this refresh).
+                    const newCount = allActiveLeads.filter(l => !beforeIds.has(String(l._id))).length;
+                    if (realtimeToastsEnabled && newCount > 0) {
+                        showLiveToast(newCount === 1 ? t('newLeadOne') : t('newLeadMany').replace('{n}', String(newCount)));
+                    }
                 }
             } catch (e) { /* silent */ }
             if (analyticsOpen) await refreshAnalytics();
@@ -2950,6 +2914,7 @@
 
         async function liveSyncTick() {
             if (!adminToken || document.hidden) return;
+            if (rtSocket && rtSocket.connected) return; // WebSocket handles updates; this poll is a fallback only
             try {
                 const res = await fetch(getApiBase() + '/api/admin/leads/version', { method: 'GET', headers: getAuthHeader() });
                 const data = await res.json();
@@ -3738,28 +3703,16 @@
             document.getElementById('errorMessage').style.display = 'block';
         }
 
-        function formatNewClientsText(count) {
-            if (currentLang === 'ru') {
-                const mod10 = count % 10;
-                const mod100 = count % 100;
-                let word = 'новых клиентов';
-                if (mod10 === 1 && mod100 !== 11) {
-                    word = 'новый клиент';
-                } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
-                    word = 'новых клиента';
-                }
-                return `${count} ${word}. ${t('refreshNotice')}`;
-            }
-            return `${count} ta yangi mijoz. ${t('refreshNotice')}`;
-        }
-
-        function updateNotificationText(count) {
-            if (!count || count <= 0) return;
-            const text = formatNewClientsText(count);
-            const el = document.getElementById('newClientNotificationText');
-            if (el) {
-                el.textContent = text;
-            }
+        // Subtle, auto-fading toast for live events (e.g. a new lead arriving via WebSocket).
+        // Replaces the old "refresh the table" banner — the board already updates itself.
+        function showLiveToast(text) {
+            const el = document.getElementById('toast');
+            if (!el) return;
+            if (toastTimeoutId) { clearTimeout(toastTimeoutId); toastTimeoutId = null; }
+            el.className = 'toast toast--success';
+            el.textContent = text;
+            el.style.display = 'block';
+            toastTimeoutId = setTimeout(() => { el.style.display = 'none'; toastTimeoutId = null; }, 2500);
         }
 
         let toastTimeoutId = null;
