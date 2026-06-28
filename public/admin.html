@@ -107,6 +107,34 @@
         .tcard-lead { align-self: flex-start; font-size: 14px; font-weight: 600; color: var(--accent-text, #a5b4fc); background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
         .tcard-lead:hover { text-decoration: underline; }
         .tcard-title { font-size: 13px; opacity: 0.8; line-height: 1.4; }
+        /* Requests (approvals) — clean cards, clear DELETE vs CLOSE */
+        .rq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+        .rq-card { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; background: rgba(255,255,255,0.02); border-left: 3px solid rgba(255,255,255,0.2); }
+        .rq-card--delete { border-left-color: #ef4444; }
+        .rq-card--close { border-left-color: #22c55e; }
+        .rq-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .rq-type { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; }
+        .rq-type--delete { background: rgba(239,68,68,0.16); color: #fca5a5; }
+        .rq-type--close { background: rgba(34,197,94,0.16); color: #86efac; }
+        .rq-ago { font-size: 11.5px; opacity: 0.55; white-space: nowrap; }
+        .rq-lead-name { font-size: 16px; font-weight: 700; }
+        .rq-lead-phone { font-size: 13px; opacity: 0.65; margin-top: 2px; }
+        .rq-details { display: flex; flex-direction: column; gap: 8px; }
+        .rq-detail { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+        .rq-detail-k { opacity: 0.6; }
+        .rq-detail-v { font-weight: 600; }
+        .rq-detail-v--money { font-weight: 700; }
+        .rq-detail-quote { padding: 9px 12px; border-radius: 9px; background: rgba(255,255,255,0.04); border-left: 2px solid rgba(255,255,255,0.18); font-size: 13px; line-height: 1.45; font-style: italic; }
+        .rq-mode { font-weight: 700; font-size: 12.5px; padding: 3px 10px; border-radius: 999px; }
+        .rq-mode--hard { background: rgba(239,68,68,0.18); color: #fca5a5; }
+        .rq-mode--archive { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+        .rq-by { font-size: 12px; opacity: 0.65; }
+        .rq-actions { display: flex; gap: 10px; margin-top: 4px; }
+        .rq-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 14px; border-radius: 11px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: filter .15s ease, background .15s ease, border-color .15s ease; }
+        .rq-btn--ok { background: #22c55e; color: #06280f; }
+        .rq-btn--ok:hover { filter: brightness(1.08); }
+        .rq-btn--no { background: transparent; color: #fca5a5; border-color: rgba(239,68,68,0.4); }
+        .rq-btn--no:hover { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.6); }
     </style>
 </head>
 <body>
@@ -2685,18 +2713,18 @@
             const rows = [];
             if (!isDel) {
                 if (a.closeDealAmount != null && Number(a.closeDealAmount) > 0) {
-                    rows.push('<div class="approval-detail"><span class="approval-detail__k">' + escapeHtml(t('requestsDealAmount'))
-                        + '</span><span class="approval-detail__v approval-detail__v--money">' + escapeHtml(fmtMoney(Number(a.closeDealAmount))) + '</span></div>');
+                    rows.push('<div class="rq-detail"><span class="rq-detail-k">' + escapeHtml(t('requestsDealAmount'))
+                        + '</span><span class="rq-detail-v rq-detail-v--money">' + escapeHtml(fmtMoney(Number(a.closeDealAmount))) + '</span></div>');
                 }
                 if (a.closeComment && String(a.closeComment).trim()) {
-                    rows.push('<div class="approval-detail approval-detail--comment">“' + escapeHtml(String(a.closeComment).trim()) + '”</div>');
+                    rows.push('<div class="rq-detail-quote">“' + escapeHtml(String(a.closeComment).trim()) + '”</div>');
                 }
             } else {
-                const modeLabel = a.deleteMode === 'hard' ? t('deleteHard') : t('deleteArchive');
-                rows.push('<div class="approval-detail"><span class="approval-detail__k">' + escapeHtml(t('requestsDeleteMode'))
-                    + '</span><span class="approval-detail__v">' + escapeHtml(modeLabel) + '</span></div>');
+                const hard = a.deleteMode === 'hard';
+                rows.push('<div class="rq-detail"><span class="rq-detail-k">' + escapeHtml(t('requestsDeleteMode'))
+                    + '</span><span class="rq-mode rq-mode--' + (hard ? 'hard' : 'archive') + '">' + (hard ? '⚠ ' : '') + escapeHtml(hard ? t('deleteHard') : t('deleteArchive')) + '</span></div>');
             }
-            return rows.length ? '<div class="approval-card__details">' + rows.join('') + '</div>' : '';
+            return rows.length ? '<div class="rq-details">' + rows.join('') + '</div>' : '';
         }
 
         async function loadApprovals() {
@@ -2721,9 +2749,9 @@
                     return;
                 }
                 const typeLabel = (a) => (a.type === 'DELETE' ? t('approvalCardDelete') : t('approvalCardClose'));
-                el.innerHTML = items.map((a, i) => {
+                el.innerHTML = '<div class="rq-grid">' + items.map((a) => {
                     const isDel = a.type === 'DELETE';
-                    const cardMod = isDel ? ' approval-card--delete' : ' approval-card--close';
+                    const mod = isDel ? 'delete' : 'close';
                     const icon = isDel ? '🗑️' : '✅';
                     const l = a.lead;
                     const name = l ? ((l.fullName && String(l.fullName).trim()) ? l.fullName : (l.phoneNumber || t('thPhone'))) : '—';
@@ -2731,22 +2759,16 @@
                     const idStr = (a._id && (a._id.toString ? a._id.toString() : a._id)) || '';
                     const by = formatRequesterName(a.requestedBy);
                     const ago = a.createdAt ? formatTimeAgo(a.createdAt) : '—';
-                    return '<div class="approval-card glass' + cardMod + '" style="animation-delay:' + (i * 0.05) + 's" data-approval-id="' + escapeHtml(idStr) + '">'
-                        + '<div class="approval-card__top">'
-                        + '<div class="approval-card__icon" aria-hidden="true">' + icon + '</div>'
-                        + '<div class="approval-card__titles">'
-                        + '<div class="approval-card__name">' + escapeHtml(String(name)) + '</div>'
-                        + '<div class="approval-card__phone">' + escapeHtml(String(phone)) + '</div></div>'
-                        + '<div class="approval-card__type-badge">' + escapeHtml(typeLabel(a)) + '</div></div>'
+                    return '<div class="rq-card rq-card--' + mod + '" data-approval-id="' + escapeHtml(idStr) + '">'
+                        + '<div class="rq-card-top"><span class="rq-type rq-type--' + mod + '">' + icon + ' ' + escapeHtml(typeLabel(a)) + '</span><span class="rq-ago">' + escapeHtml(ago) + '</span></div>'
+                        + '<div class="rq-lead"><div class="rq-lead-name">' + escapeHtml(String(name)) + '</div><div class="rq-lead-phone">' + escapeHtml(String(phone)) + '</div></div>'
                         + renderApprovalDetails(a)
-                        + '<div class="approval-card__foot">'
-                        + '<span class="approval-card__by">' + escapeHtml(t('managerRequestedBy')) + ': <b>' + escapeHtml(String(by)) + '</b> · ' + escapeHtml(ago) + '</span></div>'
-                        + '<div class="approval-card__actions">'
-                        + '<button type="button" class="approval-card__btn approval-card__btn--ok approval-approve" data-id="' + escapeHtml(idStr) + '">'
-                        + '<span class="approval-card__btn-ico" aria-hidden="true">✔</span> ' + escapeHtml(t('requestApprove')) + '</button>'
-                        + '<button type="button" class="approval-card__btn approval-card__btn--no approval-reject" data-id="' + escapeHtml(idStr) + '">'
-                        + '<span class="approval-card__btn-ico" aria-hidden="true">✖</span> ' + escapeHtml(t('requestReject')) + '</button></div></div>';
-                }).join('');
+                        + '<div class="rq-by">' + escapeHtml(t('managerRequestedBy')) + ': <b>' + escapeHtml(String(by)) + '</b></div>'
+                        + '<div class="rq-actions">'
+                        + '<button type="button" class="rq-btn rq-btn--ok approval-approve" data-id="' + escapeHtml(idStr) + '">✔ ' + escapeHtml(t('requestApprove')) + '</button>'
+                        + '<button type="button" class="rq-btn rq-btn--no approval-reject" data-id="' + escapeHtml(idStr) + '">✖ ' + escapeHtml(t('requestReject')) + '</button>'
+                        + '</div></div>';
+                }).join('') + '</div>';
             } catch (e) {
                 console.error(e);
                 el.innerHTML = '<p class="message error">' + escapeHtml(t('requestsLoadError')) + '</p>';
