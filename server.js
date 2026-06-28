@@ -645,6 +645,32 @@ function publicLeadRateLimited(ip) {
   return hits.length > PUBLIC_RATE_MAX;
 }
 
+// Brute-force guard for admin login. Counts FAILED attempts per IP in a sliding
+// window; a successful login clears the counter, so legit users are never blocked.
+// In-memory (per process) — effective on the single persistent Railway server.
+const LOGIN_RATE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const LOGIN_MAX_FAILURES = 10;               // failed attempts per IP per window
+const loginFailures = new Map();
+function loginRecentFailures(ip) {
+  const now = Date.now();
+  const key = String(ip || 'unknown');
+  const hits = (loginFailures.get(key) || []).filter(t => now - t < LOGIN_RATE_WINDOW_MS);
+  loginFailures.set(key, hits);
+  return hits;
+}
+function loginRateLimited(ip) {
+  return loginRecentFailures(ip).length >= LOGIN_MAX_FAILURES;
+}
+function recordLoginFailure(ip) {
+  const hits = loginRecentFailures(ip);
+  hits.push(Date.now());
+  loginFailures.set(String(ip || 'unknown'), hits);
+  if (loginFailures.size > 5000) loginFailures.clear(); // bound memory
+}
+function clearLoginFailures(ip) {
+  loginFailures.delete(String(ip || 'unknown'));
+}
+
 // POST /api/leads - Public endpoint to submit lead form
 // New contract: { fullName?, phone|phoneNumber, priorities } — phone required; fullName optional.
 // Legacy contract: full door/measurements + length/width + exactly 2 priorities (unchanged).
@@ -789,14 +815,20 @@ app.post('/api/leads', async (req, res) => {
 
 // POST /api/admin/login - Admin login (returns JWT with role, name, key for call)
 app.post('/api/admin/login', (req, res) => {
+  const clientIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress;
+  if (loginRateLimited(clientIp)) {
+    return res.status(429).json({ error: 'Too many login attempts, please try again later' });
+  }
   const incomingToken = String(req.body.token || '').trim();
   if (!incomingToken) {
     return res.status(400).json({ error: 'Token is required' });
   }
   const user = USERS.find(u => u.token && u.token === incomingToken);
   if (!user) {
+    recordLoginFailure(clientIp);
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
+  clearLoginFailures(clientIp);
   const payload = user.role === 'boss'
     ? { role: 'boss', appRole: APP_ROLE.BOSS, userId: 'boss' }
     : { role: 'call', key: user.key, appRole: APP_ROLE.MANAGER, userId: user.key };
@@ -2668,6 +2700,20 @@ if (require.main === module) {
     console.log(`✅ Archive: http://localhost:${PORT}/done_calls.html`);
     console.log(`💾 MongoDB: ${mongoose.connection.name || '(connecting…)'} / collection 'leads'`);
   });
+
+  // Graceful shutdown: Railway sends SIGTERM on every redeploy/stop. Close the change
+  // stream, sockets, and Mongo cleanly so nothing is cut off mid-write.
+  const gracefulShutdown = (signal) => {
+    console.log(`\n${signal} received — shutting down gracefully…`);
+    const force = setTimeout(() => { console.error('⚠️ Forced exit (cleanup timed out)'); process.exit(1); }, 10000);
+    force.unref();
+    try { if (changeStream) { changeStream.close(); changeStream = null; } } catch (e) {}
+    const closeDb = () => mongoose.connection.close().then(() => process.exit(0)).catch(() => process.exit(0));
+    if (io) { try { io.close(closeDb); } catch (e) { closeDb(); } }
+    else { httpServer.close(closeDb); }
+  };
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 module.exports = app;
