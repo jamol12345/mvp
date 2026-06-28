@@ -1129,12 +1129,20 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
       .map(l => l.phoneNormalized || normalizePhone(l.phoneNumber))
       .filter(Boolean))];
     const priorCount = {};
+    const priorWon = {}; // LTV: sum of prior successfully-closed deal amounts, by phone
     if (norms.length) {
       const priors = await Lead.aggregate([
         { $match: { status: { $in: ['done', 'archived'] }, phoneNormalized: { $in: norms } } },
-        { $group: { _id: '$phoneNormalized', count: { $sum: 1 } } }
+        { $group: {
+          _id: '$phoneNormalized',
+          count: { $sum: 1 },
+          wonRevenue: { $sum: { $cond: [
+            { $and: [{ $eq: ['$status', 'done'] }, { $eq: ['$stage', 'successful'] }, { $gt: ['$dealAmount', 0] }] },
+            '$dealAmount', 0
+          ] } }
+        } }
       ]);
-      priors.forEach(p => { priorCount[p._id] = p.count; });
+      priors.forEach(p => { priorCount[p._id] = p.count; priorWon[p._id] = p.wonRevenue || 0; });
     }
     // Attach each lead's open-task summary (next due task + count) so cards render the
     // task chip without per-card requests.
@@ -1158,7 +1166,7 @@ app.get('/api/admin/leads', authenticateAdmin, async (req, res) => {
       const nextTask = ltasks.length
         ? { type: ltasks[0].type, dueAt: ltasks[0].dueAt, assignee: ltasks[0].assignee }
         : null;
-      return { ...l, isReturning: count > 0, priorDealsCount: count, nextTask, openTaskCount: ltasks.length };
+      return { ...l, isReturning: count > 0, priorDealsCount: count, priorWonRevenue: priorWon[norm] || 0, nextTask, openTaskCount: ltasks.length };
     });
 
     res.json({

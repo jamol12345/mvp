@@ -47,6 +47,36 @@
         .lead-card--owned { border-left: 3px solid var(--mgr-color, transparent); }
         .lead-card-owner { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 11.5px; font-weight: 600; line-height: 1.2; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--mgr) 16%, transparent); color: var(--mgr); border: 1px solid color-mix(in srgb, var(--mgr) 38%, transparent); }
         .lead-card-owner-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mgr); flex-shrink: 0; }
+        /* Client log (timeline) — clean, business-like vertical feed */
+        .tlf { display: flex; flex-direction: column; }
+        .tlf-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 11px; padding: 0 0 16px; }
+        .tlf-item::before { content: ''; position: absolute; left: 13px; top: 28px; bottom: 0; width: 2px; background: rgba(255,255,255,0.08); }
+        .tlf-item:last-child::before { display: none; }
+        .tlf-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
+        .tlf-item--closed_won .tlf-dot { background: rgba(34,197,94,0.16); border-color: rgba(34,197,94,0.4); }
+        .tlf-item--closed_lost .tlf-dot, .tlf-item--archived .tlf-dot { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.38); }
+        .tlf-item--comment .tlf-dot { background: rgba(99,102,241,0.16); border-color: rgba(99,102,241,0.4); }
+        .tlf-content { min-width: 0; padding-top: 3px; }
+        .tlf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+        .tlf-title { font-weight: 600; font-size: 13.5px; }
+        .tlf-when { font-size: 11.5px; opacity: 0.55; white-space: nowrap; flex-shrink: 0; }
+        .tlf-quote { margin: 7px 0 4px; padding: 9px 12px; border-radius: 9px; background: rgba(255,255,255,0.04); border-left: 2px solid rgba(255,255,255,0.18); font-size: 13px; line-height: 1.45; }
+        .tlf-who { font-size: 11.5px; opacity: 0.6; }
+        /* Repeat-customer prior deals — give the info at a glance */
+        .tlh-head { font-size: 13px; font-weight: 700; margin: 0 0 12px; padding: 9px 13px; border-radius: 10px; background: rgba(245,158,11,0.14); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+        .tlh-card { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); margin-bottom: 10px; border-left-width: 3px; }
+        .tlh-card--won { border-left-color: rgba(34,197,94,0.6); }
+        .tlh-card--lost { border-left-color: rgba(239,68,68,0.55); }
+        .tlh-card--open { border-left-color: rgba(255,255,255,0.25); }
+        .tlh-row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .tlh-badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+        .tlh-badge--won { background: rgba(34,197,94,0.16); color: #86efac; }
+        .tlh-badge--lost { background: rgba(239,68,68,0.14); color: #fca5a5; }
+        .tlh-badge--open { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+        .tlh-amount { font-weight: 700; font-size: 13px; }
+        .tlh-date { font-size: 11.5px; opacity: 0.6; margin-left: auto; }
+        .tlh-row2 { font-size: 12px; opacity: 0.7; margin-top: 6px; }
+        .tlh-quote { margin-top: 8px; padding: 9px 12px; border-radius: 9px; background: rgba(255,255,255,0.04); font-size: 13px; line-height: 1.45; font-style: italic; }
     </style>
 </head>
 <body>
@@ -2888,7 +2918,11 @@
             const logIcon = '<svg class="btn-card-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>';
             const sid = escapeHtml(String(lead._id));
             const returningBadge = lead.isReturning
-                ? `<button type="button" class="lead-card-returning" data-lead-id="${sid}" title="${escapeHtml(t('returningCustomerHint'))}">↩ ${escapeHtml(t('returningCustomer'))}${lead.priorDealsCount ? ' · ' + lead.priorDealsCount : ''}</button>`
+                ? (() => {
+                    const ltv = Number(lead.priorWonRevenue || 0);
+                    const ltvTxt = ltv > 0 ? ' · LTV ' + fmtMoney(ltv) : '';
+                    return `<button type="button" class="lead-card-returning" data-lead-id="${sid}" title="${escapeHtml(t('returningCustomerHint'))}">↩ ${escapeHtml(t('returningCustomer'))}${ltvTxt}</button>`;
+                  })()
                 : '';
             const newBadgeHtml = stage === 'new' ? '<span class="lead-card-new-badge">new</span>' : '';
             const taskBlock = (function() {
@@ -3355,21 +3389,21 @@
             }
             // newest first for display
             const items = visible.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            feed.innerHTML = items.map(a => {
+            feed.innerHTML = '<div class="tlf">' + items.map(a => {
                 const m = ACTIVITY_META[a.type] || { ico: '•' };
-                const who = a.authorName || a.author || '—';
-                const when = a.createdAt ? formatTimeAgo(a.createdAt) : '';
-                const body = a.text && String(a.text).trim()
-                    ? '<div class="timeline-item__text">' + escapeHtml(String(a.text).trim()) + '</div>'
+                const who = escapeHtml(a.authorName || a.author || '—');
+                const when = a.createdAt ? escapeHtml(formatTimeAgo(a.createdAt)) : '';
+                const quote = a.text && String(a.text).trim()
+                    ? '<div class="tlf-quote">' + escapeHtml(String(a.text).trim()) + '</div>'
                     : '';
-                return '<div class="timeline-item timeline-item--' + escapeHtml(a.type) + '">'
-                    + '<div class="timeline-item__ico" aria-hidden="true">' + m.ico + '</div>'
-                    + '<div class="timeline-item__main">'
-                    + '<div class="timeline-item__title">' + activityTitle(a) + '</div>'
-                    + body
-                    + '<div class="timeline-item__meta">' + escapeHtml(who) + ' · ' + escapeHtml(when) + '</div>'
+                return '<div class="tlf-item tlf-item--' + escapeHtml(a.type) + '">'
+                    + '<div class="tlf-dot" aria-hidden="true">' + m.ico + '</div>'
+                    + '<div class="tlf-content">'
+                    + '<div class="tlf-head"><span class="tlf-title">' + activityTitle(a) + '</span><span class="tlf-when">' + when + '</span></div>'
+                    + quote
+                    + '<div class="tlf-who">' + who + '</div>'
                     + '</div></div>';
-            }).join('');
+            }).join('') + '</div>';
         }
 
         function renderTimelineHistory(leads) {
@@ -3379,22 +3413,24 @@
             sec.style.display = 'block';
             const cards = leads.map(l => {
                 const won = l.status === 'done' && l.stage === 'successful';
-                const statusCls = won ? 'won' : (l.status === 'archived' ? 'lost' : 'open');
-                const statusTxt = won ? t('histWon') : (l.status === 'archived' ? t('histLost') : t('histOpen'));
+                const cls = won ? 'won' : (l.status === 'archived' ? 'lost' : 'open');
+                const txt = won ? t('histWon') : (l.status === 'archived' ? t('histLost') : t('histOpen'));
+                const ico = won ? '✅' : (l.status === 'archived' ? '🚫' : '⏳');
                 const date = l.closedAt || l.createdAt;
                 const dateStr = date ? new Date(date).toLocaleDateString(currentLang === 'uz' ? 'uz-UZ' : 'ru-RU') : '';
-                const amount = won && l.dealAmount ? '<span class="hist-amount">' + escapeHtml(fmtMoney(Number(l.dealAmount))) + '</span>' : '';
-                const by = l.closedByName ? (t('histClosedBy') + ': ' + escapeHtml(l.closedByName)) : '';
-                const lastComment = l.comment && String(l.comment).trim()
-                    ? '<div class="hist-comment">“' + escapeHtml(String(l.comment).trim()) + '”</div>' : '';
-                return '<div class="hist-card hist-card--' + statusCls + '">'
-                    + '<div class="hist-card__top"><span class="hist-status hist-status--' + statusCls + '">' + escapeHtml(statusTxt) + '</span>'
-                    + amount + '<span class="hist-date">' + escapeHtml(dateStr) + '</span></div>'
-                    + (by ? '<div class="hist-by">' + by + '</div>' : '')
-                    + lastComment
+                const amount = won && l.dealAmount ? '<span class="tlh-amount">' + escapeHtml(fmtMoney(Number(l.dealAmount))) + '</span>' : '';
+                const by = l.closedByName ? '<div class="tlh-row2">' + escapeHtml(t('histClosedBy') + ': ' + l.closedByName) + '</div>' : '';
+                const comment = l.comment && String(l.comment).trim()
+                    ? '<div class="tlh-quote">' + escapeHtml(String(l.comment).trim()) + '</div>' : '';
+                return '<div class="tlh-card tlh-card--' + cls + '">'
+                    + '<div class="tlh-row1"><span class="tlh-badge tlh-badge--' + cls + '">' + ico + ' ' + escapeHtml(txt) + '</span>'
+                    + amount + '<span class="tlh-date">' + escapeHtml(dateStr) + '</span></div>'
+                    + by + comment
                     + '</div>';
             }).join('');
-            sec.innerHTML = '<div class="timeline-history__title">' + escapeHtml(t('histTitle')) + '</div>' + cards;
+            const ltvTotal = leads.reduce((s, l) => s + ((l.status === 'done' && l.stage === 'successful' && Number(l.dealAmount) > 0) ? Number(l.dealAmount) : 0), 0);
+            const ltvHead = ltvTotal > 0 ? ' · LTV ' + fmtMoney(ltvTotal) : '';
+            sec.innerHTML = '<div class="tlh-head">🔁 ' + escapeHtml(t('histTitle')) + ' · ' + leads.length + ltvHead + '</div>' + cards;
         }
 
         async function loadTimelineData(leadId) {
