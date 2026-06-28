@@ -57,6 +57,22 @@
         .board-search .table-search { flex: 1; width: 100%; padding-left: 34px; padding-right: 32px; }
         .board-search-clear { position: absolute; right: 8px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: var(--text-2); cursor: pointer; align-items: center; justify-content: center; font-size: 15px; line-height: 1; padding: 0; }
         .board-search-clear:hover { background: rgba(255,255,255,0.18); color: var(--text); }
+        /* Analytics page — roomy sections, KPI cards, clean managers table */
+        #analyticsWrapper { padding: 22px 24px 26px; }
+        #analyticsWrapper > .glass, #prioritySection { background: var(--surface-2); padding: 20px; margin-bottom: 18px; border-radius: 14px; border: 1px solid var(--bd); }
+        #prioritySection { margin-bottom: 0; }
+        .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .kpi-card { padding: 18px 20px; border: 1px solid var(--bd); border-radius: 14px; background: var(--surface-2); }
+        .kpi-card--accent { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); }
+        .kpi-label { font-size: 12px; opacity: 0.6; margin-bottom: 8px; }
+        .kpi-value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+        .kpi-card--accent .kpi-value { color: var(--accent-text); }
+        .managers-table { width: 100%; border-collapse: collapse; }
+        .managers-table th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; opacity: 0.55; font-weight: 700; padding: 8px 12px; border-bottom: 1px solid var(--bd); }
+        .managers-table td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+        .managers-table tr:last-child td { border-bottom: none; }
+        .managers-table th:not(:first-child), .managers-table td:not(:first-child) { text-align: right; }
+        .mgr-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--mgr); margin-right: 8px; vertical-align: middle; }
         /* Client log (timeline) — clean, business-like vertical feed */
         .tlf { display: flex; flex-direction: column; }
         .tlf-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 11px; padding: 0 0 16px; }
@@ -334,6 +350,26 @@
                     </span>
                 </div>
 
+                <!-- Headline KPIs (boss only) -->
+                <div id="financialAnalyticsBlock" class="kpi-row" style="display: none;">
+                    <div class="kpi-card kpi-card--accent">
+                        <div class="kpi-label" data-i18n="totalRevenueLabel">Общая выручка</div>
+                        <div class="kpi-value" id="financialTotalRevenue">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label" data-i18n="successfulDealsLabel">Успешные сделки</div>
+                        <div class="kpi-value" id="financialSuccessfulDeals">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label" data-i18n="averageDealLabel">Средний чек</div>
+                        <div class="kpi-value" id="financialAverageDeal">—</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label" data-i18n="conversionLabel">Конверсия %</div>
+                        <div class="kpi-value" id="financialConversion">—</div>
+                    </div>
+                </div>
+
                 <!-- Funnel: pipeline conversion (boss only) -->
                 <div id="funnelSection" class="funnel-section glass" style="display: none;">
                     <div class="funnel-head">
@@ -385,27 +421,6 @@
                         <div class="financial-metric">
                             <span class="financial-metric-label" data-i18n="conversionLabel">Конверсия %</span>
                             <span class="financial-metric-value" id="personalConversion">—</span>
-                        </div>
-                    </div>
-                </div>
-                <div id="financialAnalyticsBlock" class="financial-analytics-block glass" style="display: none;">
-                    <h3 class="financial-analytics-title" data-i18n="financialAnalyticsTitle">Финансовые показатели</h3>
-                    <div class="financial-analytics-grid">
-                        <div class="financial-metric">
-                            <span class="financial-metric-label" data-i18n="totalRevenueLabel">Общая выручка</span>
-                            <span class="financial-metric-value" id="financialTotalRevenue">—</span>
-                        </div>
-                        <div class="financial-metric">
-                            <span class="financial-metric-label" data-i18n="successfulDealsLabel">Успешные сделки</span>
-                            <span class="financial-metric-value" id="financialSuccessfulDeals">—</span>
-                        </div>
-                        <div class="financial-metric">
-                            <span class="financial-metric-label" data-i18n="averageDealLabel">Средний чек</span>
-                            <span class="financial-metric-value" id="financialAverageDeal">—</span>
-                        </div>
-                        <div class="financial-metric">
-                            <span class="financial-metric-label" data-i18n="conversionLabel">Конверсия %</span>
-                            <span class="financial-metric-value" id="financialConversion">—</span>
                         </div>
                     </div>
                 </div>
@@ -2374,7 +2389,7 @@
                         const avg = m.averageDeal != null ? m.averageDeal.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0';
                         const rev = m.revenue != null ? m.revenue.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '0';
                         const conv = m.conversionPct != null ? m.conversionPct.toFixed(1) + '%' : '0%';
-                        return `<tr><td>${escapeHtml(m.name)}</td><td>${m.successfulDeals}</td><td>${rev}</td><td>${avg}</td><td>${conv}</td></tr>`;
+                        return `<tr><td><span class="mgr-dot" style="--mgr:${managerColor(m.key)}"></span>${escapeHtml(m.name)}</td><td>${m.successfulDeals}</td><td>${rev}</td><td>${avg}</td><td>${conv}</td></tr>`;
                     }).join('');
                 }
                 if (!isBoss && managers.length > 0) {
@@ -2666,6 +2681,7 @@
             try {
                 if (isBoss) {
                     await Promise.all([
+                        loadFinancialAnalytics(),
                         loadFunnelAnalytics(),
                         loadManagerAnalytics(),
                         loadPriorityAnalytics()
@@ -2719,15 +2735,18 @@
                 const personalSection = document.getElementById('personalStatsSection');
                 const prioritySection = document.getElementById('prioritySection');
                 const funnelSection = document.getElementById('funnelSection');
+                const finBlock = document.getElementById('financialAnalyticsBlock');
                 if (isBoss) {
                     if (managersSection) managersSection.style.display = 'block';
                     if (personalSection) personalSection.style.display = 'none';
                     if (prioritySection) prioritySection.style.display = 'block';
+                    if (finBlock) finBlock.style.display = 'grid';
                 } else {
                     if (managersSection) managersSection.style.display = 'none';
                     if (personalSection) personalSection.style.display = 'block';
                     if (prioritySection) prioritySection.style.display = 'none';
                     if (funnelSection) funnelSection.style.display = 'none';
+                    if (finBlock) finBlock.style.display = 'none';
                 }
                 await refreshAnalytics();
                 startAnalyticsLive();
