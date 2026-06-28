@@ -8,6 +8,13 @@
     box-sizing: border-box;
 }
 
+/* «Спокойный плоский»: глобально убираем стеклянный блюр (glassmorphism → flat).
+   Все поверхности остаются на плотных --surface/--surface-2 с тонкими границами. */
+*, *::before, *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
 /* =====================================================================
    Дизайн-система «один акцент» (Linear-style) — общие токены.
    Цвет воронок живёт только на колонках/смысловых элементах; карточки
@@ -29,10 +36,11 @@
     --danger: #e0607a;
     --warn:   #e0a23a;
 
-    /* поверхности (графит) */
-    --surface:   rgba(255, 255, 255, 0.035);
-    --surface-2: rgba(255, 255, 255, 0.06);
-    --bd:        rgba(255, 255, 255, 0.08);
+    /* поверхности (плоский спокойный графит — без стекла/блюра) */
+    --bg:        #0c0d12;
+    --surface:   #16171d;   /* панели/карточки — плотная поверхность */
+    --surface-2: #1e202a;   /* вложенные элементы */
+    --bd:        rgba(255, 255, 255, 0.07);
     --bd-2:      rgba(255, 255, 255, 0.12);
 
     /* текст */
@@ -104,13 +112,11 @@ body {
    ============================================ */
 
 .glass {
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    color: #ffffff;
+    background: var(--surface);
+    border-radius: 16px;
+    border: 1px solid var(--bd);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    color: var(--text);
 }
 
 .glass.position-relative {
