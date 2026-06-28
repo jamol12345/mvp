@@ -51,6 +51,12 @@
         .lead-card-top { align-items: flex-start; }
         .lead-card-name { font-size: 15px; }
         .lead-card-new-badge { position: static; align-self: flex-start; flex: 0 0 auto; margin-top: 1px; }
+        /* Board search box — prominent, with icon + clear */
+        .board-search { position: relative; display: flex; align-items: center; flex: 1 1 260px; min-width: 200px; }
+        .board-search-ico { position: absolute; left: 12px; font-size: 13px; opacity: 0.5; pointer-events: none; }
+        .board-search .table-search { flex: 1; width: 100%; padding-left: 34px; padding-right: 32px; }
+        .board-search-clear { position: absolute; right: 8px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: var(--text-2); cursor: pointer; align-items: center; justify-content: center; font-size: 15px; line-height: 1; padding: 0; }
+        .board-search-clear:hover { background: rgba(255,255,255,0.18); color: var(--text); }
         /* Client log (timeline) — clean, business-like vertical feed */
         .tlf { display: flex; flex-direction: column; }
         .tlf-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 11px; padding: 0 0 16px; }
@@ -259,7 +265,11 @@
             <div class="table-controls-wrapper glass" id="activeControlsWrapper" style="margin-bottom: 10px;">
                 <button id="activeControlsToggle" class="controls-toggle" type="button" data-i18n="controlsToggle">Поиск и фильтры</button>
                 <div class="header-actions table-controls">
-                    <input id="activeSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
+                    <div class="board-search">
+                        <span class="board-search-ico" aria-hidden="true">🔍</span>
+                        <input id="activeSearchInput" type="text" class="table-search" placeholder="Поиск по имени или телефону" data-i18n-placeholder="searchPlaceholder">
+                        <button type="button" id="activeSearchClear" class="board-search-clear" aria-label="Очистить" style="display:none;">×</button>
+                    </div>
                     <button id="refreshBtn" class="btn-link" type="button" data-i18n="refreshBtn">Обновить</button>
                     <button id="addClientBtn" class="add-client-btn" style="display: none;" data-i18n="addClientBtn">Добавить</button>
                 </div>
@@ -846,6 +856,7 @@
                 stalledDays5: 'дней без движения',
                 controlsToggle: 'Поиск и фильтры',
                 searchPlaceholder: 'Поиск по имени или телефону',
+                searchNoResults: 'Ничего не найдено по запросу',
                 searchBtn: 'Поиск',
                 refreshBtn: 'Обновить',
                 thFullName: 'ФИО',
@@ -1119,6 +1130,7 @@
                 stalledDays5: 'kun harakatsiz',
                 controlsToggle: 'Qidiruv va filtrlar',
                 searchPlaceholder: 'Ism yoki telefon bo‘yicha qidirish',
+                searchNoResults: 'So‘rov bo‘yicha hech narsa topilmadi',
                 searchBtn: 'Qidirish',
                 refreshBtn: 'Yangilash',
                 thFullName: 'F.I.Sh.',
@@ -2254,8 +2266,29 @@
         });
 
         document.getElementById('activeSearchInput').addEventListener('input', () => {
+            const v = document.getElementById('activeSearchInput').value;
+            const clr = document.getElementById('activeSearchClear');
+            if (clr) clr.style.display = v ? 'flex' : 'none';
             displayKanbanLeads();
         });
+        document.getElementById('activeSearchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.target.value = '';
+                const clr = document.getElementById('activeSearchClear');
+                if (clr) clr.style.display = 'none';
+                displayKanbanLeads();
+            }
+        });
+        (function () {
+            const clr = document.getElementById('activeSearchClear');
+            if (clr) clr.addEventListener('click', () => {
+                const inp = document.getElementById('activeSearchInput');
+                inp.value = '';
+                clr.style.display = 'none';
+                inp.focus();
+                displayKanbanLeads();
+            });
+        })();
 
         document.getElementById('leadsTableWrapper').addEventListener('change', async (e) => {
             if (!e.target.matches('.assign-select')) return;
@@ -3141,7 +3174,14 @@
                     col.appendChild(card);
                 });
             });
-            document.getElementById('noLeadsMessage').style.display = filtered.length === 0 ? 'block' : 'none';
+            const noLeadsEl = document.getElementById('noLeadsMessage');
+            if (noLeadsEl) {
+                const searchInput = document.getElementById('activeSearchInput');
+                const searching = searchInput && searchInput.value.trim();
+                const p = noLeadsEl.querySelector('p');
+                if (p) p.textContent = (filtered.length === 0 && searching) ? t('searchNoResults') : t('noLeads');
+                noLeadsEl.style.display = filtered.length === 0 ? 'block' : 'none';
+            }
             document.getElementById('leadsTableWrapper').style.display = filtered.length > 0 ? 'block' : 'none';
             updateStageCounters();
             initKanbanSortables();
@@ -4026,10 +4066,16 @@
         function getFilteredActiveLeads() {
             const input = document.getElementById('activeSearchInput');
             const query = input ? input.value.trim().toLowerCase() : '';
-            return !query ? allActiveLeads : allActiveLeads.filter(lead => {
-                const fullName = (lead.fullName || (lead.name + ' ' + lead.surname).trim() || '').toLowerCase();
-                const phone = (lead.phoneNumber || '').toLowerCase();
-                return fullName.includes(query) || phone.includes(query);
+            if (!query) return allActiveLeads;
+            const qDigits = query.replace(/\D/g, ''); // phone match by digits → any format works
+            return allActiveLeads.filter(lead => {
+                const fullName = (lead.fullName || ((lead.name || '') + ' ' + (lead.surname || '')).trim() || '').toLowerCase();
+                if (fullName.includes(query)) return true;
+                if (qDigits) {
+                    const phoneDigits = String(lead.phoneNumber || '').replace(/\D/g, '');
+                    if (phoneDigits.includes(qDigits)) return true;
+                }
+                return false;
             });
         }
 
