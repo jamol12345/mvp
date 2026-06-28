@@ -47,6 +47,10 @@
         .lead-card--owned { border-left: 3px solid var(--mgr-color, transparent); }
         .lead-card-owner { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; font-size: 11.5px; font-weight: 600; line-height: 1.2; padding: 3px 9px; border-radius: 999px; background: color-mix(in srgb, var(--mgr) 16%, transparent); color: var(--mgr); border: 1px solid color-mix(in srgb, var(--mgr) 38%, transparent); }
         .lead-card-owner-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mgr); flex-shrink: 0; }
+        /* Name no longer collides with the NEW badge: badge is an inline flex item, name wraps before it */
+        .lead-card-top { align-items: flex-start; }
+        .lead-card-name { font-size: 15px; }
+        .lead-card-new-badge { position: static; align-self: flex-start; flex: 0 0 auto; margin-top: 1px; }
         /* Client log (timeline) — clean, business-like vertical feed */
         .tlf { display: flex; flex-direction: column; }
         .tlf-item { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 11px; padding: 0 0 16px; }
@@ -2992,13 +2996,13 @@
             })();
             return `${lockBlock}${preparingBlock}
                 <div class="lead-card-body">
-                    ${newBadgeHtml}
                     <div class="lead-card-top">
                         <div class="lead-card-avatar" style="${leadAvatarTone(fullName)}">${escapeHtml(leadInitials(fullName))}</div>
                         <div class="lead-card-idblock">
                             <div class="lead-card-name">${escapeHtml(fullName)}</div>
                             <div class="lead-card-phone">${escapeHtml(lead.phoneNumber || '')}</div>
                         </div>
+                        ${newBadgeHtml}
                     </div>
                     ${taskBlock}
                     ${returningBadge}
