@@ -24,6 +24,41 @@ function rtEmitAll(event, payload = {}) { if (io) io.to('all').emit(event, paylo
 function rtEmitBoss(event, payload = {}) { if (io) io.to('boss').emit(event, payload); }
 function rtEmitManager(key, event, payload = {}) { if (io && key) io.to('mgr:' + String(key)).emit(event, payload); }
 
+// Cross-process realtime: a MongoDB change stream catches writes from ANY process
+// (this Railway server, the legacy Vercel serverless backend, maintenance scripts) —
+// not just this one. Without it, a lead saved by another backend wouldn't reach
+// connected admins until the slow fallback poll. Requires a replica set (Atlas has one).
+let changeStream = null;
+function startChangeStreams() {
+  if (!io) return;
+  try {
+    if (changeStream) { try { changeStream.close(); } catch (e) {} changeStream = null; }
+    const stream = mongoose.connection.watch([], { fullDocument: 'updateLookup' });
+    changeStream = stream;
+    stream.on('change', (change) => {
+      const coll = change.ns && change.ns.coll;
+      if (coll === 'leads') {
+        const id = change.documentKey && change.documentKey._id;
+        rtEmitAll('lead:changed', { id: id ? String(id) : null });
+      } else if (coll === 'approvals') {
+        rtEmitAll('approval:changed', {});
+      } else if (coll === 'tasks') {
+        const doc = change.fullDocument;
+        rtEmitAll('lead:changed', doc && doc.leadId ? { id: String(doc.leadId) } : {});
+      }
+    });
+    stream.on('error', (err) => {
+      console.error('⚠️ [CHANGE-STREAM] error; restarting in 3s:', err.message);
+      try { stream.close(); } catch (e) {}
+      changeStream = null;
+      setTimeout(startChangeStreams, 3000);
+    });
+    console.log('📡 [CHANGE-STREAM] watching leads/approvals/tasks (cross-process realtime)');
+  } catch (e) {
+    console.error('⚠️ [CHANGE-STREAM] failed to start (replica set required):', e.message);
+  }
+}
+
 // CORS first (before any other middleware) so it always runs in Vercel serverless.
 const defaultCorsOrigins = [
   'http://localhost:5173',
@@ -91,6 +126,9 @@ if (!MONGODB_URI) {
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB');
+    // Only the persistent Railway server (run directly) holds sockets and watches the DB.
+    // When imported as a module (legacy Vercel serverless), require.main !== module → skip.
+    if (require.main === module) startChangeStreams();
   })
   .catch((error) => {
     console.error('❌ MongoDB connection error:', error);
