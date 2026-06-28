@@ -167,6 +167,26 @@
         .requests-page { padding: 22px 24px 26px; }
         .requests-panel-outer { max-width: none; margin: 0; width: 100%; }
         .requests-list-scroll { max-height: none; }
+        /* ===== Mobile pass (managers often work from phones) ===== */
+        @media (max-width: 768px) {
+            /* Board → one funnel at a time, swipe carousel (snap) instead of 5 cramped columns */
+            .kanban-board { scroll-snap-type: x mandatory; }
+            .kanban-column { flex: 0 0 86vw; min-width: 0; max-width: 380px; }
+            /* Nav buttons wrap under the title instead of overflowing */
+            .top-bar-right { flex-wrap: wrap; justify-content: flex-start; margin-left: 0; gap: 8px; }
+            /* Section pages: less side padding on small screens */
+            #analyticsWrapper, .users-page, .tasks-page, .requests-page { padding-left: 16px; padding-right: 16px; }
+            .modal-content { max-width: 94vw; }
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .kpi-row { grid-template-columns: 1fr 1fr; }
+            .managers-table-wrap { overflow-x: auto; }       /* wide table scrolls, doesn't break layout */
+            .users-grid, .rq-grid, .tcards { gap: 12px; }
+            .user-card, .tcard, .rq-card { padding: 16px; }
+            .lead-card-actions .btn-card { min-height: 42px; } /* comfortable tap targets */
+            #analyticsWrapper, .users-page, .tasks-page, .requests-page { padding-left: 12px; padding-right: 12px; padding-top: 16px; }
+        }
     </style>
 </head>
 <body>
