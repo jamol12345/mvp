@@ -12,14 +12,15 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         /* ===== Команда (team page) ===== */
-        .users-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 18px; }
+        .users-page { padding: 24px 26px 30px; }
+        .users-page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 6px 0 24px; }
         .users-page-title { margin: 0; font-size: 18px; }
-        .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-        .user-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.02); transition: border-color .15s ease, transform .15s ease; }
+        .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; }
+        .user-card { display: flex; flex-direction: column; gap: 16px; padding: 22px; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; background: rgba(255,255,255,0.02); transition: border-color .15s ease, transform .15s ease; }
         .user-card:hover { border-color: rgba(255,255,255,0.16); transform: translateY(-1px); }
         .user-card--off { opacity: 0.6; }
         .user-card-top { display: flex; align-items: center; gap: 12px; }
-        .user-avatar { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; text-transform: uppercase; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .user-avatar { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; text-transform: uppercase; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); }
         .user-card-id { flex: 1; min-width: 0; }
         .user-card-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .user-card-login { font-size: 12px; opacity: 0.6; }
@@ -28,17 +29,17 @@
         .user-badge--call { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
         .user-card-status { font-size: 12px; opacity: 0.7; }
         .user-card-status.is-off { color: #fca5a5; opacity: 0.95; }
-        .user-card-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
-        .user-role-select { width: 100%; padding: 7px 9px; font-size: 13px; }
-        .user-card-btns { display: flex; gap: 8px; }
-        .user-mini-btn { flex: 1; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: inherit; cursor: pointer; font-size: 12.5px; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+        .user-card-actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; padding-top: 4px; }
+        .user-role-select { width: 100%; padding: 9px 11px; font-size: 13px; }
+        .user-card-btns { display: flex; gap: 10px; }
+        .user-mini-btn { flex: 1; padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: transparent; color: inherit; cursor: pointer; font-size: 12.5px; transition: background .15s ease, border-color .15s ease, color .15s ease; }
         .user-mini-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.22); }
         .user-mini-btn--danger:hover { border-color: rgba(239,68,68,0.55); color: #fca5a5; }
         .user-mini-btn:disabled { opacity: 0.5; cursor: default; }
-        .add-account-panel { border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px; margin-bottom: 16px; background: rgba(255,255,255,0.02); }
-        .add-account-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+        .add-account-panel { border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 22px; margin-bottom: 22px; background: rgba(255,255,255,0.02); }
+        .add-account-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
         .add-account-fields input, .add-account-fields select { min-width: 0; }
-        .add-account-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+        .add-account-actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
     </style>
 </head>
 <body>
@@ -1812,6 +1813,8 @@
                 if (tw) tw.style.display = 'none';
                 if (leadsWrapper) leadsWrapper.style.display = 'none';
                 if (noL) noL.style.display = 'none';
+                const ac = document.getElementById('activeControlsWrapper');
+                if (ac) ac.style.display = 'none';
                 hideAddAccountPanel();
                 hideUsersNotice();
                 uw.style.display = 'block';
@@ -2573,6 +2576,8 @@
             if (analyticsWrapper.style.display === 'none') {
                 leadsWrapper.style.display = 'none';
                 noLeads.style.display = 'none';
+                const ac = document.getElementById('activeControlsWrapper');
+                if (ac) ac.style.display = 'none';
                 analyticsWrapper.style.display = 'block';
                 const managersSection = document.getElementById('managersTableSection');
                 const personalSection = document.getElementById('personalStatsSection');
@@ -2725,6 +2730,8 @@
                         if (noL) noL.style.display = 'none';
                         const uw = document.getElementById('usersWrapper');
                         if (uw) uw.style.display = 'none';
+                        const ac = document.getElementById('activeControlsWrapper');
+                        if (ac) ac.style.display = 'none';
                         rw.style.display = 'block';
                         await loadApprovals();
                     } else {
@@ -3708,6 +3715,8 @@
                 if (noL) noL.style.display = 'none';
                 const uw = document.getElementById('usersWrapper');
                 if (uw) uw.style.display = 'none';
+                const ac = document.getElementById('activeControlsWrapper');
+                if (ac) ac.style.display = 'none';
                 tw.style.display = 'block';
                 buildTasksManagerFilter();
                 loadTasksPage();
