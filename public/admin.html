@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Админ‑панель — управление лидами</title>
     <link rel="icon" type="image/png" href="/kukcha.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
@@ -20,12 +23,12 @@
         .user-card:hover { border-color: rgba(255,255,255,0.16); transform: translateY(-1px); }
         .user-card--off { opacity: 0.6; }
         .user-card-top { display: flex; align-items: center; gap: 12px; }
-        .user-avatar { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; text-transform: uppercase; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .user-avatar { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; text-transform: uppercase; color: #fff; background: linear-gradient(135deg, #3a3a3a, #262626); }
         .user-card-id { flex: 1; min-width: 0; }
         .user-card-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .user-card-login { font-size: 12px; opacity: 0.6; }
         .user-badge { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
-        .user-badge--boss { background: rgba(139,92,246,0.18); color: #c4b5fd; }
+        .user-badge--boss { background: rgba(62,207,142,0.16); color: var(--accent-text); }
         .user-badge--call { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); }
         .user-card-status { font-size: 12px; opacity: 0.7; }
         .user-card-status.is-off { color: #fca5a5; opacity: 0.95; }
@@ -81,7 +84,7 @@
         .fbar-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .fbar-meta { font-size: 11.5px; opacity: 0.55; }
         .fbar-track { position: relative; height: 36px; background: rgba(255,255,255,0.05); border-radius: 9px; overflow: hidden; display: flex; align-items: center; }
-        .fbar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--accent), var(--accent-soft, #6e79ec)); border-radius: 9px; min-width: 4px; transition: width .45s cubic-bezier(.22,1,.36,1); }
+        .fbar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--accent), var(--accent-soft, #4ade80)); border-radius: 9px; min-width: 4px; transition: width .45s cubic-bezier(.22,1,.36,1); }
         .fbar-count { position: relative; z-index: 1; margin-left: 12px; font-weight: 800; font-size: 15px; color: #fff; }
         .fbar-conv { font-size: 12.5px; font-weight: 700; text-align: right; opacity: 0.65; white-space: nowrap; }
         .fbar-conv.is-drop { color: #f0c074; opacity: 1; }
@@ -94,9 +97,9 @@
         .tlf-item::before { content: ''; position: absolute; left: 13px; top: 28px; bottom: 0; width: 2px; background: rgba(255,255,255,0.08); }
         .tlf-item:last-child::before { display: none; }
         .tlf-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
-        .tlf-item--closed_won .tlf-dot { background: rgba(34,197,94,0.16); border-color: rgba(34,197,94,0.4); }
+        .tlf-item--closed_won .tlf-dot { background: rgba(62,207,142,0.16); border-color: rgba(62,207,142,0.4); }
         .tlf-item--closed_lost .tlf-dot, .tlf-item--archived .tlf-dot { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.38); }
-        .tlf-item--comment .tlf-dot { background: rgba(99,102,241,0.16); border-color: rgba(99,102,241,0.4); }
+        .tlf-item--comment .tlf-dot { background: rgba(62,207,142,0.16); border-color: rgba(62,207,142,0.4); }
         .tlf-content { min-width: 0; padding-top: 3px; }
         .tlf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
         .tlf-title { font-weight: 600; font-size: 13.5px; }
@@ -106,12 +109,12 @@
         /* Repeat-customer prior deals — give the info at a glance */
         .tlh-head { font-size: 13px; font-weight: 700; margin: 0 0 12px; padding: 9px 13px; border-radius: 10px; background: rgba(245,158,11,0.14); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
         .tlh-card { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); margin-bottom: 10px; border-left-width: 3px; }
-        .tlh-card--won { border-left-color: rgba(34,197,94,0.6); }
+        .tlh-card--won { border-left-color: rgba(62,207,142,0.6); }
         .tlh-card--lost { border-left-color: rgba(239,68,68,0.55); }
         .tlh-card--open { border-left-color: rgba(255,255,255,0.25); }
         .tlh-row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .tlh-badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
-        .tlh-badge--won { background: rgba(34,197,94,0.16); color: #86efac; }
+        .tlh-badge--won { background: rgba(62,207,142,0.16); color: var(--accent-text); }
         .tlh-badge--lost { background: rgba(239,68,68,0.14); color: #fca5a5; }
         .tlh-badge--open { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
         .tlh-amount { font-weight: 700; font-size: 13px; }
@@ -156,7 +159,7 @@
         .rq-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
         .rq-type { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 4px 11px; border-radius: 999px; }
         .rq-type--delete { background: rgba(239,68,68,0.16); color: #fca5a5; }
-        .rq-type--close { background: rgba(34,197,94,0.16); color: #86efac; }
+        .rq-type--close { background: rgba(62,207,142,0.16); color: var(--accent-text); }
         .rq-ago { font-size: 11.5px; opacity: 0.55; white-space: nowrap; }
         .rq-lead-name { font-size: 16px; font-weight: 700; }
         .rq-lead-phone { font-size: 13px; opacity: 0.65; margin-top: 2px; }
@@ -204,42 +207,13 @@
 </head>
 <body>
     <div class="container">
-        <div class="top-bar top-bar--split">
-            <div class="top-bar-left">
-                <div class="lang-switch" aria-label="Language">
-                    <span class="lang-label" data-i18n="languageLabel">Язык</span>
-                    <div class="lang-toggle-group" role="group" aria-label="Language">
-                        <button type="button" class="lang-toggle" data-lang="ru">RU</button>
-                        <span class="lang-sep">|</span>
-                        <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
-                    </div>
-                </div>
-                <div class="user-menu-wrapper" id="userMenuWrapper" style="display: none;">
-                    <button type="button" class="user-menu-trigger" id="userMenuTrigger" title="Аккаунт" data-i18n-title="accountTitle">
-                        <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                        <span class="user-role-label" id="userRoleLabel">—</span>
-                    </button>
-                    <div id="userDropdown" class="user-dropdown" style="display: none;">
-                        <button type="button" class="user-dropdown-item" id="soundToggleBtn">🔔 Звук: вкл</button>
-                        <button type="button" class="user-dropdown-item" id="changePasswordBtn" data-i18n="changePassword">Сменить пароль</button>
-                        <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn" data-i18n="logoutBtn">Выйти</button>
-                    </div>
-                </div>
-            </div>
-            <div class="top-bar-right">
-                <div class="notif-bell-wrap" id="notifBellWrap" style="display: none;" aria-live="polite">
-                    <button type="button" class="notif-bell-btn" id="notifBellBtn" aria-label="Уведомления" title="Уведомления" data-i18n-aria="notifAria">
-                        <span class="notif-bell-emoji" aria-hidden="true">🔔</span>
-                        <span class="notif-bell-badge" id="notifBadge" style="display: none;">0</span>
-                    </button>
-                    <div id="notifDropdown" class="notif-dropdown" style="display: none;" role="menu" aria-label="Список уведомлений">
-                        <div class="notif-dropdown-header" data-i18n="notifTitle">Уведомления</div>
-                        <ul id="notifList" class="notif-list"></ul>
-                        <p class="notif-empty" id="notifEmpty" data-i18n="notifEmpty" style="display: none;">Нет уведомлений</p>
-                    </div>
+        <div class="top-bar top-bar--login" id="loginTopBar">
+            <div class="lang-switch" aria-label="Language">
+                <span class="lang-label" data-i18n="languageLabel">Язык</span>
+                <div class="lang-toggle-group" role="group" aria-label="Language">
+                    <button type="button" class="lang-toggle" data-lang="ru">RU</button>
+                    <span class="lang-sep">|</span>
+                    <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
                 </div>
             </div>
         </div>
@@ -283,14 +257,50 @@
 
         <!-- Admin Panel Section (shown when authenticated) -->
         <div id="adminPanel" class="admin-panel glass fade-in" style="display: none;">
-            <div class="admin-header">
-                <h1 data-i18n="adminTitle">Админ‑панель — управление лидами</h1>
-                <div class="header-actions">
-                    <a class='btn-link' data-i18n='viewArchive' href='done_calls.html'>Архив →</a>
-                    <button id="requestsBtn" class="btn-link" style="display: none;" data-i18n="requestsNav" type="button">Запросы</button>
-                    <button id="usersBtn" class="btn-link" style="display: none;" data-i18n="usersNav" type="button">Команда</button>
-                    <button id="tasksPageBtn" class="btn-link tasks-page-btn" style="display: none;" type="button"><span data-i18n="tasksNav">Задачи</span><span class="tasks-nav-badge" id="tasksNavBadge" style="display: none;">0</span></button>
-                    <button id="analyticsBtn" class="btn-link" style="display: none;" data-i18n="analyticsBtn" type="button">Аналитика</button>
+            <div class="app-bar">
+                <div class="app-bar-left">
+                    <h1 class="app-brand" data-i18n="brandName">Клиенты</h1>
+                    <nav class="app-bar-nav header-actions">
+                        <a class='btn-link' data-i18n='viewArchive' href='done_calls.html'>Архив →</a>
+                        <button id="requestsBtn" class="btn-link" style="display: none;" data-i18n="requestsNav" type="button">Запросы</button>
+                        <button id="usersBtn" class="btn-link" style="display: none;" data-i18n="usersNav" type="button">Команда</button>
+                        <button id="tasksPageBtn" class="btn-link tasks-page-btn" style="display: none;" type="button"><span data-i18n="tasksNav">Задачи</span><span class="tasks-nav-badge" id="tasksNavBadge" style="display: none;">0</span></button>
+                        <button id="analyticsBtn" class="btn-link" style="display: none;" data-i18n="analyticsBtn" type="button">Аналитика</button>
+                    </nav>
+                </div>
+                <div class="app-bar-right">
+                    <div class="lang-switch app-bar-lang" aria-label="Language">
+                        <div class="lang-toggle-group" role="group" aria-label="Language">
+                            <button type="button" class="lang-toggle" data-lang="ru">RU</button>
+                            <span class="lang-sep">|</span>
+                            <button type="button" class="lang-toggle" data-lang="uz">UZ</button>
+                        </div>
+                    </div>
+                    <div class="notif-bell-wrap" id="notifBellWrap" style="display: none;" aria-live="polite">
+                        <button type="button" class="notif-bell-btn" id="notifBellBtn" aria-label="Уведомления" title="Уведомления" data-i18n-aria="notifAria">
+                            <svg class="notif-bell-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            <span class="notif-bell-badge" id="notifBadge" style="display: none;">0</span>
+                        </button>
+                        <div id="notifDropdown" class="notif-dropdown" style="display: none;" role="menu" aria-label="Список уведомлений">
+                            <div class="notif-dropdown-header" data-i18n="notifTitle">Уведомления</div>
+                            <ul id="notifList" class="notif-list"></ul>
+                            <p class="notif-empty" id="notifEmpty" data-i18n="notifEmpty" style="display: none;">Нет уведомлений</p>
+                        </div>
+                    </div>
+                    <div class="user-menu-wrapper" id="userMenuWrapper" style="display: none;">
+                        <button type="button" class="user-menu-trigger" id="userMenuTrigger" title="Аккаунт" data-i18n-title="accountTitle">
+                            <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span class="user-role-label" id="userRoleLabel">—</span>
+                        </button>
+                        <div id="userDropdown" class="user-dropdown" style="display: none;">
+                            <button type="button" class="user-dropdown-item" id="soundToggleBtn">🔔 Звук: вкл</button>
+                            <button type="button" class="user-dropdown-item" id="changePasswordBtn" data-i18n="changePassword">Сменить пароль</button>
+                            <button type="button" class="user-dropdown-item logout" id="logoutDropdownBtn" data-i18n="logoutBtn">Выйти</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -313,8 +323,8 @@
                 <div id="managerPendingChips" class="manager-pending-chips"></div>
             </div>
 
-            <!-- Leads Table -->
-            <div class="table-controls-wrapper glass" id="activeControlsWrapper" style="margin-bottom: 10px;">
+            <!-- Dashboard controls: поиск + Добавить (на дашборде) -->
+            <div class="table-controls-wrapper glass" id="activeControlsWrapper" style="margin-bottom: 12px;">
                 <button id="activeControlsToggle" class="controls-toggle" type="button" data-i18n="controlsToggle">Поиск и фильтры</button>
                 <div class="header-actions table-controls">
                     <div class="board-search">
@@ -326,6 +336,8 @@
                     <button id="addClientBtn" class="add-client-btn" style="display: none;" data-i18n="addClientBtn">Добавить</button>
                 </div>
             </div>
+
+            <!-- Leads Table -->
             <div id="leadsTableWrapper" class="glass leads-kanban-wrap" style="display: none;">
                 <div id="kanbanBoard" class="kanban-board">
                     <div class="kanban-column" data-stage="new">
@@ -810,6 +822,7 @@
                 passwordPlaceholder: 'Введите пароль',
                 loginButton: 'Войти',
                 adminTitle: 'Админ‑панель — управление лидами',
+                brandName: 'Клиенты',
                 viewArchive: 'Архив →',
                 backToActive: '← Назад к активным',
                 analyticsBtn: 'Аналитика',
@@ -1094,6 +1107,7 @@
                 passwordPlaceholder: 'Parolni kiriting',
                 loginButton: 'Kirish',
                 adminTitle: 'Administrator paneli — mijozlar boshqaruvi',
+                brandName: 'Klientlar',
                 viewArchive: 'Arxiv →',
                 backToActive: '← Aktivlarga qaytish',
                 analyticsBtn: 'Analitika',
@@ -2722,7 +2736,7 @@
                                 labels: labels,
                                 datasets: [{
                                     data: values,
-                                    backgroundColor: ['#667eea', '#764ba2'],
+                                    backgroundColor: ['#3ecf8e', '#525252'],
                                     borderWidth: 1
                                 }]
                             },
@@ -3052,7 +3066,7 @@
             const s = String(key || '');
             let h = 0;
             for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-            return 'hsl(' + (h % 360) + ' 62% 58%)';
+            return 'hsl(' + (h % 360) + ' 45% 62%)';
         }
         function buildLeadCardHTML(lead, index) {
             const actLocked = isLeadCardActionsLocked(lead);

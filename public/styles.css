@@ -16,50 +16,91 @@
 }
 
 /* =====================================================================
-   Дизайн-система «один акцент» (Linear-style) — общие токены.
-   Цвет воронок живёт только на колонках/смысловых элементах; карточки
-   и шумовые элементы нейтральны (графит). Единый индиго-акцент.
+   Дизайн-система «один акцент» (Supabase-style) — общие токены.
+   Единственный хроматический акцент — изумруд #3ecf8e; всё остальное —
+   нейтральная монохромная серая лестница на тёплом near-black графите.
+   Цвет воронок живёт только на колонках/смысловых статус-элементах.
    ===================================================================== */
 :root {
-    --accent:      #5e6ad2;   /* единый индиго-акцент */
-    --accent-soft: #6e79ec;
-    --accent-text: #aab2ff;
+    /* Акцент — Supabase emerald (единственный хроматический акцент) */
+    --accent:      #3ecf8e;   /* было #5e6ad2 (индиго) */
+    --accent-soft: #4ade80;   /* светлее — градиенты/чарты */
+    --accent-deep: #24b47e;   /* pressed/hover */
+    --accent-text: #6ee7b7;   /* изумруд для ссылок/лейблов на тёмном (легибельность) */
+    --on-accent:   #171717;   /* ФИШКА Supabase: почти-чёрный текст на изумрудной заливке */
 
-    /* цвет воронок (только колонки) */
-    --s-new:        #868c9e;   /* новые — нейтральный графит */
+    /* цвет воронок (только колонки/статусы) */
+    --s-new:        #9a9a9a;   /* новые — нейтральный серый */
     --s-progress:   #3b82f6;   /* в работе — синий */
-    --s-thinking:   #eab308;   /* думает — жёлтый */
-    --s-successful: #22c55e;   /* успешно — зелёный */
+    --s-thinking:   #ffdb13;   /* думает — жёлтый (Supabase yellow) */
+    --s-successful: #3ecf8e;   /* успешно — бренд-изумруд */
     --s-preparing:  #a16f4a;   /* готовится — коричневый */
 
     /* сигнальные цвета (риск/просрочка) */
     --danger: #e0607a;
     --warn:   #e0a23a;
 
-    /* поверхности (плоский спокойный графит — без стекла/блюра) */
-    --bg:        #0c0d12;
-    --surface:   #16171d;   /* панели/карточки — плотная поверхность */
-    --surface-2: #1e202a;   /* вложенные элементы */
-    --bd:        rgba(255, 255, 255, 0.07);
-    --bd-2:      rgba(255, 255, 255, 0.12);
+    /* поверхности (тёплый near-black graphite — canvas-night Supabase) */
+    --bg:        #161616;
+    --surface:   #1c1c1c;   /* панели/карточки — плотная поверхность */
+    --surface-2: #262626;   /* вложенные элементы */
+    --bd:        rgba(255, 255, 255, 0.08);
+    --bd-2:      rgba(255, 255, 255, 0.14);
 
-    /* текст */
-    --text:   #e7e8ec;
-    --text-2: rgba(231, 232, 236, 0.62);
-    --text-3: rgba(231, 232, 236, 0.40);
+    /* текст — нейтральная серая лестница Supabase */
+    --text:   #ededed;
+    --text-2: #9a9a9a;
+    --text-3: #707070;
+
+    /* радиусы — квадратноватые, технические (Supabase) */
+    --r-sm:   6px;
+    --r-md:   8px;
+    --r-lg:   12px;
+    --r-xl:   16px;
+    --r-full: 9999px;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    /* самодостаточный графитовый фон + один мягкий индиго-блик (без внешних картинок) */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    /* самодостаточный тёплый near-black фон + еле заметный изумрудный намёк (без атмосферных градиентов) */
     background:
-        radial-gradient(1100px 700px at 15% -10%, rgba(94, 106, 210, 0.14), transparent 60%),
-        linear-gradient(180deg, #0c0d12 0%, #0b0c10 55%, #090a0d 100%);
+        radial-gradient(1100px 700px at 15% -10%, rgba(62, 207, 142, 0.06), transparent 60%),
+        linear-gradient(180deg, #161616 0%, #141414 55%, #121212 100%);
     background-attachment: fixed;
     min-height: 100vh;
     padding: 20px;
     color: var(--text);
     -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================
+   TYPOGRAPHY — Supabase display tier
+   Inter weight 500 + отрицательный трекинг для крупных заголовков;
+   средним заголовкам — только уплотнение трекинга (вес не трогаем).
+   ============================================ */
+
+/* Крупные display-заголовки: инженерный mid-weight 500 + плотный трекинг */
+.admin-header h1,
+.login-title,
+.login-wrapper h1,
+.kpi-value,
+.funnel-title,
+.stat-value,
+.financial-metric-value {
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+/* Средние заголовки: только уплотнение (сохраняем существующий вес) */
+.stage-title,
+.modal-header h2,
+.tasks-page-title,
+.users-page-title,
+.rq-title,
+.analytics-header h2,
+.section-title,
+.card-title {
+    letter-spacing: -0.015em;
 }
 
 /* ============================================
@@ -225,6 +266,73 @@ body {
 }
 
 /* ============================================
+   ЕДИНАЯ ТОНКАЯ ПАНЕЛЬ (app-bar) — заменяет три верхние полосы.
+   Бренд+навигация слева; поиск+Добавить+язык+колокольчик+аккаунт справа.
+   Логин-топбар (только язык) прячется, когда открыта панель.
+   ============================================ */
+.top-bar--login { justify-content: flex-start; }
+body:has(#adminPanel[style*="block"]) #loginTopBar { display: none; }
+
+.app-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin: 8px 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--bd);
+}
+
+.app-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.app-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.app-brand {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.15em;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+/* изумрудная точка-акцент в вордмарке (единственный хроматический штрих слева) */
+.app-brand::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.app-bar-nav.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.app-bar-lang { margin-left: 2px; }
+
+/* ============================================
    FORM STYLING
    ============================================ */
 
@@ -236,7 +344,7 @@ body {
 .form-wrapper.glass,
 .login-box.glass {
     padding: 40px;
-    border-radius: 20px;
+    border-radius: var(--r-xl);
 }
 
 .form-wrapper.glass {
@@ -349,20 +457,21 @@ textarea {
 .submit-btn {
     width: 100%;
     padding: 14px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--accent);
+    color: var(--on-accent);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     font-size: 1em;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
     margin-top: 10px;
 }
 
 .submit-btn:hover {
+    background: var(--accent-deep);
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 5px 15px rgba(62, 207, 142, 0.35);
 }
 
 .submit-btn:active {
@@ -412,7 +521,7 @@ textarea {
 
 .success-message {
     background: rgba(39, 174, 96, 0.25);
-    color: #86efac;
+    color: var(--accent-text);
     border: 1px solid rgba(39, 174, 96, 0.4);
 }
 
@@ -459,7 +568,7 @@ textarea {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border-radius: 20px;
+    border-radius: var(--r-xl);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     color: #fff;
@@ -470,14 +579,16 @@ textarea {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--bd);
 }
 
-.admin-header h1,
-.header-actions .btn-link {
-    color: #fff;
+.admin-header h1 {
+    color: var(--text);
+    font-size: 1.3em;
 }
 
 .header-actions {
@@ -497,7 +608,7 @@ textarea {
 
 .table-controls-wrapper.glass {
     padding: 16px;
-    border-radius: 20px;
+    border-radius: var(--r-xl);
 }
 
 .controls-toggle {
@@ -556,23 +667,33 @@ textarea {
     color: #fff;
 }
 
+/* Навигация в шапке — лёгкие «призрачные» текст-ссылки (изумруд держим редким:
+   единственная заливка в шапке — первичная кнопка «Добавить»). */
 .btn-link {
-    padding: 10px 20px;
-    background: rgba(102, 126, 234, 0.9);
-    color: white;
+    padding: 7px 12px;
+    background: transparent;
+    color: var(--text-2);
     text-decoration: none;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     font-size: 0.9em;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    display: inline-block;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    transition: background 0.15s ease, color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
 }
 
 .btn-link:hover {
-    background: #5568d3;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+/* активный раздел навигации — изумрудный текст + тонкая подложка */
+.btn-link.is-active {
+    color: var(--accent-text);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .btn-excel {
@@ -580,7 +701,7 @@ textarea {
     align-items: center;
     gap: 6px;
     padding: 10px 20px;
-    background: #27ae60;
+    background: var(--accent-deep);
     color: white;
     border: none;
     border-radius: 6px;
@@ -592,7 +713,7 @@ textarea {
 }
 
 .btn-excel:hover {
-    background: #229954;
+    background: #1c9d6b;
     transform: translateY(-1px);
 }
 
@@ -635,12 +756,12 @@ textarea {
 
 #leadsTableWrapper.glass {
     padding: 20px;
-    border-radius: 20px;
+    border-radius: var(--r-xl);
 }
 
 #analyticsWrapper.glass {
     padding: 24px;
-    border-radius: 20px;
+    border-radius: var(--r-xl);
 }
 
 .leads-table thead {
@@ -670,7 +791,7 @@ textarea {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border-radius: 20px;
+    border-radius: var(--r-xl);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
     padding: 20px;
@@ -730,7 +851,7 @@ textarea {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border-radius: 20px;
+    border-radius: var(--r-xl);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
     padding: 20px;
@@ -762,7 +883,7 @@ textarea {
     background: rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
-    border-radius: 20px;
+    border-radius: var(--r-xl);
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
     padding: 20px;
@@ -851,8 +972,8 @@ textarea {
 }
 
 @keyframes btnLivePulse {
-    0%   { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.55); }
-    100% { box-shadow: 0 0 0 12px rgba(102, 126, 234, 0); }
+    0%   { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0.55); }
+    100% { box-shadow: 0 0 0 12px rgba(62, 207, 142, 0); }
 }
 
 /* ============================================
@@ -904,7 +1025,7 @@ textarea {
 .funnel-period-btn:hover { color: #fff; }
 
 .funnel-period-btn.is-active {
-    background: linear-gradient(90deg, #667eea, #764ba2);
+    background: linear-gradient(90deg, var(--accent), var(--accent-deep));
     color: #fff;
 }
 
@@ -1798,7 +1919,7 @@ textarea {
 }
 
 .badge-successful {
-    background: #27ae60;
+    background: var(--accent-deep);
     color: white;
 }
 
@@ -1868,7 +1989,7 @@ textarea {
 
 .btn-done {
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
 }
 
 .btn-done:hover {
@@ -1908,15 +2029,15 @@ textarea {
     font-size: 0.85em;
     font-weight: 600;
     cursor: pointer;
-    background: #667eea;
-    color: white;
-    transition: transform 0.2s, box-shadow 0.2s;
+    background: var(--accent);
+    color: var(--on-accent);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .btn-edit:hover {
-    background: #5568d3;
+    background: var(--accent-deep);
     transform: translateY(-1px);
-    box-shadow: 0 3px 8px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 3px 8px rgba(62, 207, 142, 0.3);
 }
 
 .btn-edit:active {
@@ -2148,12 +2269,12 @@ input[type="number"] {
 }
 
 .btn-submit {
-    background: #27ae60;
+    background: var(--accent-deep);
     color: white;
 }
 
 .btn-submit:hover {
-    background: #229954;
+    background: #1c9d6b;
 }
 
 .btn-submit:active {
@@ -2242,7 +2363,7 @@ input[type="number"] {
 }
 
 .toast--success {
-    background: #27ae60;
+    background: var(--accent-deep);
     color: #fff;
 }
 
@@ -2283,14 +2404,15 @@ input[type="number"] {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
+    gap: 7px;
+    min-height: 36px;
+    padding: 0 12px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
+    border-radius: var(--r-md);
     cursor: pointer;
     transition: background 0.2s;
-    color: #fff;
+    color: var(--text);
 }
 
 .user-menu-trigger:hover {
@@ -2298,10 +2420,10 @@ input[type="number"] {
 }
 
 .user-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     margin-bottom: 0;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--text-2);
 }
 
 .user-role-label {
@@ -2349,19 +2471,19 @@ input[type="number"] {
 }
 
 .add-client-btn {
-    padding: 10px 20px;
-    background: #27ae60;
-    color: white;
+    padding: 9px 18px;
+    background: var(--accent);
+    color: var(--on-accent);
     border: none;
-    border-radius: 6px;
+    border-radius: var(--r-sm);
     font-size: 0.9em;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.3s, transform 0.2s;
+    transition: background 0.2s, transform 0.2s;
 }
 
 .add-client-btn:hover {
-    background: #229954;
+    background: var(--accent-deep);
     transform: translateY(-1px);
 }
 
@@ -2373,19 +2495,21 @@ input[type="number"] {
 
 .priority-btn {
     padding: 8px 14px;
-    border-radius: 20px;
-    border: 1px solid #667eea;
-    background: white;
-    color: #667eea;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--bd-2);
+    background: var(--surface-2);
+    color: var(--text);
     font-size: 0.85em;
     cursor: pointer;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .priority-btn.selected,
 .priority-btn.active {
-    background: #667eea;
-    color: white;
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: transparent;
+    font-weight: 500;
 }
 
 .priority-hint {
@@ -2401,7 +2525,7 @@ input[type="number"] {
 }
 
 .priority-buttons--checkboxes .priority-btn--check.active {
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.5);
+    box-shadow: 0 0 0 2px rgba(62, 207, 142, 0.5);
 }
 
 .priority-btn--disabled {
@@ -2641,25 +2765,24 @@ input[type="number"] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border: none;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.12);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--r-md);
+    background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
+    color: var(--text-2);
     cursor: pointer;
-    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
 .notif-bell-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text);
 }
 
-.notif-bell-emoji {
-    font-size: 1.2rem;
-    line-height: 1;
+.notif-bell-ico {
+    width: 20px;
+    height: 20px;
 }
 
 .notif-bell-badge {
@@ -2727,7 +2850,7 @@ input[type="number"] {
 }
 
 .notif-item--ok {
-    border-left-color: #22c55e;
+    border-left-color: var(--accent);
 }
 
 .notif-item--bad {
@@ -2885,8 +3008,8 @@ input[type="number"] {
     font-size: 0.8rem;
     font-weight: 800;
     color: #fff;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
+    background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+    box-shadow: 0 2px 10px rgba(62, 207, 142, 0.4);
 }
 
 .requests-hint {
@@ -2925,7 +3048,7 @@ input[type="number"] {
     justify-content: center;
     border-radius: 50%;
     font-size: 1.6rem;
-    color: #86efac;
+    color: var(--accent-text);
     background: rgba(34, 197, 94, 0.12);
     border: 1px solid rgba(34, 197, 94, 0.3);
 }
@@ -2969,7 +3092,7 @@ input[type="number"] {
 }
 
 .approval-card--delete::before { background: linear-gradient(180deg, #f43f5e, #be123c); }
-.approval-card--close::before  { background: linear-gradient(180deg, #22c55e, #16a34a); }
+.approval-card--close::before  { background: linear-gradient(180deg, var(--accent), var(--accent-deep)); }
 
 .approval-card--delete .approval-card__icon {
     background: rgba(244, 63, 94, 0.14);
@@ -2986,8 +3109,8 @@ input[type="number"] {
     border: 1px solid rgba(244, 63, 94, 0.4);
 }
 .approval-card--close .approval-card__type-badge {
-    background: rgba(34, 197, 94, 0.18);
-    color: #86efac;
+    background: rgba(62, 207, 142, 0.18);
+    color: var(--accent-text);
     border: 1px solid rgba(34, 197, 94, 0.4);
 }
 
@@ -3069,7 +3192,7 @@ input[type="number"] {
     font-weight: 700;
 }
 
-.approval-detail__v--money { color: #86efac; }
+.approval-detail__v--money { color: var(--accent-text); }
 
 .approval-detail--comment {
     display: block;
@@ -3123,7 +3246,7 @@ input[type="number"] {
 
 .approval-card__btn--ok {
     color: #fff;
-    background: linear-gradient(135deg, #16a34a, #22c55e);
+    background: linear-gradient(135deg, var(--accent-deep), var(--accent));
     box-shadow: 0 4px 14px rgba(22, 163, 74, 0.32);
 }
 
@@ -3252,9 +3375,9 @@ button.btn-preparing-edit--disabled {
     background: rgba(0, 0, 0, 0.2);
     border-left: 3px solid rgba(255, 255, 255, 0.2);
 }
-.hist-card--won { border-left-color: #22c55e; }
+.hist-card--won { border-left-color: var(--accent); }
 .hist-card--lost { border-left-color: #f43f5e; }
-.hist-card--open { border-left-color: #667eea; }
+.hist-card--open { border-left-color: var(--accent); }
 .hist-card__top {
     display: flex;
     align-items: center;
@@ -3269,10 +3392,10 @@ button.btn-preparing-edit--disabled {
     padding: 3px 8px;
     border-radius: 7px;
 }
-.hist-status--won { background: rgba(34, 197, 94, 0.18); color: #86efac; }
+.hist-status--won { background: rgba(62, 207, 142, 0.18); color: var(--accent-text); }
 .hist-status--lost { background: rgba(244, 63, 94, 0.18); color: #fda4af; }
-.hist-status--open { background: rgba(102, 126, 234, 0.2); color: #b4c0ff; }
-.hist-amount { font-weight: 700; color: #86efac; font-size: 0.9rem; }
+.hist-status--open { background: rgba(62, 207, 142, 0.2); color: var(--accent-text); }
+.hist-amount { font-weight: 700; color: var(--accent-text); font-size: 0.9rem; }
 .hist-date { margin-left: auto; font-size: 0.78rem; color: rgba(255,255,255,0.55); }
 .hist-by { font-size: 0.8rem; color: rgba(255,255,255,0.7); margin-top: 6px; }
 .hist-comment { font-size: 0.82rem; font-style: italic; color: rgba(255,255,255,0.78); margin-top: 6px; line-height: 1.4; }
@@ -3331,7 +3454,7 @@ button.btn-preparing-edit--disabled {
     background: rgba(0, 0, 0, 0.18);
 }
 .timeline-item__meta { margin-top: 8px; font-size: 0.78rem; color: rgba(255,255,255,0.5); }
-.timeline-item--comment .timeline-item__ico { background: rgba(102,126,234,0.16); border-color: rgba(102,126,234,0.3); }
+.timeline-item--comment .timeline-item__ico { background: rgba(62,207,142,0.16); border-color: rgba(62,207,142,0.3); }
 .timeline-item--closed_won .timeline-item__ico { background: rgba(34,197,94,0.16); border-color: rgba(34,197,94,0.3); }
 .timeline-item--closed_lost .timeline-item__ico { background: rgba(244,63,94,0.16); border-color: rgba(244,63,94,0.3); }
 
@@ -3425,7 +3548,7 @@ button.btn-preparing-edit--disabled {
     transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
 .task-when-chip:hover { color: var(--text); }
-.task-when-chip.active { color: #fff; background: var(--accent); border-color: transparent; }
+.task-when-chip.active { color: var(--on-accent); background: var(--accent); border-color: transparent; }
 
 /* строки задач (модалка лида + панель) */
 .tasks-list, .tasks-panel-body { display: flex; flex-direction: column; gap: 8px; }
@@ -3453,7 +3576,7 @@ button.btn-preparing-edit--disabled {
     color: var(--text-2); background: var(--surface-2); border: 1px solid var(--bd-2);
     transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
-.task-row-done:hover { color: #fff; background: #22c55e; border-color: transparent; }
+.task-row-done:hover { color: var(--on-accent); background: var(--accent); border-color: transparent; }
 
 /* секции панели задач */
 .tasks-section { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
@@ -3465,7 +3588,7 @@ button.btn-preparing-edit--disabled {
 /* переключатель «Мои / Все» */
 .tasks-scope-toggle { display: inline-flex; gap: 4px; margin-left: auto; margin-right: 10px; }
 .tasks-scope-btn { padding: 4px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--bd); }
-.tasks-scope-btn.active { color: #fff; background: var(--accent); border-color: transparent; }
+.tasks-scope-btn.active { color: var(--on-accent); background: var(--accent); border-color: transparent; }
 
 /* кнопка «Задачи» в навигации (с бейджем) */
 .tasks-page-btn { display: inline-flex; align-items: center; gap: 6px; }
@@ -3482,5 +3605,5 @@ button.btn-preparing-edit--disabled {
     transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
 .tasks-filter-chip:hover { color: var(--text); }
-.tasks-filter-chip.active { color: #fff; background: var(--accent); border-color: transparent; }
+.tasks-filter-chip.active { color: var(--on-accent); background: var(--accent); border-color: transparent; }
 .tasks-page .tasks-panel-body { max-width: 720px; }

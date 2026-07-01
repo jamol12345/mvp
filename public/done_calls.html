@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Архив — админ‑панель</title>
     <link rel="icon" type="image/png" href="/kukcha.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
     <!-- Socket.IO client served by our backend at the same origin -->
     <script src="/socket.io/socket.io.js"></script>
@@ -17,12 +20,12 @@
        (метка) и тонкой полоске слева. Источники нейтрализованы.
        ===================================================================== */
     #archivePanel {
-        --accent:      #5e6ad2;   /* единый индиго-акцент */
-        --accent-text: #aab2ff;
-        --o-success:   #22c55e;   /* успешно — зелёный */
-        --o-callback:  #eab308;   /* перезвонить — жёлтый */
+        --accent:      #3ecf8e;   /* единый изумрудный акцент (Supabase) */
+        --accent-text: #6ee7b7;
+        --o-success:   #3ecf8e;   /* успешно — бренд-изумруд */
+        --o-callback:  #ffdb13;   /* перезвонить — жёлтый (Supabase) */
         --o-rejected:  #e0607a;   /* отказ — красный (приглушённый) */
-        --o-new:       #868c9e;   /* новый — нейтральный графит */
+        --o-new:       #9a9a9a;   /* новый — нейтральный серый */
     }
 
     /* ---- сетка ---- */
@@ -55,7 +58,7 @@
     #archiveCardGrid .lead-card.out-rejected   { --oc:var(--o-rejected); }
     #archiveCardGrid .lead-card.out-new        { --oc:var(--o-new); }
     #archiveCardGrid .arch-top { display:flex; align-items:center; gap:12px; }
-    #archiveCardGrid .arch-avatar { width:42px; height:42px; flex-shrink:0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; color:#fff; background:linear-gradient(135deg,#6366f1,#8b5cf6); }
+    #archiveCardGrid .arch-avatar { width:42px; height:42px; flex-shrink:0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; color:#fff; background:linear-gradient(135deg,#3a3a3a,#262626); }
     #archiveCardGrid .arch-id { flex:1; min-width:0; }
     #archiveCardGrid .arch-id .lead-card-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     #archiveCardGrid .arch-outcome { flex-shrink:0; }
@@ -85,7 +88,7 @@
         border-color:color-mix(in srgb, var(--o-callback) 32%, transparent);
     }
     #archiveCardGrid .badge-successful {
-        background:color-mix(in srgb, var(--o-success) 16%, transparent); color:#86efac;
+        background:color-mix(in srgb, var(--o-success) 16%, transparent); color:var(--accent-text);
         border-color:color-mix(in srgb, var(--o-success) 32%, transparent);
     }
     #archiveCardGrid .badge-rejected {
