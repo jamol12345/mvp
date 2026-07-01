@@ -1851,7 +1851,7 @@
                     ensureNotifPermission();
                     getAudioCtx();
                     updateSoundToggleLabel();
-                    loadLeads();
+                    loadLeads().then(routeInitial).catch(routeInitial);
                 } else {
                     showLoginError(t('errorInvalidToken'));
                 }
@@ -2015,7 +2015,7 @@
             startRealtime();
             updateSoundToggleLabel();
             primeAudioOnFirstGesture();
-            loadLeads();
+            loadLeads().then(routeInitial).catch(routeInitial);
         }
 
         // ============================================
@@ -3305,15 +3305,21 @@
                     col.appendChild(card);
                 });
             });
+            // Не «выталкивать» доску наверх, когда открыт раздел (Задачи/Аналитика/
+            // Команда/Запросы) — иначе фоновый live-sync/realtime loadLeads() показал бы
+            // доску поверх раздела. Контент карточек уже отрисован выше; тут только видимость.
+            const _sectionOpen = (typeof routeCurrentView === 'function') && routeCurrentView() !== 'board';
             const noLeadsEl = document.getElementById('noLeadsMessage');
-            if (noLeadsEl) {
+            if (noLeadsEl && !_sectionOpen) {
                 const searchInput = document.getElementById('activeSearchInput');
                 const searching = searchInput && searchInput.value.trim();
                 const p = noLeadsEl.querySelector('p');
                 if (p) p.textContent = (filtered.length === 0 && searching) ? t('searchNoResults') : t('noLeads');
                 noLeadsEl.style.display = filtered.length === 0 ? 'block' : 'none';
             }
-            document.getElementById('leadsTableWrapper').style.display = filtered.length > 0 ? 'block' : 'none';
+            if (!_sectionOpen) {
+                document.getElementById('leadsTableWrapper').style.display = filtered.length > 0 ? 'block' : 'none';
+            }
             updateStageCounters();
             initKanbanSortables();
         }
@@ -4846,6 +4852,76 @@
                 alert(t('errorNetwork'));
             }
         }
+
+        // ============================================
+        // HASH-РОУТИНГ разделов (#tasks / #analytics / #team / #requests).
+        // URL ↔ вид: даёт «назад/вперёд», сохранение раздела при F5 и шаринг ссылок.
+        // Переиспользует существующие кнопки навигации и «Назад к активным».
+        // Архив — отдельная страница (done_calls.html), тут не участвует.
+        // ============================================
+        const ROUTE_NAV = { tasks: 'tasksPageBtn', analytics: 'analyticsBtn', team: 'usersBtn', requests: 'requestsBtn' };
+        const ROUTE_WRAP = { tasks: 'tasksWrapper', analytics: 'analyticsWrapper', team: 'usersWrapper', requests: 'requestsWrapper' };
+        let _routingBusy = false;
+
+        function _routeShown(id) {
+            const el = document.getElementById(id);
+            return !!el && el.offsetParent !== null;
+        }
+        function routeCurrentView() {
+            for (const v of ['analytics', 'tasks', 'team', 'requests']) {
+                if (_routeShown(ROUTE_WRAP[v])) return v;
+            }
+            return 'board';
+        }
+        function routeAllowed(v) {
+            if (v === 'board') return true;
+            const b = document.getElementById(ROUTE_NAV[v]);
+            return !!b && b.style.display !== 'none';
+        }
+        function routeRestoreBoard() {
+            const cur = routeCurrentView();
+            if (cur === 'analytics') { const b = document.getElementById('analyticsBtn'); if (b) b.click(); return; }
+            if (cur === 'tasks') { const b = document.getElementById('tasksBack'); if (b) { b.click(); return; } }
+            if (cur === 'team') { const b = document.getElementById('usersBack'); if (b) { b.click(); return; } }
+            if (cur === 'requests') { const b = document.getElementById('requestsBack'); if (b) { b.click(); return; } }
+            const leads = document.getElementById('leadsTableWrapper');
+            if (leads && leads.style.display === 'none') { try { loadLeads(); } catch (e) {} }
+        }
+        function applyRoute() {
+            if (!adminToken) return;
+            let v = (location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
+            if (!(v in ROUTE_NAV)) v = 'board';
+            if (v !== 'board' && !routeAllowed(v)) v = 'board';
+            if (routeCurrentView() === v) return;
+            _routingBusy = true;
+            try {
+                if (v === 'board') routeRestoreBoard();
+                else { const b = document.getElementById(ROUTE_NAV[v]); if (b) b.click(); }
+            } finally { _routingBusy = false; }
+        }
+        // Начальная маршрутизация после входа: реагируем ТОЛЬКО на deep-link в раздел
+        // (#tasks/#analytics/…). Пустой hash = доска по умолчанию — не форсируем, чтобы
+        // не перебить быстрый клик пользователя во время первой загрузки.
+        function routeInitial() {
+            const v = (location.hash || '').replace(/^#\/?/, '').trim().toLowerCase();
+            if (v in ROUTE_NAV) applyRoute();
+        }
+        function syncHashFromView() {
+            if (_routingBusy) return;
+            const v = routeCurrentView();
+            const target = v === 'board' ? '' : ('#' + v);
+            if ((location.hash || '') === target) return;
+            if (target === '') history.replaceState(null, '', location.pathname + location.search);
+            else location.hash = target;
+        }
+        function setupHashRouter() {
+            Object.values(ROUTE_NAV).concat(['tasksBack', 'usersBack', 'requestsBack']).forEach((id) => {
+                const b = document.getElementById(id);
+                if (b) b.addEventListener('click', () => { if (!_routingBusy) setTimeout(syncHashFromView, 0); });
+            });
+            window.addEventListener('hashchange', applyRoute);
+        }
+        setupHashRouter();
 
         takeAdminTokenFromQueryOnce();
         tryRestoreSession();
