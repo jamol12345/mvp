@@ -66,7 +66,8 @@ const defaultCorsOrigins = [
   'http://localhost:5173',
   'https://crm-kukcha.vercel.app',
   'https://mvp-kokcha.netlify.app',
-  'https://api.kukcha-eshiklari.uz'
+  'https://api.kukcha-eshiklari.uz',
+  'https://kukcha-eshiklari.uz',
 ];
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
